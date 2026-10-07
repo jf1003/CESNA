@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .badge-default { background-color: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
     .badge-p { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
     .badge-m { background-color: #fef9c3; color: #a16207; border: 1px solid #fde047; }
     .badge-r { background-color: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
@@ -73,7 +74,7 @@
           + Ajouter une date
         </button>
         <button id="btnPlanifierDates" class="px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold rounded-md hover:bg-slate-200 transition">
-          🗓️ Planifier plusieurs dates
+          🗓️ Planifier dates (JJ/MM/AAAA)
         </button>
       </div>
       <div class="flex items-center gap-3">
@@ -119,11 +120,29 @@
     </div>
   </div>
 
+  <!-- MODAL: AJOUT MASSIF DE DATES -->
+  <div id="modalDates" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl">
+      <h3 class="text-base font-bold text-slate-900">Planifier / Coller des dates</h3>
+      <p class="text-xs text-slate-500">Collez votre liste de dates au format <strong>JJ/MM/AAAA</strong> (une par ligne ou séparées par des virgules). Elles seront automatiquement triées chronologiquement.</p>
+      <textarea id="txtDates" rows="8" placeholder="Exemple :&#10;07/10/2026&#10;14/10/2026&#10;21/10/2026" class="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"></textarea>
+      <div class="flex items-center justify-between border-t border-slate-100 pt-3">
+        <button id="btnGenererHebdo" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold">
+          ⚡ Générateur automatique hebdo
+        </button>
+        <div class="flex gap-2">
+          <button id="btnFermerModalDates" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200">Annuler</button>
+          <button id="btnValiderDates" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Valider et trier</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- FIREBASE (SDK v10) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
     import { 
-      getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot 
+      getFirestore, doc, setDoc, deleteDoc, onSnapshot 
     } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
     const CODE_SECRET = "Cesna365";
@@ -140,7 +159,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Éléments UI
+    // Éléments DOM
     const cloudStatus = document.getElementById("cloudStatus");
     const selectCours = document.getElementById("selectCours");
     const countEtudiants = document.getElementById("countEtudiants");
@@ -157,19 +176,54 @@
       cloudStatus.innerHTML = `<span class="w-2.5 h-2.5 rounded-full ${dot}"></span><span>${texte}</span>`;
     }
 
-    // 1. ÉCOUTER LE CATALOGUE CENTRAL DES COURS EN TEMPS RÉEL
+    // UTILITAIRES DE DATE (JJ/MM/AAAA) ET TRI CHRONOLOGIQUE
+    function parserDateFR(str) {
+      if (!str) return 0;
+      const parts = str.trim().split('/');
+      if (parts.length === 3) {
+        const j = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const a = parseInt(parts[2], 10);
+        return new Date(a, m, j).getTime();
+      }
+      return Date.parse(str) || 0;
+    }
+
+    function trierChronologiquement() {
+      if (!registre.seances || registre.seances.length <= 1) return;
+
+      const mapSeances = registre.seances.map((s, idx) => ({ dateStr: s, oldIdx: idx, time: parserDateFR(s) }));
+      mapSeances.sort((a, b) => a.time - b.time);
+
+      const newSeances = [];
+      const newPointages = {};
+
+      mapSeances.forEach((item, newIdx) => {
+        newSeances.push(item.dateStr);
+        (registre.etudiants || []).forEach(etu => {
+          const oldKey = `${etu}_${item.oldIdx}`;
+          const newKey = `${etu}_${newIdx}`;
+          if (registre.pointages && registre.pointages[oldKey]) {
+            newPointages[newKey] = registre.pointages[oldKey];
+          }
+        });
+      });
+
+      registre.seances = newSeances;
+      registre.pointages = newPointages;
+    }
+
+    // 1. CATALOGUE GLOBAL DES COURS
     function ecouterCatalogueCours() {
       const catRef = doc(db, "meta", "catalogue");
       onSnapshot(catRef, async (snap) => {
         if (snap.exists() && snap.data().cours && snap.data().cours.length > 0) {
           listeCours = snap.data().cours;
         } else {
-          // Premier démarrage
           listeCours = ["354-e-commerce-90p"];
           await setDoc(catRef, { cours: listeCours });
         }
 
-        // Si aucun cours actif ou s'il n'existe plus
         if (!coursActif || !listeCours.includes(coursActif)) {
           coursActif = listeCours[0];
           actualiserURL(coursActif);
@@ -201,7 +255,7 @@
       connecterCours(coursActif);
     });
 
-    // 2. CONNECTER LE COURS ACTIF EN TEMPS RÉEL (FIRESTORE)
+    // 2. CONNECTER LE COURS ACTIF
     function connecterCours(coursId) {
       if (unsubscribeCours) unsubscribeCours();
       majStatutCloud('sync', 'Synchronisation...');
@@ -215,12 +269,14 @@
           if (!registre.pointages) registre.pointages = {};
         } else {
           registre = {
-            etudiants: ["AKAKPO Yayra A", "ANOUME Ange V", "CHOUF Zidane"],
+            etudiants: ["AKAKPO Yayra A", "ANOUME Ange V"],
             seances: ["07/10/2026", "14/10/2026"],
             pointages: {}
           };
+          trierChronologiquement();
           setDoc(coursRef, registre);
         }
+        trierChronologiquement();
         majStatutCloud('ok', 'En direct Cloud');
         renderTable();
       }, (err) => {
@@ -232,6 +288,7 @@
     async function sauverFirestore() {
       majStatutCloud('sync', 'Sauvegarde...');
       try {
+        trierChronologiquement();
         const coursRef = doc(db, "cours", coursActif);
         await setDoc(coursRef, registre);
         majStatutCloud('ok', 'En direct Cloud');
@@ -241,7 +298,7 @@
       }
     }
 
-    // 3. AJOUTER UN COURS (PROTÉGÉ PAR LE CODE Cesna365)
+    // 3. AJOUTER UN COURS (Code Cesna365)
     document.getElementById("btnNouveauCours").addEventListener("click", async () => {
       const code = prompt("Veuillez saisir le code d'autorisation :");
       if (code !== CODE_SECRET) {
@@ -265,7 +322,7 @@
       connecterCours(coursActif);
     });
 
-    // 4. SUPPRIMER UN COURS (PROTÉGÉ PAR LE CODE Cesna365)
+    // 4. SUPPRIMER UN COURS (Code Cesna365)
     document.getElementById("btnSupprimerCours").addEventListener("click", async () => {
       if (listeCours.length <= 1) {
         alert("Impossible de supprimer le seul cours restant.");
@@ -291,52 +348,151 @@
       }
     });
 
-    // 5. GESTION DES SÉANCES ET VRAIES DATES
+    // 5. AJOUT D'UNE SÉANCE (JJ/MM/AAAA)
     document.getElementById("btnAjouterSeance").addEventListener("click", () => {
-      const auj = new Date().toISOString().split('T')[0];
-      const saisie = prompt("Date de la séance (JJ/MM/AAAA ou format libre) :", formatDateFr(auj));
+      const now = new Date();
+      const defaut = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+      const saisie = prompt("Date de la séance (Format JJ/MM/AAAA) :", defaut);
       if (!saisie) return;
 
-      registre.seances.push(saisie.trim());
-      renderTable();
-      sauverFirestore();
+      const dateClean = saisie.trim();
+      if (!registre.seances.includes(dateClean)) {
+        registre.seances.push(dateClean);
+        trierChronologiquement();
+        renderTable();
+        sauverFirestore();
+      } else {
+        alert("Cette date existe déjà dans le registre.");
+      }
     });
 
+    // 6. PLANIFICATION & IMPORT MASSIF DE DATES EN JJ/MM/AAAA
+    const modalDates = document.getElementById("modalDates");
+    const txtDates = document.getElementById("txtDates");
+
     document.getElementById("btnPlanifierDates").addEventListener("click", () => {
-      const dateDepart = prompt("Date de départ (AAAA-MM-JJ) :", new Date().toISOString().split('T')[0]);
-      if (!dateDepart) return;
-      const nb = parseInt(prompt("Combien de séances hebdomadaires planifier ?", "10"), 10);
+      txtDates.value = "";
+      modalDates.classList.remove("hidden");
+      modalDates.classList.add("flex");
+    });
+
+    document.getElementById("btnFermerModalDates").addEventListener("click", () => {
+      modalDates.classList.add("hidden");
+      modalDates.classList.remove("flex");
+    });
+
+    document.getElementById("btnValiderDates").addEventListener("click", () => {
+      const raw = txtDates.value;
+      const lignes = raw.split(/[\n,;]+/).map(s => s.trim()).filter(s => s.length > 0);
+      let ajouts = 0;
+
+      lignes.forEach(l => {
+        if (!registre.seances.includes(l)) {
+          registre.seances.push(l);
+          ajouts++;
+        }
+      });
+
+      if (ajouts > 0) {
+        trierChronologiquement();
+        renderTable();
+        sauverFirestore();
+      }
+      modalDates.classList.add("hidden");
+      modalDates.classList.remove("flex");
+    });
+
+    // Générateur hebdo automatique en JJ/MM/AAAA
+    document.getElementById("btnGenererHebdo").addEventListener("click", () => {
+      const debut = prompt("Date de départ (JJ/MM/AAAA) :", "07/10/2026");
+      if (!debut) return;
+      const nb = parseInt(prompt("Nombre de semaines (séances) :", "10"), 10);
       if (isNaN(nb) || nb <= 0) return;
 
-      let d = new Date(dateDepart);
+      const parts = debut.split('/');
+      if (parts.length !== 3) {
+        alert("Veuillez utiliser le format JJ/MM/AAAA (ex: 07/10/2026)");
+        return;
+      }
+
+      let d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+      const res = [];
       for (let i = 0; i < nb; i++) {
         const j = String(d.getDate()).padStart(2, '0');
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const a = d.getFullYear();
-        registre.seances.push(`${j}/${m}/${a}`);
+        res.push(`${j}/${m}/${a}`);
         d.setDate(d.getDate() + 7);
       }
-      renderTable();
-      sauverFirestore();
+      txtDates.value = res.join('\n');
     });
 
-    function formatDateFr(isoStr) {
-      if (!isoStr || !isoStr.includes('-')) return isoStr;
-      const [a, m, j] = isoStr.split('-');
-      return `${j}/${m}/${a}`;
-    }
+    // SUPPRIMER UNE SÉANCE / DATE
+    window.supprimerSeance = (idx) => {
+      const nomDate = registre.seances[idx];
+      if (confirm(`Voulez-vous vraiment supprimer la date du ${nomDate} ?`)) {
+        registre.seances.splice(idx, 1);
 
-    // 6. RENDU GRAPHIQUE COMPLET
+        const cleanPointages = {};
+        (registre.etudiants || []).forEach(etu => {
+          let newSIdx = 0;
+          for (let s = 0; s <= registre.seances.length; s++) {
+            if (s === idx) continue;
+            const oldKey = `${etu}_${s}`;
+            if (registre.pointages && registre.pointages[oldKey]) {
+              cleanPointages[`${etu}_${newSIdx}`] = registre.pointages[oldKey];
+            }
+            newSIdx++;
+          }
+        });
+
+        registre.pointages = cleanPointages;
+        trierChronologiquement();
+        renderTable();
+        sauverFirestore();
+      }
+    };
+
+    // RENOMMER UNE SÉANCE
+    window.renommerSeance = (idx) => {
+      const nv = prompt("Modifier la date (JJ/MM/AAAA) :", registre.seances[idx]);
+      if (nv && nv.trim() !== "") {
+        registre.seances[idx] = nv.trim();
+        trierChronologiquement();
+        renderTable();
+        sauverFirestore();
+      }
+    };
+
+    // TOUT POINTER EN "P" SUR UNE DATE
+    window.pointerTousPresents = (sIdx) => {
+      if (!confirm(`Marquer tous les étudiants comme "Présents" (P) pour le ${registre.seances[sIdx]} ?`)) return;
+      if (!registre.pointages) registre.pointages = {};
+      (registre.etudiants || []).forEach(etu => {
+        registre.pointages[`${etu}_${sIdx}`] = 'P';
+      });
+      renderTable();
+      sauverFirestore();
+    };
+
+    // 7. RENDU DU TABLEAU AVEC PAR DÉFAUT LE "?"
     function renderTable() {
       countEtudiants.innerText = (registre.etudiants || []).length;
 
-      // En-têtes de dates avec option de renommage/suppression au clic
+      // En-têtes des dates
       let headerHtml = `<div class="flex">`;
       (registre.seances || []).forEach((s, idx) => {
         headerHtml += `
-          <div class="p-2.5 text-center border-l border-slate-200 min-w-[95px] flex-1 font-semibold text-slate-700 group relative">
-            <span class="cursor-pointer hover:text-indigo-600" title="Cliquer pour renommer" onclick="window.renommerSeance(${idx})">${s}</span>
-            <button onclick="window.supprimerSeance(${idx})" title="Supprimer cette séance" class="hidden group-hover:inline ml-1 text-slate-400 hover:text-rose-600 text-xs">×</button>
+          <div class="p-2 text-center border-l border-slate-200 min-w-[105px] flex-1 font-semibold text-slate-700 group relative bg-slate-50 hover:bg-slate-100 transition">
+            <span class="cursor-pointer hover:text-indigo-600 block text-xs" title="Cliquer pour modifier" onclick="window.renommerSeance(${idx})">${s}</span>
+            <div class="mt-1 flex items-center justify-center gap-1">
+              <button onclick="window.pointerTousPresents(${idx})" title="Tout pointer Présent (P) pour cette date" class="px-1 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold transition">
+                ✓ Tous P
+              </button>
+            </div>
+            <button onclick="window.supprimerSeance(${idx})" title="Supprimer cette date" class="absolute top-1 right-1 w-4 h-4 rounded-full bg-slate-200 hover:bg-rose-600 hover:text-white flex items-center justify-center text-[10px] text-slate-600 transition shadow-sm">
+              ✕
+            </button>
           </div>`;
       });
       headerHtml += `</div>`;
@@ -355,42 +511,54 @@
 
         (registre.seances || []).forEach((s, sIdx) => {
           const key = `${etu}_${sIdx}`;
-          const val = (registre.pointages && registre.pointages[key]) || 'P';
+          // PAR DÉFAUT : '?'
+          const val = (registre.pointages && registre.pointages[key]) || '?';
 
           if (val === 'P') { totalPresents += 1; totalValides += 1; }
           else if (val === 'M') { totalValides += 1; }
           else if (val === 'R') { totalPresents += 0.8; totalValides += 1; }
           else if (val === 'A') { totalValides += 1; }
-          // 'T' (Inscription tardive) n'affecte pas le quota
+          // '?' et 'T' ne comptent pas dans le dénominateur tant que ce n'est pas pointé
 
           const classes = {
-            'P': 'badge-p', 'M': 'badge-m', 'R': 'badge-r', 'A': 'badge-a', 'T': 'badge-t'
-          }[val] || 'badge-p';
+            '?': 'badge-default',
+            'P': 'badge-p', 
+            'M': 'badge-m', 
+            'R': 'badge-r', 
+            'A': 'badge-a', 
+            'T': 'badge-t'
+          }[val] || 'badge-default';
 
           row += `
-            <div class="p-1.5 text-center border-l border-slate-100 min-w-[95px] flex-1 flex justify-center items-center">
+            <div class="p-1.5 text-center border-l border-slate-100 min-w-[105px] flex-1 flex justify-center items-center">
               <button data-key="${key}" class="btn-pointage w-9 h-8 rounded-md font-bold text-xs shadow-sm transition hover:scale-105 active:scale-95 ${classes}">
                 ${val}
               </button>
             </div>`;
         });
 
-        const pct = totalValides > 0 ? Math.round((totalPresents / totalValides) * 100) : 100;
-        const color = pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
+        // Calcul pourcentage
+        let pctDisplay = "-";
+        let color = "text-slate-400";
+        if (totalValides > 0) {
+          const pct = Math.round((totalPresents / totalValides) * 100);
+          pctDisplay = `${pct}%`;
+          color = pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
+        }
 
         row += `</div></td>
-          <td class="p-3 text-center font-bold text-sm bg-slate-50/60 ${color}">${pct}%</td>
+          <td class="p-3 text-center font-bold text-sm bg-slate-50/60 ${color}">${pctDisplay}</td>
         </tr>`;
 
         tableBody.innerHTML += row;
       });
 
-      // Pointage au clic
+      // Cycle au clic : '?' -> 'P' -> 'R' -> 'M' -> 'A' -> 'T' -> '?'
       document.querySelectorAll(".btn-pointage").forEach(btn => {
         btn.addEventListener("click", () => {
           const key = btn.getAttribute("data-key");
-          const ordres = ['P', 'R', 'M', 'A', 'T'];
-          const actuel = (registre.pointages && registre.pointages[key]) || 'P';
+          const ordres = ['?', 'P', 'R', 'M', 'A', 'T'];
+          const actuel = (registre.pointages && registre.pointages[key]) || '?';
           const next = ordres[(ordres.indexOf(actuel) + 1) % ordres.length];
 
           if (!registre.pointages) registre.pointages = {};
@@ -401,25 +569,7 @@
       });
     }
 
-    // Fonctions globales pour les séances
-    window.renommerSeance = (idx) => {
-      const nv = prompt("Nouvelle date / intitulé :", registre.seances[idx]);
-      if (nv && nv.trim() !== "") {
-        registre.seances[idx] = nv.trim();
-        renderTable();
-        sauverFirestore();
-      }
-    };
-
-    window.supprimerSeance = (idx) => {
-      if (confirm(`Supprimer la séance du ${registre.seances[idx]} ?`)) {
-        registre.seances.splice(idx, 1);
-        renderTable();
-        sauverFirestore();
-      }
-    };
-
-    // 7. GESTION DES ÉTUDIANTS
+    // 8. GESTION DES ÉTUDIANTS
     const modalEtu = document.getElementById("modalEtudiants");
     document.getElementById("btnGererEtudiants").addEventListener("click", () => {
       document.getElementById("txtEtudiants").value = (registre.etudiants || []).join('\n');
@@ -439,12 +589,12 @@
       sauverFirestore();
     });
 
-    // 8. EXPORT EXCEL
+    // 9. EXPORT EXCEL OFFICIEL
     document.getElementById("btnExportExcel").addEventListener("click", () => {
       const data = (registre.etudiants || []).map((etu, i) => {
         const ligne = { "#": i + 1, "Nom et Prénom": etu };
         (registre.seances || []).forEach((s, idx) => {
-          ligne[s] = (registre.pointages && registre.pointages[`${etu}_${idx}`]) || 'P';
+          ligne[s] = (registre.pointages && registre.pointages[`${etu}_${idx}`]) || '?';
         });
         return ligne;
       });
@@ -454,7 +604,7 @@
       XLSX.writeFile(wb, `CESNa_${coursActif}.xlsx`);
     });
 
-    // Initialisation
+    // Démarrage
     ecouterCatalogueCours();
   </script>
 </body>
