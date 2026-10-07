@@ -32,24 +32,29 @@
         </div>
       </div>
 
-      <!-- SÉLECTEUR DE COURS & STATUS FIRESTORE -->
-      <div class="flex items-center gap-3 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+      <!-- SÉLECTEUR DE COURS & ACTIONS SÉCURISÉES -->
+      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
         <label for="selectCours" class="text-xs font-semibold text-slate-600">Cours :</label>
         <select id="selectCours" class="bg-white border border-slate-300 rounded px-2 py-1 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <!-- Rempli dynamiquement -->
+          <option value="">Chargement...</option>
         </select>
-        <button id="btnNouveauCours" title="Ajouter un cours" class="px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold hover:bg-indigo-100 transition">
-          + Nouveau cours
+        
+        <button id="btnNouveauCours" title="Code Cesna365 requis" class="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold hover:bg-indigo-100 transition">
+          + Cours
         </button>
-        <div id="cloudStatus" class="flex items-center gap-1 text-xs text-slate-500 pl-2 border-l border-slate-200">
-          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <button id="btnSupprimerCours" title="Supprimer le cours actif (Code Cesna365 requis)" class="px-2 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded text-xs font-semibold hover:bg-rose-100 transition">
+          🗑️
+        </button>
+        
+        <div id="cloudStatus" class="flex items-center gap-1.5 text-xs text-slate-500 pl-2 border-l border-slate-200">
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
           <span>Connexion Cloud...</span>
         </div>
       </div>
 
-      <!-- ACTIONS SECONDAIRES -->
+      <!-- EXPORT -->
       <div class="flex items-center gap-2">
-        <button id="btnExportExcel" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5">
+        <button id="btnExportExcel" class="px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5">
           <span>📊 Exporter Excel</span>
         </button>
       </div>
@@ -60,15 +65,15 @@
   <!-- CONTENU PRINCIPAL -->
   <main class="max-w-7xl mx-auto p-6 flex-1 w-full space-y-6">
 
-    <!-- BARRE D'OUTILS SEANCES ET GESTION -->
+    <!-- BARRE D'OUTILS SÉANCES -->
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center gap-3">
-        <span class="text-sm font-semibold text-slate-700">Séances :</span>
-        <button id="btnAjouterSeance" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-700 transition">
-          + Ajouter une séance
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm font-semibold text-slate-700 mr-1">Séances / Dates :</span>
+        <button id="btnAjouterSeance" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-700 transition shadow-sm">
+          + Ajouter une date
         </button>
-        <button id="btnGenererDates" class="px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold rounded-md hover:bg-slate-200 transition">
-          🗓️ Planifier dates
+        <button id="btnPlanifierDates" class="px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold rounded-md hover:bg-slate-200 transition">
+          🗓️ Planifier plusieurs dates
         </button>
       </div>
       <div class="flex items-center gap-3">
@@ -85,15 +90,15 @@
           <thead>
             <tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-600">
               <th class="p-3 w-12 text-center">#</th>
-              <th class="p-3 min-w-[200px]">Nom et Prénom</th>
+              <th class="p-3 min-w-[220px]">Nom et Prénom</th>
               <th id="datesHeaderContainer" class="p-0">
-                <!-- Colonnes de dates injectées dynamiquement -->
+                <!-- Colonnes de dates -->
               </th>
               <th class="p-3 w-28 text-center bg-slate-100/70">Présence %</th>
             </tr>
           </thead>
           <tbody id="tableBody" class="divide-y divide-slate-100">
-            <!-- Lignes des étudiants injectées ici -->
+            <!-- Étudiants injectés dynamiquement -->
           </tbody>
         </table>
       </div>
@@ -105,8 +110,8 @@
   <div id="modalEtudiants" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl">
       <h3 class="text-base font-bold text-slate-900">Modifier la liste des étudiants</h3>
-      <p class="text-xs text-slate-500">Collez ou tapez un nom par ligne (ex. : Dupont Jean).</p>
-      <textarea id="txtEtudiants" rows="10" class="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"></textarea>
+      <p class="text-xs text-slate-500">Un étudiant par ligne (ex. : Dupont Jean). L'ordre sera conservé.</p>
+      <textarea id="txtEtudiants" rows="12" class="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"></textarea>
       <div class="flex justify-end gap-2 pt-2">
         <button id="btnFermerModalEtudiants" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200">Annuler</button>
         <button id="btnSauverEtudiants" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Enregistrer</button>
@@ -114,10 +119,14 @@
     </div>
   </div>
 
-  <!-- FIREBASE SCRIPTS (SDK v10 en modules CDN) -->
+  <!-- FIREBASE (SDK v10) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { 
+      getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot 
+    } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+    const CODE_SECRET = "Cesna365";
 
     const firebaseConfig = {
       apiKey: "AIzaSyB4vOtLTopCxefpH-duBHk_jfXwZvvsVnI",
@@ -131,53 +140,97 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // ETAT DE L'APPLICATION
-    let coursActif = new URLSearchParams(window.location.search).get('cours') || 'cours-defaut';
-    let registre = {
-      etudiants: ["Exemple Étudiant 1", "Exemple Étudiant 2"],
-      seances: ["Séance 1"],
-      pointages: {}
-    };
-    let unsubscribeFirestore = null;
-
+    // Éléments UI
     const cloudStatus = document.getElementById("cloudStatus");
     const selectCours = document.getElementById("selectCours");
+    const countEtudiants = document.getElementById("countEtudiants");
+    const datesHeaderContainer = document.getElementById("datesHeaderContainer");
+    const tableBody = document.getElementById("tableBody");
+
+    let listeCours = [];
+    let coursActif = new URLSearchParams(window.location.search).get('cours') || '';
+    let registre = { etudiants: [], seances: [], pointages: {} };
+    let unsubscribeCours = null;
 
     function majStatutCloud(type, texte) {
-      const couleur = type === 'ok' ? 'bg-emerald-500' : type === 'sync' ? 'bg-amber-400' : 'bg-rose-500';
-      cloudStatus.innerHTML = `<span class="w-2 h-2 rounded-full ${couleur}"></span><span>${texte}</span>`;
+      const dot = type === 'ok' ? 'bg-emerald-500' : type === 'sync' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500';
+      cloudStatus.innerHTML = `<span class="w-2.5 h-2.5 rounded-full ${dot}"></span><span>${texte}</span>`;
     }
 
-    // CHARGER UN COURS DEPUIS FIRESTORE EN TEMPS RÉEL
+    // 1. ÉCOUTER LE CATALOGUE CENTRAL DES COURS EN TEMPS RÉEL
+    function ecouterCatalogueCours() {
+      const catRef = doc(db, "meta", "catalogue");
+      onSnapshot(catRef, async (snap) => {
+        if (snap.exists() && snap.data().cours && snap.data().cours.length > 0) {
+          listeCours = snap.data().cours;
+        } else {
+          // Premier démarrage
+          listeCours = ["354-e-commerce-90p"];
+          await setDoc(catRef, { cours: listeCours });
+        }
+
+        // Si aucun cours actif ou s'il n'existe plus
+        if (!coursActif || !listeCours.includes(coursActif)) {
+          coursActif = listeCours[0];
+          actualiserURL(coursActif);
+        }
+
+        majSelectCoursUI();
+        connecterCours(coursActif);
+      }, (err) => {
+        console.error(err);
+        majStatutCloud('error', 'Erreur catalogue');
+      });
+    }
+
+    function actualiserURL(idCours) {
+      const url = new URL(window.location);
+      url.searchParams.set('cours', idCours);
+      window.history.replaceState({}, '', url);
+    }
+
+    function majSelectCoursUI() {
+      selectCours.innerHTML = listeCours.map(c => 
+        `<option value="${c}" ${c === coursActif ? 'selected' : ''}>${c}</option>`
+      ).join('');
+    }
+
+    selectCours.addEventListener("change", (e) => {
+      coursActif = e.target.value;
+      actualiserURL(coursActif);
+      connecterCours(coursActif);
+    });
+
+    // 2. CONNECTER LE COURS ACTIF EN TEMPS RÉEL (FIRESTORE)
     function connecterCours(coursId) {
-      if (unsubscribeFirestore) unsubscribeFirestore();
-      majStatutCloud('sync', 'Connexion...');
+      if (unsubscribeCours) unsubscribeCours();
+      majStatutCloud('sync', 'Synchronisation...');
 
       const coursRef = doc(db, "cours", coursId);
-
-      unsubscribeFirestore = onSnapshot(coursRef, (docSnap) => {
-        if (docSnap.exists()) {
-          registre = docSnap.data();
+      unsubscribeCours = onSnapshot(coursRef, (snap) => {
+        if (snap.exists()) {
+          registre = snap.data();
+          if (!registre.seances) registre.seances = [];
+          if (!registre.etudiants) registre.etudiants = [];
+          if (!registre.pointages) registre.pointages = {};
         } else {
-          // Initialisation si le cours est neuf
           registre = {
-            etudiants: ["Dupont Jean", "Martin Sophie"],
-            seances: ["Séance 1"],
+            etudiants: ["AKAKPO Yayra A", "ANOUME Ange V", "CHOUF Zidane"],
+            seances: ["07/10/2026", "14/10/2026"],
             pointages: {}
           };
           setDoc(coursRef, registre);
         }
         majStatutCloud('ok', 'En direct Cloud');
         renderTable();
-      }, (error) => {
-        console.error(error);
-        majStatutCloud('error', 'Erreur Cloud');
+      }, (err) => {
+        console.error(err);
+        majStatutCloud('error', 'Erreur chargement');
       });
     }
 
-    // SAUVEGARDE DIRECTE
-    async function sauvegarderCloud() {
-      majStatutCloud('sync', 'Enregistrement...');
+    async function sauverFirestore() {
+      majStatutCloud('sync', 'Sauvegarde...');
       try {
         const coursRef = doc(db, "cours", coursActif);
         await setDoc(coursRef, registre);
@@ -188,118 +241,185 @@
       }
     }
 
-    // RENDU DU TABLEAU
-    function renderTable() {
-      document.getElementById("countEtudiants").innerText = (registre.etudiants || []).length;
+    // 3. AJOUTER UN COURS (PROTÉGÉ PAR LE CODE Cesna365)
+    document.getElementById("btnNouveauCours").addEventListener("click", async () => {
+      const code = prompt("Veuillez saisir le code d'autorisation :");
+      if (code !== CODE_SECRET) {
+        alert("Code incorrect ! Action refusée.");
+        return;
+      }
+      const nom = prompt("Nom du nouveau cours (ex. Compta-Bloc2) :");
+      if (!nom) return;
 
-      // Header des séances
-      const datesContainer = document.getElementById("datesHeaderContainer");
+      const id = nom.trim().replace(/\s+/g, '-');
+      if (listeCours.includes(id)) {
+        alert("Ce cours existe déjà.");
+        return;
+      }
+
+      listeCours.push(id);
+      await setDoc(doc(db, "meta", "catalogue"), { cours: listeCours });
+      coursActif = id;
+      actualiserURL(coursActif);
+      majSelectCoursUI();
+      connecterCours(coursActif);
+    });
+
+    // 4. SUPPRIMER UN COURS (PROTÉGÉ PAR LE CODE Cesna365)
+    document.getElementById("btnSupprimerCours").addEventListener("click", async () => {
+      if (listeCours.length <= 1) {
+        alert("Impossible de supprimer le seul cours restant.");
+        return;
+      }
+      const code = prompt(`ATTENTION : Suppression définitive du cours "${coursActif}".\nEntrez le code secret pour confirmer :`);
+      if (code !== CODE_SECRET) {
+        alert("Code incorrect ! Action annulée.");
+        return;
+      }
+
+      try {
+        await deleteDoc(doc(db, "cours", coursActif));
+        listeCours = listeCours.filter(c => c !== coursActif);
+        await setDoc(doc(db, "meta", "catalogue"), { cours: listeCours });
+        coursActif = listeCours[0];
+        actualiserURL(coursActif);
+        majSelectCoursUI();
+        connecterCours(coursActif);
+      } catch (err) {
+        console.error(err);
+        alert("Erreur lors de la suppression.");
+      }
+    });
+
+    // 5. GESTION DES SÉANCES ET VRAIES DATES
+    document.getElementById("btnAjouterSeance").addEventListener("click", () => {
+      const auj = new Date().toISOString().split('T')[0];
+      const saisie = prompt("Date de la séance (JJ/MM/AAAA ou format libre) :", formatDateFr(auj));
+      if (!saisie) return;
+
+      registre.seances.push(saisie.trim());
+      renderTable();
+      sauverFirestore();
+    });
+
+    document.getElementById("btnPlanifierDates").addEventListener("click", () => {
+      const dateDepart = prompt("Date de départ (AAAA-MM-JJ) :", new Date().toISOString().split('T')[0]);
+      if (!dateDepart) return;
+      const nb = parseInt(prompt("Combien de séances hebdomadaires planifier ?", "10"), 10);
+      if (isNaN(nb) || nb <= 0) return;
+
+      let d = new Date(dateDepart);
+      for (let i = 0; i < nb; i++) {
+        const j = String(d.getDate()).padStart(2, '0');
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const a = d.getFullYear();
+        registre.seances.push(`${j}/${m}/${a}`);
+        d.setDate(d.getDate() + 7);
+      }
+      renderTable();
+      sauverFirestore();
+    });
+
+    function formatDateFr(isoStr) {
+      if (!isoStr || !isoStr.includes('-')) return isoStr;
+      const [a, m, j] = isoStr.split('-');
+      return `${j}/${m}/${a}`;
+    }
+
+    // 6. RENDU GRAPHIQUE COMPLET
+    function renderTable() {
+      countEtudiants.innerText = (registre.etudiants || []).length;
+
+      // En-têtes de dates avec option de renommage/suppression au clic
       let headerHtml = `<div class="flex">`;
       (registre.seances || []).forEach((s, idx) => {
-        headerHtml += `<div class="p-3 text-center border-l border-slate-200 min-w-[100px] flex-1 font-semibold">${s}</div>`;
+        headerHtml += `
+          <div class="p-2.5 text-center border-l border-slate-200 min-w-[95px] flex-1 font-semibold text-slate-700 group relative">
+            <span class="cursor-pointer hover:text-indigo-600" title="Cliquer pour renommer" onclick="window.renommerSeance(${idx})">${s}</span>
+            <button onclick="window.supprimerSeance(${idx})" title="Supprimer cette séance" class="hidden group-hover:inline ml-1 text-slate-400 hover:text-rose-600 text-xs">×</button>
+          </div>`;
       });
       headerHtml += `</div>`;
-      datesContainer.innerHTML = headerHtml;
+      datesHeaderContainer.innerHTML = headerHtml;
 
       // Lignes des étudiants
-      const tbody = document.getElementById("tableBody");
-      tbody.innerHTML = "";
-
-      (registre.etudiants || []).forEach((etudiant, etuIdx) => {
+      tableBody.innerHTML = "";
+      (registre.etudiants || []).forEach((etu, etuIdx) => {
         let totalValides = 0;
         let totalPresents = 0;
 
-        let rowHtml = `<tr class="hover:bg-slate-50 transition">
+        let row = `<tr class="hover:bg-slate-50/80 transition">
           <td class="p-3 text-center text-xs text-slate-400 font-mono">${etuIdx + 1}</td>
-          <td class="p-3 font-medium text-slate-800">${etudiant}</td>
+          <td class="p-3 font-medium text-slate-800">${etu}</td>
           <td class="p-0"><div class="flex">`;
 
         (registre.seances || []).forEach((s, sIdx) => {
-          const key = `${etudiant}_${sIdx}`;
+          const key = `${etu}_${sIdx}`;
           const val = (registre.pointages && registre.pointages[key]) || 'P';
 
           if (val === 'P') { totalPresents += 1; totalValides += 1; }
           else if (val === 'M') { totalValides += 1; }
           else if (val === 'R') { totalPresents += 0.8; totalValides += 1; }
           else if (val === 'A') { totalValides += 1; }
-          // 'T' ne compte pas dans le dénominateur
+          // 'T' (Inscription tardive) n'affecte pas le quota
 
-          const badgeClasses = {
+          const classes = {
             'P': 'badge-p', 'M': 'badge-m', 'R': 'badge-r', 'A': 'badge-a', 'T': 'badge-t'
           }[val] || 'badge-p';
 
-          rowHtml += `
-            <div class="p-2 text-center border-l border-slate-100 min-w-[100px] flex-1 flex justify-center items-center">
-              <button data-key="${key}" class="btn-pointage w-9 h-8 rounded font-bold text-xs shadow-sm transition ${badgeClasses}">
+          row += `
+            <div class="p-1.5 text-center border-l border-slate-100 min-w-[95px] flex-1 flex justify-center items-center">
+              <button data-key="${key}" class="btn-pointage w-9 h-8 rounded-md font-bold text-xs shadow-sm transition hover:scale-105 active:scale-95 ${classes}">
                 ${val}
               </button>
             </div>`;
         });
 
         const pct = totalValides > 0 ? Math.round((totalPresents / totalValides) * 100) : 100;
-        const colorPct = pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
+        const color = pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
 
-        rowHtml += `</div></td>
-          <td class="p-3 text-center font-bold text-sm bg-slate-50/50 ${colorPct}">${pct}%</td>
+        row += `</div></td>
+          <td class="p-3 text-center font-bold text-sm bg-slate-50/60 ${color}">${pct}%</td>
         </tr>`;
 
-        tbody.innerHTML += rowHtml;
+        tableBody.innerHTML += row;
       });
 
-      // Actions sur les clics de boutons de pointage
+      // Pointage au clic
       document.querySelectorAll(".btn-pointage").forEach(btn => {
         btn.addEventListener("click", () => {
           const key = btn.getAttribute("data-key");
           const ordres = ['P', 'R', 'M', 'A', 'T'];
           const actuel = (registre.pointages && registre.pointages[key]) || 'P';
-          const prochain = ordres[(ordres.indexOf(actuel) + 1) % ordres.length];
+          const next = ordres[(ordres.indexOf(actuel) + 1) % ordres.length];
 
           if (!registre.pointages) registre.pointages = {};
-          registre.pointages[key] = prochain;
+          registre.pointages[key] = next;
           renderTable();
-          sauvegarderCloud();
+          sauverFirestore();
         });
       });
     }
 
-    // GESTION DU SÉLECTEUR DE COURS
-    function initCoursSelector() {
-      const coursConnus = ['cours-defaut', 'math-bloc1', 'informatique-bloc2', 'anglais-soir'];
-      if (!coursConnus.includes(coursActif)) coursConnus.push(coursActif);
+    // Fonctions globales pour les séances
+    window.renommerSeance = (idx) => {
+      const nv = prompt("Nouvelle date / intitulé :", registre.seances[idx]);
+      if (nv && nv.trim() !== "") {
+        registre.seances[idx] = nv.trim();
+        renderTable();
+        sauverFirestore();
+      }
+    };
 
-      selectCours.innerHTML = coursConnus.map(c => 
-        `<option value="${c}" ${c === coursActif ? 'selected' : ''}>${c}</option>`
-      ).join('');
+    window.supprimerSeance = (idx) => {
+      if (confirm(`Supprimer la séance du ${registre.seances[idx]} ?`)) {
+        registre.seances.splice(idx, 1);
+        renderTable();
+        sauverFirestore();
+      }
+    };
 
-      selectCours.addEventListener("change", (e) => {
-        coursActif = e.target.value;
-        const url = new URL(window.location);
-        url.searchParams.set('cours', coursActif);
-        window.history.pushState({}, '', url);
-        connecterCours(coursActif);
-      });
-
-      document.getElementById("btnNouveauCours").addEventListener("click", () => {
-        const nom = prompt("Nom du nouveau cours (ex. compta-soir) :");
-        if (nom) {
-          const id = nom.toLowerCase().replace(/[^a-z0-9]/g, '-');
-          coursActif = id;
-          initCoursSelector();
-          connecterCours(coursActif);
-        }
-      });
-    }
-
-    // AJOUT DE SÉANCE
-    document.getElementById("btnAjouterSeance").addEventListener("click", () => {
-      const nom = `Séance ${(registre.seances || []).length + 1}`;
-      if (!registre.seances) registre.seances = [];
-      registre.seances.push(nom);
-      renderTable();
-      sauvegarderCloud();
-    });
-
-    // MODAL ETUDIANTS
+    // 7. GESTION DES ÉTUDIANTS
     const modalEtu = document.getElementById("modalEtudiants");
     document.getElementById("btnGererEtudiants").addEventListener("click", () => {
       document.getElementById("txtEtudiants").value = (registre.etudiants || []).join('\n');
@@ -316,17 +436,17 @@
       modalEtu.classList.add("hidden");
       modalEtu.classList.remove("flex");
       renderTable();
-      sauvegarderCloud();
+      sauverFirestore();
     });
 
-    // EXPORT EXCEL
+    // 8. EXPORT EXCEL
     document.getElementById("btnExportExcel").addEventListener("click", () => {
-      const data = (registre.etudiants || []).map(etu => {
-        const row = { "Étudiant": etu };
+      const data = (registre.etudiants || []).map((etu, i) => {
+        const ligne = { "#": i + 1, "Nom et Prénom": etu };
         (registre.seances || []).forEach((s, idx) => {
-          row[s] = (registre.pointages && registre.pointages[`${etu}_${idx}`]) || 'P';
+          ligne[s] = (registre.pointages && registre.pointages[`${etu}_${idx}`]) || 'P';
         });
-        return row;
+        return ligne;
       });
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
@@ -334,9 +454,8 @@
       XLSX.writeFile(wb, `CESNa_${coursActif}.xlsx`);
     });
 
-    // DÉMARRAGE
-    initCoursSelector();
-    connecterCours(coursActif);
+    // Initialisation
+    ecouterCatalogueCours();
   </script>
 </body>
 </html>
