@@ -4,1056 +4,339 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CESNa - Registre des Présences</title>
-  
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- SheetJS pour import/export Excel -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    /* Styles institutionnels et hachures pour le statut R (Retard) */
-    .bg-striped-retard {
-      background: repeating-linear-gradient(
-        45deg,
-        #6ee7b7,
-        #6ee7b7 8px,
-        #a7f3d0 8px,
-        #a7f3d0 16px
-      );
-      color: #065f46;
-    }
-    .header-primary {
-      background-color: #0a3a60;
-    }
-    .header-secondary {
-      background-color: #082d4a;
-    }
-    /* Empêche la sélection intempestive lors de clics rapides */
-    .no-select {
-      user-select: none;
-      -webkit-user-select: none;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .badge-p { background-color: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-m { background-color: #fef9c3; color: #a16207; border: 1px solid #fde047; }
+    .badge-r { background-color: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
+    .badge-a { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .badge-t { background-color: #e0e7ff; color: #4338ca; border: 1px solid #a5b4fc; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col">
 
-  <!-- ================= BARRE SUPÉRIEURE & EN-TÊTE ================= -->
-  <header class="bg-white border-b border-slate-300 shadow-sm sticky top-0 z-40">
-    <div class="max-w-[1900px] mx-auto px-4 py-2.5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        
-        <!-- Logo CESNa officiel + Intitulé du cours -->
-        <div class="flex items-center gap-3 min-w-[320px] flex-1">
-          <!-- Logo CESNa vectoriel SVG -->
-          <div class="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-white rounded shadow-sm border border-slate-200 p-0.5">
-            <svg viewBox="0 0 450 450" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-              <path d="M 30,225 C 90,80 360,80 420,225 C 360,370 90,370 30,225 Z" fill="#003366"/>
-              <ellipse cx="225" cy="225" rx="105" ry="105" fill="#ffffff"/>
-              <g transform="translate(225, 225)">
-                <ellipse cx="0" cy="0" rx="35" ry="35" fill="#ffffff" stroke="#003366" stroke-width="1.5"/>
-                <!-- Rayons de l'iris -->
-                <path d="M -7, -54 L 7, -54 L 5, -36 L -5, -36 Z" fill="#003366"/>
-                <path d="M 16, -52 L 28, -46 L 19, -31 L 11, -35 Z" fill="#003366"/>
-                <path d="M 36, -41 L 46, -30 L 31, -20 L 24, -28 Z" fill="#4682b4"/>
-                <path d="M 50, -22 L 54, -8 L 36, -5 L 34, -15 Z" fill="#87cefa"/>
-                <path d="M 54, 7 L 50, 22 L 34, 15 L 36, 5 Z" fill="#e65100"/>
-                <path d="M 46, 30 L 36, 41 L 24, 28 L 31, 20 Z" fill="#003366"/>
-                <path d="M 28, 46 L 16, 52 L 11, 35 L 19, 31 Z" fill="#4682b4"/>
-                <path d="M 7, 54 L -7, 54 L -5, 36 L 5, 36 Z" fill="#87cefa"/>
-                <path d="M -16, 52 L -28, 46 L -19, 31 L -11, 35 Z" fill="#003366"/>
-                <path d="M -36, 41 L -46, 30 L -31, 20 L -24, 28 Z" fill="#e65100"/>
-                <path d="M -50, 22 L -54, 7 L -36, 5 L -34, 15 Z" fill="#003366"/>
-                <path d="M -54, -7 L -50, -22 L -34, -15 L -36, -5 Z" fill="#4682b4"/>
-                <path d="M -46, -30 L -36, -41 L -24, -28 L -31, -20 Z" fill="#87cefa"/>
-                <path d="M -28, -46 L -16, -52 L -11, -35 L -19, -31 Z" fill="#003366"/>
-              </g>
-              <text x="225" y="380" font-family="'Century Gothic', Arial, sans-serif" font-size="70" font-weight="bold" fill="#003366" text-anchor="middle" letter-spacing="4">CESNa</text>
-              <text x="225" y="415" font-family="Arial, sans-serif" font-size="20" font-weight="600" fill="#6ba4d9" text-anchor="middle" letter-spacing="1.5">CENTRE D'ENSEIGNEMENT</text>
-              <text x="225" y="438" font-family="Arial, sans-serif" font-size="20" font-weight="600" fill="#6ba4d9" text-anchor="middle" letter-spacing="2.5">SUPÉRIEUR NAMUROIS</text>
-            </svg>
-          </div>
-
-          <!-- Champ d'édition du cours -->
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <input 
-                type="text" 
-                id="courseTitleInput" 
-                placeholder="Intitulé du cours (ex: Programmation Web - Bloc 2)" 
-                class="font-bold text-slate-800 text-sm md:text-base border-b-2 border-transparent hover:border-slate-300 focus:border-blue-700 bg-transparent px-1 py-0.5 outline-none transition w-full"
-                oninput="onCourseTitleChange(this.value)"
-              />
-            </div>
-            <!-- Sélecteur de cours sauvegardés / État de sauvegarde -->
-            <div class="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-              <span id="saveStatusBadge" class="inline-flex items-center gap-1 text-emerald-700 font-medium">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Sauvegardé
-              </span>
-              <span>•</span>
-              <button onclick="createNewCourse()" class="text-blue-700 hover:underline font-medium">+ Nouveau registre</button>
-            </div>
-          </div>
+  <!-- EN-TÊTE -->
+  <header class="bg-white border-b border-slate-200 px-6 py-3 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- LOGO & TITRE -->
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 bg-indigo-700 text-white rounded-lg flex items-center justify-center font-bold text-lg tracking-wider shadow">
+          CESNa
         </div>
-
-        <!-- Boutons d'action rapides -->
-        <div class="flex flex-wrap items-center gap-1.5">
-          <button onclick="openAddSessionModal()" class="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
-            <span>+</span> Séance(s)
-          </button>
-          <button onclick="openAddStudentModal()" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
-            <span>+</span> Étudiant
-          </button>
-          <button onclick="openImportModal()" class="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
-            <span>📄</span> Importer Excel/Liste
-          </button>
-          <button onclick="exportToExcel()" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 rounded text-xs font-semibold flex items-center gap-1 transition">
-            <span>📊</span> Exporter Excel
-          </button>
-          <button onclick="saveToFileCESNa()" title="Télécharger le fichier de sauvegarde (.cesna) pour l'archiver dans OneDrive/Teams" class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold flex items-center gap-1 transition">
-            <span>💾</span> Sauvegarder fichier
-          </button>
-          <button onclick="openFileCESNa()" title="Rouvrir un fichier de cours .cesna" class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 border border-amber-400 text-amber-900 rounded text-xs font-semibold flex items-center gap-1 transition">
-            <span>📂</span> Ouvrir fichier
-          </button>
-        </div>
-
-      </div>
-
-      <!-- Légende et statistiques rapides -->
-      <div class="mt-2 pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs gap-2">
-        <div class="flex items-center gap-3">
-          <span class="font-semibold text-slate-700">Étudiants : <span id="statStudentCount" class="font-bold text-blue-900">0</span></span>
-          <span>•</span>
-          <span class="font-semibold text-slate-700">Séances : <span id="statSessionCount" class="font-bold text-blue-900">0</span></span>
-          <span>•</span>
-          <span class="font-semibold text-slate-700">Moyenne présence : <span id="statAveragePresence" class="font-bold text-blue-900">0 %</span></span>
-        </div>
-
-        <!-- Badges légende -->
-        <div class="flex flex-wrap items-center gap-1.5">
-          <span class="px-2 py-0.5 bg-emerald-400 text-emerald-950 font-bold rounded text-[11px]">P = Présent</span>
-          <span class="px-2 py-0.5 bg-emerald-300 text-emerald-900 font-bold rounded text-[11px]">M = À distance</span>
-          <span class="px-2 py-0.5 bg-striped-retard font-bold rounded text-[11px] border border-emerald-400">R = Retard / Dép.</span>
-          <span class="px-2 py-0.5 bg-rose-300 text-rose-950 font-bold rounded text-[11px]">A = Absent</span>
-          <span class="px-2 py-0.5 bg-purple-200 text-purple-950 font-bold rounded text-[11px]">T = Inscrip. tardive</span>
-          <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">? = Non encodé</span>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">Registre des Présences</h1>
+          <p class="text-xs text-slate-500">Promotion Sociale & Formation Continue</p>
         </div>
       </div>
+
+      <!-- SÉLECTEUR DE COURS & STATUS FIRESTORE -->
+      <div class="flex items-center gap-3 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+        <label for="selectCours" class="text-xs font-semibold text-slate-600">Cours :</label>
+        <select id="selectCours" class="bg-white border border-slate-300 rounded px-2 py-1 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <!-- Rempli dynamiquement -->
+        </select>
+        <button id="btnNouveauCours" title="Ajouter un cours" class="px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold hover:bg-indigo-100 transition">
+          + Nouveau cours
+        </button>
+        <div id="cloudStatus" class="flex items-center gap-1 text-xs text-slate-500 pl-2 border-l border-slate-200">
+          <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span>Connexion Cloud...</span>
+        </div>
+      </div>
+
+      <!-- ACTIONS SECONDAIRES -->
+      <div class="flex items-center gap-2">
+        <button id="btnExportExcel" class="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition shadow-sm flex items-center gap-1.5">
+          <span>📊 Exporter Excel</span>
+        </button>
+      </div>
+
     </div>
   </header>
 
-  <!-- ================= ZONE PRINCIPALE (TABLEAU) ================= -->
-  <main class="flex-1 p-3 overflow-auto">
-    <div class="inline-block min-w-full align-middle">
-      <div class="bg-white rounded shadow border border-slate-300 inline-block">
-        
-        <table id="attendanceTable" class="border-collapse table-fixed text-xs text-left no-select">
-          <thead>
-            <!-- LIGNE 1 D'EN-TÊTE : Titres et Dates des séances -->
-            <tr id="headerRowDates" class="header-primary text-white">
-              <th class="w-10 min-w-[40px] max-w-[40px] py-1.5 px-1 text-center font-bold border border-slate-400">N°</th>
-              <th class="w-56 min-w-[220px] max-w-[220px] py-1.5 px-3 font-bold border border-slate-400">Nom & Prénom</th>
-              <th class="w-16 min-w-[64px] max-w-[64px] py-1.5 px-1 text-center font-bold border border-slate-400">Prés.</th>
-              <th class="w-20 min-w-[80px] max-w-[80px] py-1.5 px-1 text-center font-bold border border-slate-400">Abandon</th>
-              <!-- Les dates des séances s'insèrent ici dynamiquement -->
-            </tr>
+  <!-- CONTENU PRINCIPAL -->
+  <main class="max-w-7xl mx-auto p-6 flex-1 w-full space-y-6">
 
-            <!-- LIGNE 2 D'EN-TÊTE : Horaires de chaque séance -->
-            <tr id="headerRowHours" class="header-secondary text-white">
-              <th class="border border-slate-400 bg-slate-900/40" colspan="4"></th>
-              <!-- Les horaires des séances s'insèrent ici dynamiquement -->
+    <!-- BARRE D'OUTILS SEANCES ET GESTION -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <span class="text-sm font-semibold text-slate-700">Séances :</span>
+        <button id="btnAjouterSeance" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-md hover:bg-indigo-700 transition">
+          + Ajouter une séance
+        </button>
+        <button id="btnGenererDates" class="px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold rounded-md hover:bg-slate-200 transition">
+          🗓️ Planifier dates
+        </button>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btnGererEtudiants" class="px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold rounded-md hover:bg-slate-200 transition">
+          👥 Liste des étudiants (<span id="countEtudiants">0</span>)
+        </button>
+      </div>
+    </div>
+
+    <!-- TABLEAU DE POINTAGE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-600">
+              <th class="p-3 w-12 text-center">#</th>
+              <th class="p-3 min-w-[200px]">Nom et Prénom</th>
+              <th id="datesHeaderContainer" class="p-0">
+                <!-- Colonnes de dates injectées dynamiquement -->
+              </th>
+              <th class="p-3 w-28 text-center bg-slate-100/70">Présence %</th>
             </tr>
           </thead>
-
-          <tbody id="studentTableBody" class="divide-y divide-slate-200 bg-amber-50/20">
-            <!-- Rendu automatique via renderTable() -->
+          <tbody id="tableBody" class="divide-y divide-slate-100">
+            <!-- Lignes des étudiants injectées ici -->
           </tbody>
         </table>
-
       </div>
     </div>
+
   </main>
 
-  <!-- ================= POPUP DE POINTAGE INSTANTANÉ (CLIC UNIQUE) ================= -->
-  <div id="pointageModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-100">
-      
-      <!-- Barre d'en-tête jaune/orangée fidèle au screen -->
-      <div class="bg-[#f59e0b] px-3 py-2 flex items-center justify-between text-[#003366] font-bold text-sm select-none">
-        <span id="modalHeaderTitle">Date - Horaire</span>
-        <button onclick="closePointageModal()" class="w-6 h-6 flex items-center justify-center rounded bg-[#78350f] text-white hover:bg-red-700 transition font-black text-xs">✕</button>
-      </div>
-
-      <!-- Corps du pointage -->
-      <div class="p-4 bg-slate-200 flex flex-col items-center">
-        <div id="modalStudentName" class="text-xs font-bold text-slate-800 text-center uppercase tracking-wide mb-3">
-          NOM Prénom
-        </div>
-
-        <!-- Grille 3x2 des 6 boutons (P, M, R, A, T, ?) -->
-        <div class="grid grid-cols-3 gap-2 w-full max-w-[280px]">
-          <!-- P : Présent -->
-          <button onclick="applyStatusAndClose('P')" class="h-20 bg-[#00ff66] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#006622] transition shadow">
-            P
-          </button>
-          <!-- M : À distance -->
-          <button onclick="applyStatusAndClose('M')" class="h-20 bg-[#6ee7b7] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#047857] transition shadow">
-            M
-          </button>
-          <!-- R : Retard (ouvre le volet des curseurs) -->
-          <button onclick="openRetardSliders()" class="h-20 bg-striped-retard hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#065f46] transition shadow">
-            R
-          </button>
-          <!-- A : Absent -->
-          <button onclick="applyStatusAndClose('A')" class="h-20 bg-[#fca5a5] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#991b1b] transition shadow">
-            A
-          </button>
-          <!-- T : Inscription tardive -->
-          <button onclick="applyStatusAndClose('T')" class="h-20 bg-[#ddd6fe] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#5b21b6] transition shadow" title="Inscription tardive (non pénalisant)">
-            T
-          </button>
-          <!-- ? : Non encodé -->
-          <button onclick="applyStatusAndClose('?')" class="h-20 bg-[#cbd5e1] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-slate-600 transition shadow">
-            ?
-          </button>
-        </div>
-
-        <!-- Volet déroulant des curseurs pour le statut R -->
-        <div id="retardSlidersBox" class="w-full mt-3 p-3 bg-white border border-emerald-500 rounded shadow-inner hidden">
-          <div class="text-xs font-bold text-emerald-900 mb-2 flex items-center justify-between">
-            <span>Ajustement Retard / Départ</span>
-            <span id="retardPercentBadge" class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[10px]">100 % retenu</span>
-          </div>
-
-          <!-- Curseur Retard arrivée -->
-          <div class="mb-2">
-            <div class="flex justify-between text-[11px] text-slate-700 font-semibold mb-0.5">
-              <span>Arrivé en retard de :</span>
-              <span id="lateArrivalLabel" class="text-emerald-700 font-bold">0 min</span>
-            </div>
-            <input type="range" id="lateArrivalSlider" min="0" max="180" step="5" value="0" class="w-full accent-emerald-600" oninput="onRetardSliderChange()">
-          </div>
-
-          <!-- Curseur Départ anticipé -->
-          <div class="mb-3">
-            <div class="flex justify-between text-[11px] text-slate-700 font-semibold mb-0.5">
-              <span>Parti avant de :</span>
-              <span id="earlyDepartureLabel" class="text-emerald-700 font-bold">0 min</span>
-            </div>
-            <input type="range" id="earlyDepartureSlider" min="0" max="180" step="5" value="0" class="w-full accent-emerald-600" oninput="onRetardSliderChange()">
-          </div>
-
-          <button onclick="applyRetardAndClose()" class="w-full py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded transition shadow">
-            Appliquer ce retard (R)
-          </button>
-        </div>
-
-        <!-- Bouton déroulant Légende -->
-        <div class="mt-3 w-full flex flex-col items-center">
-          <button onclick="toggleLegendBox()" id="toggleLegendBtn" class="px-3 py-1 bg-[#003366] text-white text-xs font-semibold rounded shadow hover:bg-blue-900 transition">
-            Légende
-          </button>
-          
-          <div id="modalLegendBox" class="mt-2 w-full bg-white border border-slate-400 rounded overflow-hidden hidden shadow text-[11px]">
-            <div class="px-2 py-1 bg-[#003366] text-white font-bold flex justify-between items-center">
-              <span>Masquer la légende</span>
-              <button onclick="toggleLegendBox()" class="text-white text-xs">▲</button>
-            </div>
-            <div class="p-1.5 space-y-1">
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#00ff66] border border-black inline-block text-[10px] text-center font-bold">P</span> <span>Présent</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#6ee7b7] border border-black inline-block text-[10px] text-center font-bold">M</span> <span>À distance</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-striped-retard border border-black inline-block text-[10px] text-center font-bold">R</span> <span>Arrivée tardive / départ</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#fca5a5] border border-black inline-block text-[10px] text-center font-bold">A</span> <span>Absent</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#ddd6fe] border border-black inline-block text-[10px] text-center font-bold">T</span> <span>Inscription tardive</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#cbd5e1] border border-black inline-block text-[10px] text-center font-bold">?</span> <span>Non encodé</span></div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-  </div>
-
-  <!-- ================= MODALE : AJOUTER SÉANCES (AVEC DÉCOUPAGE CONTINU) ================= -->
-  <div id="addSessionModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-md overflow-hidden">
-      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
-        <span>Ajouter une ou plusieurs séances</span>
-        <button onclick="closeAddSessionModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
-      </div>
-      <div class="p-4 space-y-3">
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
-            Dates des séances
-          </label>
-          <textarea 
-            id="sessionDateInput" 
-            rows="3" 
-            placeholder="Ex : 8/09/269/09/2615/09/2616/09/26 ou 01/09, 15/09, 29/09" 
-            class="w-full text-xs font-mono p-2 border border-slate-300 rounded focus:border-blue-600 outline-none"
-            oninput="previewParsedDates(this.value)"
-          ></textarea>
-          <p class="text-[11px] text-slate-500 mt-1">
-            Collez directement votre suite sans espaces/virgules (ex: <code>8/09/269/09/26...</code>), le système détecte chaque date automatiquement !
-          </p>
-          <div id="datesPreviewTagBox" class="mt-2 flex flex-wrap gap-1 max-h-24 overflow-y-auto"></div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Heure début</label>
-            <input type="text" id="sessionStartInput" value="17:00" class="w-full text-xs p-2 border border-slate-300 rounded">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Heure fin</label>
-            <input type="text" id="sessionEndInput" value="22:15" class="w-full text-xs p-2 border border-slate-300 rounded">
-          </div>
-        </div>
-
-        <div class="pt-2 flex justify-end gap-2">
-          <button onclick="closeAddSessionModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="confirmAddSessions()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Créer les séances</button>
-        </div>
+  <!-- MODAL: GESTION DES ETUDIANTS -->
+  <div id="modalEtudiants" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl">
+      <h3 class="text-base font-bold text-slate-900">Modifier la liste des étudiants</h3>
+      <p class="text-xs text-slate-500">Collez ou tapez un nom par ligne (ex. : Dupont Jean).</p>
+      <textarea id="txtEtudiants" rows="10" class="w-full border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"></textarea>
+      <div class="flex justify-end gap-2 pt-2">
+        <button id="btnFermerModalEtudiants" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200">Annuler</button>
+        <button id="btnSauverEtudiants" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Enregistrer</button>
       </div>
     </div>
   </div>
 
-  <!-- ================= MODALE : AJOUTER ÉTUDIANT SEUL ================= -->
-  <div id="addStudentModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-sm overflow-hidden">
-      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
-        <span>Ajouter un étudiant</span>
-        <button onclick="closeAddStudentModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
-      </div>
-      <div class="p-4 space-y-3">
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">NOM (Famille)</label>
-          <input type="text" id="newStudentNom" placeholder="Ex: ANSART" class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 uppercase">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Prénom</label>
-          <input type="text" id="newStudentPrenom" placeholder="Ex: Fabian" class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 capitalize">
-        </div>
-        <div class="pt-2 flex justify-end gap-2">
-          <button onclick="closeAddStudentModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="confirmAddStudent()" class="px-4 py-1.5 text-xs font-bold bg-slate-800 text-white hover:bg-black rounded shadow">Ajouter</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- FIREBASE SCRIPTS (SDK v10 en modules CDN) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-  <!-- ================= MODALE : IMPORTER EXCEL OU LISTE COPIER-COLLER ================= -->
-  <div id="importModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-lg overflow-hidden">
-      <div class="px-4 py-3 bg-emerald-800 text-white font-bold flex items-center justify-between text-sm">
-        <span>Importer liste d'étudiants</span>
-        <button onclick="closeImportModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
-      </div>
-      <div class="p-4 space-y-4">
-        
-        <!-- Fichier Excel -->
-        <div class="border-2 border-dashed border-slate-300 rounded-lg p-3 text-center hover:border-emerald-600 transition">
-          <label class="cursor-pointer block">
-            <span class="text-xs font-semibold text-emerald-800">Choisir un fichier Excel (.xlsx, .xls, .csv)</span>
-            <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleExcelFile(event)">
-            <p class="text-[11px] text-slate-500 mt-0.5">Prend la 1ère colonne (Nom) et 2ème colonne (Prénom)</p>
-          </label>
-        </div>
-
-        <div class="relative flex py-1 items-center">
-          <div class="flex-grow border-t border-slate-200"></div>
-          <span class="flex-shrink mx-2 text-[11px] text-slate-400 font-semibold uppercase">ou copier-coller</span>
-          <div class="flex-grow border-t border-slate-200"></div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Collez votre liste d'étudiants (une ligne par étudiant) :</label>
-          <textarea 
-            id="pasteStudentListInput" 
-            rows="6" 
-            placeholder="ANSART Fabian&#10;CHRISTMANN Roland&#10;COCHIN Eric" 
-            class="w-full text-xs font-mono p-2 border border-slate-300 rounded outline-none focus:border-emerald-700"
-          ></textarea>
-        </div>
-
-        <div class="pt-1 flex justify-end gap-2">
-          <button onclick="closeImportModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="confirmImportList()" class="px-4 py-1.5 text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 rounded shadow">Importer la liste</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <input type="file" id="cesnaFileHiddenInput" accept=".cesna,.json" class="hidden" onchange="handleFileCESNaSelected(event)">
-
-  <!-- ================= JAVASCRIPT & MOTEUR DE PERSISTANCE ================= -->
-  <script>
-    // Structure de données en mémoire
-    let courseTitle = "";
-    let students = [];
-    let sessions = [];
-    let attendanceData = {}; // Format: { "studentId_sessionId": { status: 'P', lateMin: 0, earlyMin: 0, quotite: 1 } }
-    let abandonedStudents = {}; // Format: { "studentId": true }
-
-    // État actif pour la modale
-    let currentCell = {
-      studentId: null,
-      sessionId: null
+    const firebaseConfig = {
+      apiKey: "AIzaSyB4vOtLTopCxefpH-duBHk_jfXwZvvsVnI",
+      authDomain: "cesna-presences.firebaseapp.com",
+      projectId: "cesna-presences",
+      storageBucket: "cesna-presences.firebasestorage.app",
+      messagingSenderId: "162301242616",
+      appId: "1:162301242616:web:03b52bafb3ac7deedc9f0d"
     };
 
-    const STORAGE_KEY = "CESNA_PRESENCES_DATA_V1";
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    // -------------------------------------------------------------
-    // INITIALISATION & SAUVEGARDE AUTOMATIQUE PERMANENTE
-    // -------------------------------------------------------------
-    window.addEventListener('DOMContentLoaded', () => {
-      loadFromStorage();
+    // ETAT DE L'APPLICATION
+    let coursActif = new URLSearchParams(window.location.search).get('cours') || 'cours-defaut';
+    let registre = {
+      etudiants: ["Exemple Étudiant 1", "Exemple Étudiant 2"],
+      seances: ["Séance 1"],
+      pointages: {}
+    };
+    let unsubscribeFirestore = null;
+
+    const cloudStatus = document.getElementById("cloudStatus");
+    const selectCours = document.getElementById("selectCours");
+
+    function majStatutCloud(type, texte) {
+      const couleur = type === 'ok' ? 'bg-emerald-500' : type === 'sync' ? 'bg-amber-400' : 'bg-rose-500';
+      cloudStatus.innerHTML = `<span class="w-2 h-2 rounded-full ${couleur}"></span><span>${texte}</span>`;
+    }
+
+    // CHARGER UN COURS DEPUIS FIRESTORE EN TEMPS RÉEL
+    function connecterCours(coursId) {
+      if (unsubscribeFirestore) unsubscribeFirestore();
+      majStatutCloud('sync', 'Connexion...');
+
+      const coursRef = doc(db, "cours", coursId);
+
+      unsubscribeFirestore = onSnapshot(coursRef, (docSnap) => {
+        if (docSnap.exists()) {
+          registre = docSnap.data();
+        } else {
+          // Initialisation si le cours est neuf
+          registre = {
+            etudiants: ["Dupont Jean", "Martin Sophie"],
+            seances: ["Séance 1"],
+            pointages: {}
+          };
+          setDoc(coursRef, registre);
+        }
+        majStatutCloud('ok', 'En direct Cloud');
+        renderTable();
+      }, (error) => {
+        console.error(error);
+        majStatutCloud('error', 'Erreur Cloud');
+      });
+    }
+
+    // SAUVEGARDE DIRECTE
+    async function sauvegarderCloud() {
+      majStatutCloud('sync', 'Enregistrement...');
+      try {
+        const coursRef = doc(db, "cours", coursActif);
+        await setDoc(coursRef, registre);
+        majStatutCloud('ok', 'En direct Cloud');
+      } catch (e) {
+        console.error(e);
+        majStatutCloud('error', 'Erreur sauvegarde');
+      }
+    }
+
+    // RENDU DU TABLEAU
+    function renderTable() {
+      document.getElementById("countEtudiants").innerText = (registre.etudiants || []).length;
+
+      // Header des séances
+      const datesContainer = document.getElementById("datesHeaderContainer");
+      let headerHtml = `<div class="flex">`;
+      (registre.seances || []).forEach((s, idx) => {
+        headerHtml += `<div class="p-3 text-center border-l border-slate-200 min-w-[100px] flex-1 font-semibold">${s}</div>`;
+      });
+      headerHtml += `</div>`;
+      datesContainer.innerHTML = headerHtml;
+
+      // Lignes des étudiants
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+
+      (registre.etudiants || []).forEach((etudiant, etuIdx) => {
+        let totalValides = 0;
+        let totalPresents = 0;
+
+        let rowHtml = `<tr class="hover:bg-slate-50 transition">
+          <td class="p-3 text-center text-xs text-slate-400 font-mono">${etuIdx + 1}</td>
+          <td class="p-3 font-medium text-slate-800">${etudiant}</td>
+          <td class="p-0"><div class="flex">`;
+
+        (registre.seances || []).forEach((s, sIdx) => {
+          const key = `${etudiant}_${sIdx}`;
+          const val = (registre.pointages && registre.pointages[key]) || 'P';
+
+          if (val === 'P') { totalPresents += 1; totalValides += 1; }
+          else if (val === 'M') { totalValides += 1; }
+          else if (val === 'R') { totalPresents += 0.8; totalValides += 1; }
+          else if (val === 'A') { totalValides += 1; }
+          // 'T' ne compte pas dans le dénominateur
+
+          const badgeClasses = {
+            'P': 'badge-p', 'M': 'badge-m', 'R': 'badge-r', 'A': 'badge-a', 'T': 'badge-t'
+          }[val] || 'badge-p';
+
+          rowHtml += `
+            <div class="p-2 text-center border-l border-slate-100 min-w-[100px] flex-1 flex justify-center items-center">
+              <button data-key="${key}" class="btn-pointage w-9 h-8 rounded font-bold text-xs shadow-sm transition ${badgeClasses}">
+                ${val}
+              </button>
+            </div>`;
+        });
+
+        const pct = totalValides > 0 ? Math.round((totalPresents / totalValides) * 100) : 100;
+        const colorPct = pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600';
+
+        rowHtml += `</div></td>
+          <td class="p-3 text-center font-bold text-sm bg-slate-50/50 ${colorPct}">${pct}%</td>
+        </tr>`;
+
+        tbody.innerHTML += rowHtml;
+      });
+
+      // Actions sur les clics de boutons de pointage
+      document.querySelectorAll(".btn-pointage").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const key = btn.getAttribute("data-key");
+          const ordres = ['P', 'R', 'M', 'A', 'T'];
+          const actuel = (registre.pointages && registre.pointages[key]) || 'P';
+          const prochain = ordres[(ordres.indexOf(actuel) + 1) % ordres.length];
+
+          if (!registre.pointages) registre.pointages = {};
+          registre.pointages[key] = prochain;
+          renderTable();
+          sauvegarderCloud();
+        });
+      });
+    }
+
+    // GESTION DU SÉLECTEUR DE COURS
+    function initCoursSelector() {
+      const coursConnus = ['cours-defaut', 'math-bloc1', 'informatique-bloc2', 'anglais-soir'];
+      if (!coursConnus.includes(coursActif)) coursConnus.push(coursActif);
+
+      selectCours.innerHTML = coursConnus.map(c => 
+        `<option value="${c}" ${c === coursActif ? 'selected' : ''}>${c}</option>`
+      ).join('');
+
+      selectCours.addEventListener("change", (e) => {
+        coursActif = e.target.value;
+        const url = new URL(window.location);
+        url.searchParams.set('cours', coursActif);
+        window.history.pushState({}, '', url);
+        connecterCours(coursActif);
+      });
+
+      document.getElementById("btnNouveauCours").addEventListener("click", () => {
+        const nom = prompt("Nom du nouveau cours (ex. compta-soir) :");
+        if (nom) {
+          const id = nom.toLowerCase().replace(/[^a-z0-9]/g, '-');
+          coursActif = id;
+          initCoursSelector();
+          connecterCours(coursActif);
+        }
+      });
+    }
+
+    // AJOUT DE SÉANCE
+    document.getElementById("btnAjouterSeance").addEventListener("click", () => {
+      const nom = `Séance ${(registre.seances || []).length + 1}`;
+      if (!registre.seances) registre.seances = [];
+      registre.seances.push(nom);
       renderTable();
+      sauvegarderCloud();
     });
 
-    function saveToStorage() {
-      const payload = {
-        courseTitle,
-        students,
-        sessions,
-        attendanceData,
-        abandonedStudents,
-        savedAt: new Date().toISOString()
-      };
+    // MODAL ETUDIANTS
+    const modalEtu = document.getElementById("modalEtudiants");
+    document.getElementById("btnGererEtudiants").addEventListener("click", () => {
+      document.getElementById("txtEtudiants").value = (registre.etudiants || []).join('\n');
+      modalEtu.classList.remove("hidden");
+      modalEtu.classList.add("flex");
+    });
+    document.getElementById("btnFermerModalEtudiants").addEventListener("click", () => {
+      modalEtu.classList.add("hidden");
+      modalEtu.classList.remove("flex");
+    });
+    document.getElementById("btnSauverEtudiants").addEventListener("click", () => {
+      const raw = document.getElementById("txtEtudiants").value;
+      registre.etudiants = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      modalEtu.classList.add("hidden");
+      modalEtu.classList.remove("flex");
+      renderTable();
+      sauvegarderCloud();
+    });
 
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-        indicateSaved();
-      } catch (e) {
-        console.warn("Échec d'écriture localStorage:", e);
-      }
-    }
-
-    function loadFromStorage() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          courseTitle = parsed.courseTitle || "";
-          students = parsed.students || [];
-          sessions = parsed.sessions || [];
-          attendanceData = parsed.attendanceData || {};
-          abandonedStudents = parsed.abandonedStudents || {};
-          document.getElementById('courseTitleInput').value = courseTitle;
-        }
-      } catch (e) {
-        console.error("Erreur de chargement des données locales :", e);
-      }
-    }
-
-    function indicateSaved() {
-      const badge = document.getElementById('saveStatusBadge');
-      if (badge) {
-        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Enregistré`;
-        badge.className = "inline-flex items-center gap-1 text-emerald-700 font-medium";
-      }
-    }
-
-    function indicateSaving() {
-      const badge = document.getElementById('saveStatusBadge');
-      if (badge) {
-        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Sauvegarde...`;
-        badge.className = "inline-flex items-center gap-1 text-amber-700 font-medium";
-      }
-    }
-
-    function onCourseTitleChange(val) {
-      indicateSaving();
-      courseTitle = val;
-      saveToStorage();
-    }
-
-    function createNewCourse() {
-      if (confirm("Voulez-vous créer un nouveau registre vierge ? Pensez à faire 'Sauvegarder fichier' pour conserver l'actuel si besoin.")) {
-        courseTitle = "";
-        students = [];
-        sessions = [];
-        attendanceData = {};
-        abandonedStudents = {};
-        document.getElementById('courseTitleInput').value = "";
-        saveToStorage();
-        renderTable();
-      }
-    }
-
-    // -------------------------------------------------------------
-    // GESTION DU FICHIER ANNEXÉ (.cesna) POUR ONEDRIVE / TEAMS
-    // -------------------------------------------------------------
-    function saveToFileCESNa() {
-      const payload = {
-        courseTitle,
-        students,
-        sessions,
-        attendanceData,
-        abandonedStudents,
-        exportedAt: new Date().toISOString()
-      };
-
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
-      const downloadAnchor = document.createElement('a');
-      const filename = (courseTitle ? courseTitle.replace(/[^a-z0-9_-]/gi, '_') : 'Registre_CESNa') + '.cesna';
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", filename);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
-    }
-
-    function openFileCESNa() {
-      document.getElementById('cesnaFileHiddenInput').click();
-    }
-
-    function handleFileCESNaSelected(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const parsed = JSON.parse(e.target.result);
-          courseTitle = parsed.courseTitle || "";
-          students = parsed.students || [];
-          sessions = parsed.sessions || [];
-          attendanceData = parsed.attendanceData || {};
-          abandonedStudents = parsed.abandonedStudents || {};
-          
-          document.getElementById('courseTitleInput').value = courseTitle;
-          saveToStorage();
-          renderTable();
-          alert("Fichier de registre chargé avec succès !");
-        } catch (err) {
-          alert("Format de fichier invalide.");
-        }
-      };
-      reader.readAsText(file);
-      event.target.value = "";
-    }
-
-    // -------------------------------------------------------------
-    // DÉCOUPAGE INTELLIGENT DE DATES CONTINUES (sans virgule)
-    // Ex: 8/09/269/09/2615/09/26 -> 8/09/26, 9/09/26, 15/09/26
-    // -------------------------------------------------------------
-    function parseContinuousDates(raw) {
-      if (!raw) return [];
-      const clean = raw.trim();
-      // Expression régulière capturant jj/mm/aa ou j/mm/aa ou jj/mm/aaaa
-      const regex = /(\d{1,2}\/\d{1,2}\/\d{2,4}|\d{1,2}\/\d{1,2})/g;
-      const matches = clean.match(regex);
-      if (matches && matches.length > 0) {
-        return matches.map(m => m.trim());
-      }
-      return clean.split(/[,;\n\s]+/).filter(Boolean);
-    }
-
-    function previewParsedDates(val) {
-      const box = document.getElementById('datesPreviewTagBox');
-      const parsed = parseContinuousDates(val);
-      box.innerHTML = '';
-      parsed.forEach(d => {
-        const tag = document.createElement('span');
-        tag.className = "bg-blue-100 text-blue-900 border border-blue-300 font-bold px-1.5 py-0.5 rounded text-[10px]";
-        tag.innerText = d;
-        box.appendChild(tag);
-      });
-    }
-
-    // -------------------------------------------------------------
-    // CALCUL DES POURCENTAGES DE PRÉSENCE
-    // -------------------------------------------------------------
-    function calculateStudentRate(studentId) {
-      if (sessions.length === 0) return 0;
-      
-      let eligibleSessions = 0;
-      let presencePoints = 0;
-
-      sessions.forEach(sess => {
-        const record = attendanceData[`${studentId}_${sess.id}`];
-        const status = record ? record.status : '?';
-
-        // T (Inscription tardive) n'est pas pénalisant : non comptabilisé dans le dénominateur
-        if (status === 'T') {
-          return;
-        }
-
-        eligibleSessions++;
-
-        if (status === 'P' || status === 'M') {
-          presencePoints += 1.0;
-        } else if (status === 'R') {
-          // Quotité calculée selon les minutes perdues
-          presencePoints += (record.quotite !== undefined ? record.quotite : 1.0);
-        } else if (status === 'A') {
-          presencePoints += 0;
-        } else {
-          // '?' Non encodé = 0 par défaut
-          presencePoints += 0;
-        }
-      });
-
-      if (eligibleSessions === 0) return 100;
-      return Math.round((presencePoints / eligibleSessions) * 100);
-    }
-
-    // -------------------------------------------------------------
-    // RENDU VISUEL DU TABLEAU
-    // -------------------------------------------------------------
-    function renderTable() {
-      // 1. En-têtes de séances
-      const datesRow = document.getElementById('headerRowDates');
-      const hoursRow = document.getElementById('headerRowHours');
-
-      // Nettoyer les colonnes séances existantes (conserver les 4 premières colonnes)
-      while (datesRow.children.length > 4) datesRow.removeChild(datesRow.lastChild);
-      while (hoursRow.children.length > 1) hoursRow.removeChild(hoursRow.lastChild);
-
-      sessions.forEach((sess) => {
-        // En-tête date
-        const thDate = document.createElement('th');
-        thDate.className = "w-14 min-w-[56px] max-w-[56px] py-1 px-0.5 text-center font-bold border border-slate-400 text-white cursor-pointer hover:bg-blue-900 transition";
-        thDate.innerText = sess.date;
-        thDate.title = `Séance ${sess.date} (${sess.start} - ${sess.end}) - Cliquez pour marquer 'P' tous les étudiants`;
-        thDate.onclick = () => fillEntireSession(sess.id, 'P');
-        datesRow.appendChild(thDate);
-
-        // Sous en-tête horaire
-        const thHours = document.createElement('th');
-        thHours.className = "w-14 min-w-[56px] max-w-[56px] py-0.5 px-0.5 text-[9px] leading-tight text-center font-normal border border-slate-400 text-white";
-        thHours.innerHTML = `${sess.start}<br>${sess.end}`;
-        hoursRow.appendChild(thHours);
-      });
-
-      // 2. Lignes d'étudiants
-      const tbody = document.getElementById('studentTableBody');
-      tbody.innerHTML = '';
-
-      if (students.length === 0) {
-        const totalCols = 4 + sessions.length;
-        const emptyTr = document.createElement('tr');
-        emptyTr.innerHTML = `
-          <td colspan="${totalCols}" class="py-12 px-4 text-center text-slate-400 bg-white">
-            <p class="font-bold text-slate-600 mb-1">Aucun étudiant dans ce registre</p>
-            <p class="text-xs text-slate-500 mb-3">Ajoutez vos étudiants via le bouton vert "Importer Excel / Liste" ou un par un.</p>
-          </td>
-        `;
-        tbody.appendChild(emptyTr);
-        updateGlobalStats();
-        return;
-      }
-
-      students.forEach((std, index) => {
-        const tr = document.createElement('tr');
-        tr.className = index % 2 === 0 ? "bg-amber-50/30 hover:bg-yellow-50" : "bg-white hover:bg-yellow-50";
-
-        const isAbandoned = !!abandonedStudents[std.id];
-        const studentRate = calculateStudentRate(std.id);
-
-        // Col 1 : N°
-        const tdIndex = document.createElement('td');
-        tdIndex.className = "py-2 px-1 text-center font-medium border border-slate-300 text-slate-700";
-        tdIndex.innerText = index + 1;
-        tr.appendChild(tdIndex);
-
-        // Col 2 : Nom & Prénom
-        const tdName = document.createElement('td');
-        tdName.className = "py-2 px-3 border border-slate-300 leading-tight";
-        tdName.innerHTML = `
-          <div class="font-bold uppercase text-slate-900">${escapeHtml(std.nom)}</div>
-          <div class="capitalize text-slate-600">${escapeHtml(std.prenom)}</div>
-        `;
-        tr.appendChild(tdName);
-
-        // Col 3 : Taux Prés.
-        const tdRate = document.createElement('td');
-        tdRate.className = "py-2 px-1 text-center font-bold border border-slate-300";
-        tdRate.innerText = `${studentRate} %`;
-        if (studentRate >= 80) tdRate.classList.add('text-emerald-700');
-        else if (studentRate >= 50) tdRate.classList.add('text-amber-700');
-        else tdRate.classList.add('text-rose-700');
-        tr.appendChild(tdRate);
-
-        // Col 4 : Abandon (NON / OUI)
-        const tdAbandon = document.createElement('td');
-        tdAbandon.className = "py-2 px-1 text-center font-bold border border-slate-300 cursor-pointer select-none";
-        tdAbandon.innerHTML = isAbandoned 
-          ? `<span class="text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-300">OUI</span>` 
-          : `<span class="text-emerald-800">NON</span>`;
-        tdAbandon.onclick = () => toggleAbandon(std.id);
-        tr.appendChild(tdAbandon);
-
-        // Colonnes des Séances
-        sessions.forEach(sess => {
-          const tdCell = document.createElement('td');
-          tdCell.className = "w-14 min-w-[56px] max-w-[56px] py-1 px-0.5 text-center font-bold border border-slate-300 cursor-pointer transition select-none";
-
-          const record = attendanceData[`${std.id}_${sess.id}`];
-          const status = record ? record.status : '?';
-
-          tdCell.innerText = status;
-
-          if (status === 'P') {
-            tdCell.className += " bg-[#00ff66] text-[#006622] hover:brightness-95";
-          } else if (status === 'M') {
-            tdCell.className += " bg-[#6ee7b7] text-[#047857] hover:brightness-95";
-          } else if (status === 'R') {
-            tdCell.className += " bg-striped-retard hover:brightness-95";
-            if (record && (record.lateMin > 0 || record.earlyMin > 0)) {
-              tdCell.title = `Retard : +${record.lateMin}m / Dép : -${record.earlyMin}m (${Math.round(record.quotite * 100)}%)`;
-            }
-          } else if (status === 'A') {
-            tdCell.className += " bg-[#fca5a5] text-[#991b1b] hover:brightness-95";
-          } else if (status === 'T') {
-            tdCell.className += " bg-[#ddd6fe] text-[#5b21b6] hover:brightness-95";
-            tdCell.title = "Inscription tardive (non pénalisé)";
-          } else {
-            tdCell.className += " text-slate-400 hover:bg-slate-200";
-          }
-
-          tdCell.onclick = () => openPointageModal(std, sess);
-          tr.appendChild(tdCell);
+    // EXPORT EXCEL
+    document.getElementById("btnExportExcel").addEventListener("click", () => {
+      const data = (registre.etudiants || []).map(etu => {
+        const row = { "Étudiant": etu };
+        (registre.seances || []).forEach((s, idx) => {
+          row[s] = (registre.pointages && registre.pointages[`${etu}_${idx}`]) || 'P';
         });
-
-        tbody.appendChild(tr);
+        return row;
       });
-
-      updateGlobalStats();
-    }
-
-    function updateGlobalStats() {
-      document.getElementById('statStudentCount').innerText = students.length;
-      document.getElementById('statSessionCount').innerText = sessions.length;
-
-      if (students.length === 0 || sessions.length === 0) {
-        document.getElementById('statAveragePresence').innerText = "0 %";
-        return;
-      }
-
-      let totalRate = 0;
-      students.forEach(s => {
-        totalRate += calculateStudentRate(s.id);
-      });
-      const avg = Math.round(totalRate / students.length);
-      document.getElementById('statAveragePresence').innerText = `${avg} %`;
-    }
-
-    function toggleAbandon(studentId) {
-      indicateSaving();
-      abandonedStudents[studentId] = !abandonedStudents[studentId];
-      saveToStorage();
-      renderTable();
-    }
-
-    function fillEntireSession(sessionId, defaultStatus) {
-      if (confirm(`Voulez-vous marquer tous les étudiants comme '${defaultStatus}' pour cette séance ?`)) {
-        indicateSaving();
-        students.forEach(s => {
-          attendanceData[`${s.id}_${sessionId}`] = {
-            status: defaultStatus,
-            lateMin: 0,
-            earlyMin: 0,
-            quotite: 1.0
-          };
-        });
-        saveToStorage();
-        renderTable();
-      }
-    }
-
-    // -------------------------------------------------------------
-    // GESTION DU POINTAGE RAPIDE (CLIC UNIQUE)
-    // -------------------------------------------------------------
-    function openPointageModal(student, session) {
-      currentCell.studentId = student.id;
-      currentCell.sessionId = session.id;
-
-      document.getElementById('modalHeaderTitle').innerText = `${session.date} - ${session.start} > ${session.end}`;
-      document.getElementById('modalStudentName').innerText = `${student.nom} ${student.prenom}`;
-
-      // Réinitialiser les curseurs
-      document.getElementById('retardSlidersBox').classList.add('hidden');
-      document.getElementById('lateArrivalSlider').value = 0;
-      document.getElementById('earlyDepartureSlider').value = 0;
-      document.getElementById('lateArrivalLabel').innerText = "0 min";
-      document.getElementById('earlyDepartureLabel').innerText = "0 min";
-      document.getElementById('retardPercentBadge').innerText = "100 % retenu";
-
-      // Pré-remplir si déjà un statut R existant
-      const existing = attendanceData[`${student.id}_${session.id}`];
-      if (existing && existing.status === 'R') {
-        document.getElementById('lateArrivalSlider').value = existing.lateMin || 0;
-        document.getElementById('earlyDepartureSlider').value = existing.earlyMin || 0;
-        onRetardSliderChange();
-      }
-
-      document.getElementById('pointageModal').classList.remove('hidden');
-    }
-
-    function closePointageModal() {
-      document.getElementById('pointageModal').classList.add('hidden');
-      document.getElementById('modalLegendBox').classList.add('hidden');
-    }
-
-    // Clic instantané direct sans confirmation
-    function applyStatusAndClose(status) {
-      indicateSaving();
-      attendanceData[`${currentCell.studentId}_${currentCell.sessionId}`] = {
-        status: status,
-        lateMin: 0,
-        earlyMin: 0,
-        quotite: (status === 'P' || status === 'M') ? 1.0 : 0
-      };
-      saveToStorage();
-      closePointageModal();
-      renderTable();
-    }
-
-    function openRetardSliders() {
-      document.getElementById('retardSlidersBox').classList.toggle('hidden');
-    }
-
-    function onRetardSliderChange() {
-      const late = parseInt(document.getElementById('lateArrivalSlider').value, 10);
-      const early = parseInt(document.getElementById('earlyDepartureSlider').value, 10);
-
-      document.getElementById('lateArrivalLabel').innerText = `${late} min`;
-      document.getElementById('earlyDepartureLabel').innerText = `${early} min`;
-
-      // Durée standard d'une séance (17h00 - 22h15 = 5h15 = 315 min)
-      const totalSessionMin = 315;
-      const missedMin = Math.min(totalSessionMin, late + early);
-      const attendedMin = Math.max(0, totalSessionMin - missedMin);
-      const quotite = attendedMin / totalSessionMin;
-
-      const pct = Math.round(quotite * 100);
-      document.getElementById('retardPercentBadge').innerText = `${pct} % retenu`;
-    }
-
-    function applyRetardAndClose() {
-      indicateSaving();
-      const late = parseInt(document.getElementById('lateArrivalSlider').value, 10);
-      const early = parseInt(document.getElementById('earlyDepartureSlider').value, 10);
-      const totalSessionMin = 315;
-      const missedMin = Math.min(totalSessionMin, late + early);
-      const attendedMin = Math.max(0, totalSessionMin - missedMin);
-      const quotite = attendedMin / totalSessionMin;
-
-      attendanceData[`${currentCell.studentId}_${currentCell.sessionId}`] = {
-        status: 'R',
-        lateMin: late,
-        earlyMin: early,
-        quotite: quotite
-      };
-
-      saveToStorage();
-      closePointageModal();
-      renderTable();
-    }
-
-    function toggleLegendBox() {
-      document.getElementById('modalLegendBox').classList.toggle('hidden');
-    }
-
-    // -------------------------------------------------------------
-    // AJOUT SÉANCES & ÉTUDIANTS
-    // -------------------------------------------------------------
-    function openAddSessionModal() {
-      document.getElementById('sessionDateInput').value = '';
-      document.getElementById('datesPreviewTagBox').innerHTML = '';
-      document.getElementById('addSessionModal').classList.remove('hidden');
-    }
-
-    function closeAddSessionModal() {
-      document.getElementById('addSessionModal').classList.add('hidden');
-    }
-
-    function confirmAddSessions() {
-      const raw = document.getElementById('sessionDateInput').value;
-      const start = document.getElementById('sessionStartInput').value || "17:00";
-      const end = document.getElementById('sessionEndInput').value || "22:15";
-
-      const parsedDates = parseContinuousDates(raw);
-
-      if (parsedDates.length === 0) {
-        alert("Veuillez saisir au moins une date.");
-        return;
-      }
-
-      indicateSaving();
-      const ts = Date.now();
-      parsedDates.forEach((d, idx) => {
-        sessions.push({
-          id: `sess_${ts}_${idx}`,
-          date: d,
-          start: start,
-          end: end
-        });
-      });
-
-      saveToStorage();
-      closeAddSessionModal();
-      renderTable();
-    }
-
-    function openAddStudentModal() {
-      document.getElementById('newStudentNom').value = '';
-      document.getElementById('newStudentPrenom').value = '';
-      document.getElementById('addStudentModal').classList.remove('hidden');
-    }
-
-    function closeAddStudentModal() {
-      document.getElementById('addStudentModal').classList.add('hidden');
-    }
-
-    function confirmAddStudent() {
-      const nom = document.getElementById('newStudentNom').value.trim();
-      const prenom = document.getElementById('newStudentPrenom').value.trim();
-
-      if (!nom) {
-        alert("Veuillez indiquer au minimum le nom de l'étudiant.");
-        return;
-      }
-
-      indicateSaving();
-      students.push({
-        id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        nom: nom,
-        prenom: prenom
-      });
-
-      saveToStorage();
-      closeAddStudentModal();
-      renderTable();
-    }
-
-    // -------------------------------------------------------------
-    // IMPORT EXCEL / LISTE
-    // -------------------------------------------------------------
-    function openImportModal() {
-      document.getElementById('pasteStudentListInput').value = '';
-      document.getElementById('importModal').classList.remove('hidden');
-    }
-
-    function closeImportModal() {
-      document.getElementById('importModal').classList.add('hidden');
-    }
-
-    function handleExcelFile(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-        let addedCount = 0;
-        rows.forEach(row => {
-          if (row && row.length > 0) {
-            const col1 = String(row[0] || '').trim();
-            const col2 = String(row[1] || '').trim();
-            if (col1 && !col1.toLowerCase().includes('nom')) {
-              students.push({
-                id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                nom: col1,
-                prenom: col2
-              });
-              addedCount++;
-            }
-          }
-        });
-
-        indicateSaving();
-        saveToStorage();
-        closeImportModal();
-        renderTable();
-        alert(`${addedCount} étudiant(s) importé(s) depuis le fichier Excel.`);
-      };
-      reader.readAsArrayBuffer(file);
-      event.target.value = "";
-    }
-
-    function confirmImportList() {
-      const text = document.getElementById('pasteStudentListInput').value;
-      if (!text.trim()) {
-        alert("Veuillez coller au moins un nom d'étudiant.");
-        return;
-      }
-
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-      let added = 0;
-
-      lines.forEach(line => {
-        // Découper sur le premier espace ou tabulation
-        const parts = line.split(/[\t\s]+/);
-        const nom = parts[0] || "";
-        const prenom = parts.slice(1).join(" ") || "";
-
-        if (nom) {
-          students.push({
-            id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            nom: nom,
-            prenom: prenom
-          });
-          added++;
-        }
-      });
-
-      indicateSaving();
-      saveToStorage();
-      closeImportModal();
-      renderTable();
-    }
-
-    // -------------------------------------------------------------
-    // EXPORT COMPLET EXCEL (.xlsx)
-    // -------------------------------------------------------------
-    function exportToExcel() {
-      if (students.length === 0) {
-        alert("Aucun étudiant à exporter.");
-        return;
-      }
-
-      const headers = ["N°", "Nom", "Prénom", "Taux de présence", "Abandon"];
-      sessions.forEach(s => {
-        headers.push(`${s.date} (${s.start}-${s.end})`);
-      });
-
-      const rows = [headers];
-
-      students.forEach((s, idx) => {
-        const rate = calculateStudentRate(s.id);
-        const isAbandon = abandonedStudents[s.id] ? "OUI" : "NON";
-        const row = [idx + 1, s.nom, s.prenom, `${rate} %`, isAbandon];
-
-        sessions.forEach(sess => {
-          const rec = attendanceData[`${s.id}_${sess.id}`];
-          row.push(rec ? rec.status : "?");
-        });
-
-        rows.push(row);
-      });
-
-      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Présences");
+      XLSX.writeFile(wb, `CESNa_${coursActif}.xlsx`);
+    });
 
-      const fname = (courseTitle ? courseTitle.replace(/[^a-z0-9_-]/gi, '_') : 'Registre_CESNa') + '.xlsx';
-      XLSX.writeFile(wb, fname);
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/[&<>"']/g, function(m) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
-      });
-    }
+    // DÉMARRAGE
+    initCoursSelector();
+    connecterCours(coursActif);
   </script>
 </body>
 </html>
