@@ -64,7 +64,38 @@
   </header>
 
   <!-- CONTENU PRINCIPAL -->
-  <main class="max-w-7xl mx-auto p-6 flex-1 w-full space-y-6">
+  <main class="max-w-7xl mx-auto p-6 flex-1 w-full space-y-4">
+
+    <!-- LÉGENDE PERMANENTE DES STATUTS -->
+    <div class="bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+      <span class="font-bold text-slate-700 uppercase tracking-wide text-[11px]">Légende des pointages :</span>
+      <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+        <div class="flex items-center gap-1.5">
+          <span class="badge-default font-bold px-2 py-0.5 rounded text-[11px]">?</span>
+          <span class="text-slate-600">Non encodé (neutre)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="badge-p font-bold px-2 py-0.5 rounded text-[11px]">P</span>
+          <span class="text-slate-600">Présent (100%)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="badge-r font-bold px-2 py-0.5 rounded text-[11px]">R</span>
+          <span class="text-slate-600">Retard / Anticipé (curseur)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="badge-m font-bold px-2 py-0.5 rounded text-[11px]">M</span>
+          <span class="text-slate-600">Motivé / Certificat (0%)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="badge-a font-bold px-2 py-0.5 rounded text-[11px]">A</span>
+          <span class="text-slate-600">Absent injustifié (0%)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="badge-t font-bold px-2 py-0.5 rounded text-[11px]">T</span>
+          <span class="text-slate-600">Inscr. Tardive (exclu)</span>
+        </div>
+      </div>
+    </div>
 
     <!-- BARRE D'OUTILS SÉANCES -->
     <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -107,7 +138,7 @@
 
   </main>
 
-  <!-- MODAL: GESTION DES ETUDIANTS -->
+  <!-- MODAL: GESTION DES ÉTUDIANTS -->
   <div id="modalEtudiants" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
     <div class="bg-white rounded-xl max-w-lg w-full p-6 space-y-4 shadow-xl">
       <h3 class="text-base font-bold text-slate-900">Modifier la liste des étudiants</h3>
@@ -134,6 +165,76 @@
           <button id="btnFermerModalDates" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200">Annuler</button>
           <button id="btnValiderDates" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700">Valider et trier</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RÉGLAGE DU RETARD / DÉPART ANTICIPÉ (STATUT R) -->
+  <div id="modalRetard" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-slate-100">
+      <div class="border-b border-slate-100 pb-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+            <span class="badge-r px-2 py-0.5 rounded text-xs">R</span>
+            Réglage du Retard / Sortie anticipée
+          </h3>
+          <button id="btnFermerModalRetard" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+        </div>
+        <p id="labelModalRetardEtudiant" class="text-xs text-slate-500 mt-1 font-medium">-</p>
+      </div>
+
+      <!-- Durée de la séance de référence -->
+      <div class="bg-slate-50 p-3 rounded-lg flex items-center justify-between text-xs">
+        <span class="text-slate-600 font-medium">Durée totale de la séance :</span>
+        <div class="flex items-center gap-1.5">
+          <input type="number" id="inputDureeSeance" value="180" min="30" max="600" step="15" class="w-16 text-center border border-slate-300 rounded px-2 py-1 font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+          <span class="text-slate-500">min</span>
+        </div>
+      </div>
+
+      <!-- Curseurs de temps manqué -->
+      <div class="space-y-4">
+        <div>
+          <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+            <span>Arrivé en retard de :</span>
+            <span id="valRetardArrivee" class="text-indigo-600 font-bold">0 min</span>
+          </div>
+          <input type="range" id="sliderRetardArrivee" min="0" max="180" value="0" step="5" class="w-full accent-indigo-600 cursor-pointer">
+        </div>
+
+        <div>
+          <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+            <span>Parti en avance de :</span>
+            <span id="valDepartAvance" class="text-indigo-600 font-bold">0 min</span>
+          </div>
+          <input type="range" id="sliderDepartAvance" min="0" max="180" value="0" step="5" class="w-full accent-indigo-600 cursor-pointer">
+        </div>
+      </div>
+
+      <!-- Raccourcis de quotité rapides -->
+      <div>
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Raccourcis quotité :</span>
+        <div class="grid grid-cols-4 gap-2">
+          <button type="button" class="btn-preset-r py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 transition" data-rate="0.80">80%</button>
+          <button type="button" class="btn-preset-r py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 transition" data-rate="0.75">75%</button>
+          <button type="button" class="btn-preset-r py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 transition" data-rate="0.50">50%</button>
+          <button type="button" class="btn-preset-r py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:border-indigo-300 transition" data-rate="0.25">25%</button>
+        </div>
+      </div>
+
+      <!-- Résultat calculé -->
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between">
+        <div>
+          <div class="text-[11px] uppercase tracking-wide font-bold text-amber-900">Quotité de présence retenue :</div>
+          <div class="text-xs text-amber-700" id="detailTempsEffectif">Temps présent : 180 min / 180 min</div>
+        </div>
+        <div class="text-xl font-extrabold text-amber-800" id="valPourcentageRetard">100%</div>
+      </div>
+
+      <!-- Boutons de validation -->
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button id="btnAnnulerRetard" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200 transition">Annuler</button>
+        <button id="btnValiderRetard" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition shadow">Enregistrer le retard</button>
       </div>
     </div>
   </div>
@@ -168,8 +269,12 @@
 
     let listeCours = [];
     let coursActif = new URLSearchParams(window.location.search).get('cours') || '';
-    let registre = { etudiants: [], seances: [], pointages: {} };
+    let registre = { etudiants: [], seances: [], pointages: {}, detailsRetard: {} };
     let unsubscribeCours = null;
+
+    // État temporaire pour le modal Retard
+    let activeRetardKey = null;
+    let currentRetardRate = 0.8;
 
     function majStatutCloud(type, texte) {
       const dot = type === 'ok' ? 'bg-emerald-500' : type === 'sync' ? 'bg-amber-400 animate-pulse' : 'bg-rose-500';
@@ -197,6 +302,7 @@
 
       const newSeances = [];
       const newPointages = {};
+      const newDetailsRetard = {};
 
       mapSeances.forEach((item, newIdx) => {
         newSeances.push(item.dateStr);
@@ -206,11 +312,15 @@
           if (registre.pointages && registre.pointages[oldKey]) {
             newPointages[newKey] = registre.pointages[oldKey];
           }
+          if (registre.detailsRetard && registre.detailsRetard[oldKey]) {
+            newDetailsRetard[newKey] = registre.detailsRetard[oldKey];
+          }
         });
       });
 
       registre.seances = newSeances;
       registre.pointages = newPointages;
+      registre.detailsRetard = newDetailsRetard;
     }
 
     // 1. CATALOGUE GLOBAL DES COURS
@@ -267,11 +377,13 @@
           if (!registre.seances) registre.seances = [];
           if (!registre.etudiants) registre.etudiants = [];
           if (!registre.pointages) registre.pointages = {};
+          if (!registre.detailsRetard) registre.detailsRetard = {};
         } else {
           registre = {
             etudiants: ["AKAKPO Yayra A", "ANOUME Ange V"],
             seances: ["07/10/2026", "14/10/2026"],
-            pointages: {}
+            pointages: {},
+            detailsRetard: {}
           };
           trierChronologiquement();
           setDoc(coursRef, registre);
@@ -434,6 +546,7 @@
         registre.seances.splice(idx, 1);
 
         const cleanPointages = {};
+        const cleanDetails = {};
         (registre.etudiants || []).forEach(etu => {
           let newSIdx = 0;
           for (let s = 0; s <= registre.seances.length; s++) {
@@ -442,11 +555,15 @@
             if (registre.pointages && registre.pointages[oldKey]) {
               cleanPointages[`${etu}_${newSIdx}`] = registre.pointages[oldKey];
             }
+            if (registre.detailsRetard && registre.detailsRetard[oldKey]) {
+              cleanDetails[`${etu}_${newSIdx}`] = registre.detailsRetard[oldKey];
+            }
             newSIdx++;
           }
         });
 
         registre.pointages = cleanPointages;
+        registre.detailsRetard = cleanDetails;
         trierChronologiquement();
         renderTable();
         sauverFirestore();
@@ -475,7 +592,102 @@
       sauverFirestore();
     };
 
-    // 7. RENDU DU TABLEAU AVEC PAR DÉFAUT LE "?"
+    // 7. GESTION DU MODAL RETARD (CURSEURS)
+    const modalRetard = document.getElementById("modalRetard");
+    const inputDureeSeance = document.getElementById("inputDureeSeance");
+    const sliderRetardArrivee = document.getElementById("sliderRetardArrivee");
+    const sliderDepartAvance = document.getElementById("sliderDepartAvance");
+    const valRetardArrivee = document.getElementById("valRetardArrivee");
+    const valDepartAvance = document.getElementById("valDepartAvance");
+    const valPourcentageRetard = document.getElementById("valPourcentageRetard");
+    const detailTempsEffectif = document.getElementById("detailTempsEffectif");
+    const labelModalRetardEtudiant = document.getElementById("labelModalRetardEtudiant");
+
+    function actualiserCalculRetard() {
+      const dureeTotale = parseInt(inputDureeSeance.value, 10) || 180;
+      sliderRetardArrivee.max = dureeTotale;
+      sliderDepartAvance.max = dureeTotale;
+
+      const rArrivee = parseInt(sliderRetardArrivee.value, 10) || 0;
+      const dAvance = parseInt(sliderDepartAvance.value, 10) || 0;
+
+      valRetardArrivee.textContent = `${rArrivee} min`;
+      valDepartAvance.textContent = `${dAvance} min`;
+
+      const tempsManque = Math.min(dureeTotale, rArrivee + dAvance);
+      const tempsPresent = Math.max(0, dureeTotale - tempsManque);
+      currentRetardRate = tempsPresent / dureeTotale;
+      const pct = Math.round(currentRetardRate * 100);
+
+      detailTempsEffectif.textContent = `Temps présent : ${tempsPresent} min / ${dureeTotale} min`;
+      valPourcentageRetard.textContent = `${pct}%`;
+    }
+
+    [inputDureeSeance, sliderRetardArrivee, sliderDepartAvance].forEach(el => {
+      el.addEventListener("input", actualiserCalculRetard);
+    });
+
+    document.querySelectorAll(".btn-preset-r").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const rate = parseFloat(btn.getAttribute("data-rate"));
+        const duree = parseInt(inputDureeSeance.value, 10) || 180;
+        const tempsManque = Math.round(duree * (1 - rate));
+        sliderRetardArrivee.value = tempsManque;
+        sliderDepartAvance.value = 0;
+        actualiserCalculRetard();
+      });
+    });
+
+    function ouvrirModalRetard(key, etudiant, seanceIndex) {
+      activeRetardKey = key;
+      const seanceDate = (registre.seances && registre.seances[seanceIndex]) || `Séance ${seanceIndex + 1}`;
+      labelModalRetardEtudiant.textContent = `Étudiant : ${etudiant} — Séance du ${seanceDate}`;
+
+      if (registre.detailsRetard && registre.detailsRetard[key]) {
+        const d = registre.detailsRetard[key];
+        inputDureeSeance.value = d.duree || 180;
+        sliderRetardArrivee.value = d.retardArrivee || 0;
+        sliderDepartAvance.value = d.departAvance || 0;
+      } else {
+        inputDureeSeance.value = 180;
+        sliderRetardArrivee.value = 35; // retard par défaut d'environ 80%
+        sliderDepartAvance.value = 0;
+      }
+
+      actualiserCalculRetard();
+      modalRetard.classList.remove("hidden");
+      modalRetard.classList.add("flex");
+    }
+
+    function fermerModalRetard() {
+      modalRetard.classList.add("hidden");
+      modalRetard.classList.remove("flex");
+      activeRetardKey = null;
+    }
+
+    document.getElementById("btnFermerModalRetard").addEventListener("click", fermerModalRetard);
+    document.getElementById("btnAnnulerRetard").addEventListener("click", fermerModalRetard);
+
+    document.getElementById("btnValiderRetard").addEventListener("click", () => {
+      if (activeRetardKey) {
+        if (!registre.pointages) registre.pointages = {};
+        if (!registre.detailsRetard) registre.detailsRetard = {};
+
+        registre.pointages[activeRetardKey] = 'R';
+        registre.detailsRetard[activeRetardKey] = {
+          duree: parseInt(inputDureeSeance.value, 10) || 180,
+          retardArrivee: parseInt(sliderRetardArrivee.value, 10) || 0,
+          departAvance: parseInt(sliderDepartAvance.value, 10) || 0,
+          rate: Math.round(currentRetardRate * 100) / 100
+        };
+
+        fermerModalRetard();
+        renderTable();
+        sauverFirestore();
+      }
+    });
+
+    // 8. RENDU DU TABLEAU ET CALCULS
     function renderTable() {
       countEtudiants.innerText = (registre.etudiants || []).length;
 
@@ -511,14 +723,27 @@
 
         (registre.seances || []).forEach((s, sIdx) => {
           const key = `${etu}_${sIdx}`;
-          // PAR DÉFAUT : '?'
           const val = (registre.pointages && registre.pointages[key]) || '?';
 
-          if (val === 'P') { totalPresents += 1; totalValides += 1; }
-          else if (val === 'M') { totalValides += 1; }
-          else if (val === 'R') { totalPresents += 0.8; totalValides += 1; }
-          else if (val === 'A') { totalValides += 1; }
-          // '?' et 'T' ne comptent pas dans le dénominateur tant que ce n'est pas pointé
+          let labelAffichage = val;
+          let rateEffectif = 0.8;
+
+          if (val === 'P') { 
+            totalPresents += 1; 
+            totalValides += 1; 
+          } else if (val === 'M') { 
+            totalValides += 1; 
+          } else if (val === 'R') { 
+            if (registre.detailsRetard && registre.detailsRetard[key] && typeof registre.detailsRetard[key].rate === 'number') {
+              rateEffectif = registre.detailsRetard[key].rate;
+            }
+            totalPresents += rateEffectif; 
+            totalValides += 1; 
+            labelAffichage = `R ${Math.round(rateEffectif * 100)}%`;
+          } else if (val === 'A') { 
+            totalValides += 1; 
+          }
+          // '?' et 'T' sont exclus du dénominateur
 
           const classes = {
             '?': 'badge-default',
@@ -531,8 +756,8 @@
 
           row += `
             <div class="p-1.5 text-center border-l border-slate-100 min-w-[105px] flex-1 flex justify-center items-center">
-              <button data-key="${key}" class="btn-pointage w-9 h-8 rounded-md font-bold text-xs shadow-sm transition hover:scale-105 active:scale-95 ${classes}">
-                ${val}
+              <button data-key="${key}" data-etu="${etu}" data-sidx="${sIdx}" class="btn-pointage w-auto min-w-[36px] px-2 h-8 rounded-md font-bold text-xs shadow-sm transition hover:scale-105 active:scale-95 ${classes}">
+                ${labelAffichage}
               </button>
             </div>`;
         });
@@ -553,23 +778,43 @@
         tableBody.innerHTML += row;
       });
 
-      // Cycle au clic : '?' -> 'P' -> 'R' -> 'M' -> 'A' -> 'T' -> '?'
+      // Actions sur les boutons de pointage
       document.querySelectorAll(".btn-pointage").forEach(btn => {
         btn.addEventListener("click", () => {
           const key = btn.getAttribute("data-key");
+          const etu = btn.getAttribute("data-etu");
+          const sIdx = parseInt(btn.getAttribute("data-sidx"), 10);
+          
           const ordres = ['?', 'P', 'R', 'M', 'A', 'T'];
           const actuel = (registre.pointages && registre.pointages[key]) || '?';
           const next = ordres[(ordres.indexOf(actuel) + 1) % ordres.length];
 
-          if (!registre.pointages) registre.pointages = {};
-          registre.pointages[key] = next;
-          renderTable();
-          sauverFirestore();
+          if (next === 'R') {
+            // Ouvrir les curseurs pour le statut R
+            ouvrirModalRetard(key, etu, sIdx);
+          } else {
+            if (!registre.pointages) registre.pointages = {};
+            registre.pointages[key] = next;
+            renderTable();
+            sauverFirestore();
+          }
+        });
+
+        // Clic droit ou double clic sur un "R" pour réajuster ses minutes
+        btn.addEventListener("contextmenu", (e) => {
+          const key = btn.getAttribute("data-key");
+          const etu = btn.getAttribute("data-etu");
+          const sIdx = parseInt(btn.getAttribute("data-sidx"), 10);
+          const actuel = (registre.pointages && registre.pointages[key]) || '?';
+          if (actuel === 'R') {
+            e.preventDefault();
+            ouvrirModalRetard(key, etu, sIdx);
+          }
         });
       });
     }
 
-    // 8. GESTION DES ÉTUDIANTS
+    // 9. GESTION DES ÉTUDIANTS
     const modalEtu = document.getElementById("modalEtudiants");
     document.getElementById("btnGererEtudiants").addEventListener("click", () => {
       document.getElementById("txtEtudiants").value = (registre.etudiants || []).join('\n');
@@ -589,12 +834,18 @@
       sauverFirestore();
     });
 
-    // 9. EXPORT EXCEL OFFICIEL
+    // 10. EXPORT EXCEL OFFICIEL
     document.getElementById("btnExportExcel").addEventListener("click", () => {
       const data = (registre.etudiants || []).map((etu, i) => {
         const ligne = { "#": i + 1, "Nom et Prénom": etu };
         (registre.seances || []).forEach((s, idx) => {
-          ligne[s] = (registre.pointages && registre.pointages[`${etu}_${idx}`]) || '?';
+          const key = `${etu}_${idx}`;
+          const val = (registre.pointages && registre.pointages[key]) || '?';
+          if (val === 'R' && registre.detailsRetard && registre.detailsRetard[key]) {
+            ligne[s] = `R (${Math.round(registre.detailsRetard[key].rate * 100)}%)`;
+          } else {
+            ligne[s] = val;
+          }
         });
         return ligne;
       });
