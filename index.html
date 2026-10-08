@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CESNa - Registre des Présences & Données de Cours</title>
-  
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS pour import/export Excel -->
@@ -13,21 +14,22 @@
   <style>
     /* Styles institutionnels et hachures pour le statut R (Retard) */
     .bg-striped-retard {
-      background: repeating-linear-gradient(
-        45deg,
-        #6ee7b7,
-        #6ee7b7 8px,
-        #a7f3d0 8px,
-        #a7f3d0 16px
-      );
+      background: repeating-linear-gradient(45deg,
+          #6ee7b7,
+          #6ee7b7 8px,
+          #a7f3d0 8px,
+          #a7f3d0 16px);
       color: #065f46;
     }
+
     .header-primary {
       background-color: #0a3a60;
     }
+
     .header-secondary {
       background-color: #082d4a;
     }
+
     /* Empêche la sélection intempestive lors de clics rapides */
     .no-select {
       user-select: none;
@@ -35,41 +37,46 @@
     }
   </style>
 </head>
+
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
 
   <!-- ================= BARRE SUPÉRIEURE & EN-TÊTE ================= -->
   <header class="bg-white border-b border-slate-300 shadow-sm sticky top-0 z-40">
     <div class="max-w-[1900px] mx-auto px-4 py-2">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        
+
         <!-- Logo CESNa officiel + Intitulé & Sélecteur de cours -->
         <div class="flex items-center gap-3 min-w-[340px] flex-1">
           <!-- Logo CESNa vectoriel SVG -->
-          <div class="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-white rounded shadow-sm border border-slate-200 p-0.5">
+          <div
+            class="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-white rounded shadow-sm border border-slate-200 p-0.5">
             <svg viewBox="0 0 450 450" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-              <path d="M 30,225 C 90,80 360,80 420,225 C 360,370 90,370 30,225 Z" fill="#003366"/>
-              <ellipse cx="225" cy="225" rx="105" ry="105" fill="#ffffff"/>
+              <path d="M 30,225 C 90,80 360,80 420,225 C 360,370 90,370 30,225 Z" fill="#003366" />
+              <ellipse cx="225" cy="225" rx="105" ry="105" fill="#ffffff" />
               <g transform="translate(225, 225)">
-                <ellipse cx="0" cy="0" rx="35" ry="35" fill="#ffffff" stroke="#003366" stroke-width="1.5"/>
+                <ellipse cx="0" cy="0" rx="35" ry="35" fill="#ffffff" stroke="#003366" stroke-width="1.5" />
                 <!-- Rayons de l'iris -->
-                <path d="M -7, -54 L 7, -54 L 5, -36 L -5, -36 Z" fill="#003366"/>
-                <path d="M 16, -52 L 28, -46 L 19, -31 L 11, -35 Z" fill="#003366"/>
-                <path d="M 36, -41 L 46, -30 L 31, -20 L 24, -28 Z" fill="#4682b4"/>
-                <path d="M 50, -22 L 54, -8 L 36, -5 L 34, -15 Z" fill="#87cefa"/>
-                <path d="M 54, 7 L 50, 22 L 34, 15 L 36, 5 Z" fill="#e65100"/>
-                <path d="M 46, 30 L 36, 41 L 24, 28 L 31, 20 Z" fill="#003366"/>
-                <path d="M 28, 46 L 16, 52 L 11, 35 L 19, 31 Z" fill="#4682b4"/>
-                <path d="M 7, 54 L -7, 54 L -5, 36 L 5, 36 Z" fill="#87cefa"/>
-                <path d="M -16, 52 L -28, 46 L -19, 31 L -11, 35 Z" fill="#003366"/>
-                <path d="M -36, 41 L -46, 30 L -31, 20 L -24, 28 Z" fill="#e65100"/>
-                <path d="M -50, 22 L -54, 7 L -36, 5 L -34, 15 Z" fill="#003366"/>
-                <path d="M -54, -7 L -50, -22 L -34, -15 L -36, -5 Z" fill="#4682b4"/>
-                <path d="M -46, -30 L -36, -41 L -24, -28 L -31, -20 Z" fill="#87cefa"/>
-                <path d="M -28, -46 L -16, -52 L -11, -35 L -19, -31 Z" fill="#003366"/>
+                <path d="M -7, -54 L 7, -54 L 5, -36 L -5, -36 Z" fill="#003366" />
+                <path d="M 16, -52 L 28, -46 L 19, -31 L 11, -35 Z" fill="#003366" />
+                <path d="M 36, -41 L 46, -30 L 31, -20 L 24, -28 Z" fill="#4682b4" />
+                <path d="M 50, -22 L 54, -8 L 36, -5 L 34, -15 Z" fill="#87cefa" />
+                <path d="M 54, 7 L 50, 22 L 34, 15 L 36, 5 Z" fill="#e65100" />
+                <path d="M 46, 30 L 36, 41 L 24, 28 L 31, 20 Z" fill="#003366" />
+                <path d="M 28, 46 L 16, 52 L 11, 35 L 19, 31 Z" fill="#4682b4" />
+                <path d="M 7, 54 L -7, 54 L -5, 36 L 5, 36 Z" fill="#87cefa" />
+                <path d="M -16, 52 L -28, 46 L -19, 31 L -11, 35 Z" fill="#003366" />
+                <path d="M -36, 41 L -46, 30 L -31, 20 L -24, 28 Z" fill="#e65100" />
+                <path d="M -50, 22 L -54, 7 L -36, 5 L -34, 15 Z" fill="#003366" />
+                <path d="M -54, -7 L -50, -22 L -34, -15 L -36, -5 Z" fill="#4682b4" />
+                <path d="M -46, -30 L -36, -41 L -24, -28 L -31, -20 Z" fill="#87cefa" />
+                <path d="M -28, -46 L -16, -52 L -11, -35 L -19, -31 Z" fill="#003366" />
               </g>
-              <text x="225" y="380" font-family="'Century Gothic', Arial, sans-serif" font-size="70" font-weight="bold" fill="#003366" text-anchor="middle" letter-spacing="4">CESNa</text>
-              <text x="225" y="415" font-family="Arial, sans-serif" font-size="20" font-weight="600" fill="#6ba4d9" text-anchor="middle" letter-spacing="1.5">CENTRE D'ENSEIGNEMENT</text>
-              <text x="225" y="438" font-family="Arial, sans-serif" font-size="20" font-weight="600" fill="#6ba4d9" text-anchor="middle" letter-spacing="2.5">SUPÉRIEUR NAMUROIS</text>
+              <text x="225" y="380" font-family="'Century Gothic', Arial, sans-serif" font-size="70" font-weight="bold"
+                fill="#003366" text-anchor="middle" letter-spacing="4">CESNa</text>
+              <text x="225" y="415" font-family="Arial, sans-serif" font-size="20" font-weight="600" fill="#6ba4d9"
+                text-anchor="middle" letter-spacing="1.5">CENTRE D'ENSEIGNEMENT</text>
+              <text x="225" y="438" font-family="Arial, sans-serif" font-size="20" font-weight="600" fill="#6ba4d9"
+                text-anchor="middle" letter-spacing="2.5">SUPÉRIEUR NAMUROIS</text>
             </svg>
           </div>
 
@@ -77,23 +84,17 @@
           <div class="flex-1">
             <div class="flex items-center gap-2">
               <!-- Menu déroulant des cours officiels -->
-              <select 
-                id="courseSelector" 
+              <select id="courseSelector"
                 class="bg-slate-50 border border-slate-300 text-slate-800 text-xs font-semibold rounded px-2 py-1 outline-none hover:border-blue-500 focus:border-blue-700 max-w-[280px]"
-                onchange="onSelectOfficialCourse(this.value)"
-              >
+                onchange="onSelectOfficialCourse(this.value)">
                 <option value="">-- Sélectionner un cours dans la liste --</option>
                 <!-- Rempli dynamiquement -->
               </select>
 
               <!-- Intitulé affiché / modifiable -->
-              <input 
-                type="text" 
-                id="courseTitleInput" 
-                placeholder="Intitulé du cours (ex: Programmation Web)" 
+              <input type="text" id="courseTitleInput" placeholder="Intitulé du cours (ex: Programmation Web)"
                 class="font-bold text-slate-800 text-sm border-b-2 border-transparent hover:border-slate-300 focus:border-blue-700 bg-transparent px-1 py-0.5 outline-none transition flex-1"
-                oninput="onCourseTitleChange(this.value)"
-              />
+                oninput="onCourseTitleChange(this.value)" />
             </div>
 
             <!-- Sous-barre : État, Infos cours & Nouveau registre -->
@@ -102,33 +103,43 @@
                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Sauvegardé
               </span>
               <span>•</span>
-              <button onclick="toggleDataPanel()" class="text-blue-700 hover:underline font-semibold flex items-center gap-1">
+              <button onclick="toggleDataPanel()"
+                class="text-blue-700 hover:underline font-semibold flex items-center gap-1">
                 <span>📋</span> Infos administratives & Données
               </button>
               <span>•</span>
-              <button onclick="createNewCourse()" class="text-slate-600 hover:text-slate-900 font-medium">+ Nouveau registre</button>
+              <button onclick="createNewCourse()" class="text-slate-600 hover:text-slate-900 font-medium">+ Nouveau
+                registre</button>
             </div>
           </div>
         </div>
 
         <!-- Boutons d'action rapides -->
         <div class="flex flex-wrap items-center gap-1.5">
-          <button onclick="openAddSessionModal()" class="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
+          <button onclick="openAddSessionModal()"
+            class="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
             <span>+</span> Séance(s)
           </button>
-          <button onclick="openAddStudentModal()" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
+          <button onclick="openAddStudentModal()"
+            class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
             <span>+</span> Étudiant
           </button>
-          <button onclick="openImportModal()" class="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition" title="Importer le fichier donnees.xls ou coller une liste">
+          <button onclick="openImportModal()"
+            class="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition"
+            title="Importer le fichier donnees.xls ou coller une liste">
             <span>📄</span> Importer Données/Excel
           </button>
-          <button onclick="exportToExcel()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1 transition" title="Exporter les présences + les données administratives">
+          <button onclick="exportToExcel()"
+            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1 transition"
+            title="Exporter les présences + les données administratives">
             <span>📊</span> Exporter Excel (.xlsx)
           </button>
-          <button onclick="saveToFileCESNa()" title="Télécharger le fichier de sauvegarde (.cesna) pour OneDrive/Teams" class="px-2 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold flex items-center gap-1 transition">
+          <button onclick="saveToFileCESNa()" title="Télécharger le fichier de sauvegarde (.cesna) pour OneDrive/Teams"
+            class="px-2 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold flex items-center gap-1 transition">
             <span>💾</span> Sauvegarder
           </button>
-          <button onclick="openFileCESNa()" title="Rouvrir un fichier de cours .cesna" class="px-2 py-1.5 bg-amber-100 hover:bg-amber-200 border border-amber-400 text-amber-900 rounded text-xs font-semibold flex items-center gap-1 transition">
+          <button onclick="openFileCESNa()" title="Rouvrir un fichier de cours .cesna"
+            class="px-2 py-1.5 bg-amber-100 hover:bg-amber-200 border border-amber-400 text-amber-900 rounded text-xs font-semibold flex items-center gap-1 transition">
             <span>📂</span> Ouvrir
           </button>
         </div>
@@ -136,38 +147,53 @@
       </div>
 
       <!-- VOLET DÉROULANT : INFORMATIONS DU FICHIER DONNÉES (UE, ENSEIGNANT, PÉRIODES...) -->
-      <div id="courseDataPanel" class="mt-2.5 pt-2.5 pb-2 px-3 bg-slate-50 border border-slate-200 rounded-lg shadow-inner hidden animate-in fade-in duration-150">
+      <div id="courseDataPanel"
+        class="mt-2.5 pt-2.5 pb-2 px-3 bg-slate-50 border border-slate-200 rounded-lg shadow-inner hidden animate-in fade-in duration-150">
         <div class="flex items-center justify-between mb-2">
           <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-            <span class="w-2.5 h-2.5 bg-blue-700 rounded-sm"></span> Informations administratives (Fichier Données & Export)
+            <span class="w-2.5 h-2.5 bg-blue-700 rounded-sm"></span> Informations administratives (Fichier Données &
+            Export)
           </h3>
-          <span class="text-[11px] text-slate-500 italic">Ces informations sont reprises dans l'en-tête du fichier Excel exporté</span>
+          <span class="text-[11px] text-slate-500 italic">Ces informations sont reprises dans l'en-tête du fichier Excel
+            exporté</span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Année académique</label>
-            <input type="text" id="metaAcademicYear" value="2026-2027" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none" oninput="saveAdminMetadata()">
+            <input type="text" id="metaAcademicYear" value="2026-2027"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Section / Formation</label>
-            <input type="text" id="metaSection" placeholder="Bachelier en Informatique..." class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none" oninput="saveAdminMetadata()">
+            <input type="text" id="metaSection" placeholder="Bachelier en Informatique..."
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Code UE</label>
-            <input type="text" id="metaCodeUE" placeholder="Ex: UE-INFO-201" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none" oninput="saveAdminMetadata()">
+            <input type="text" id="metaCodeUE" placeholder="Ex: UE-INFO-201"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Intitulé UE / AA</label>
-            <input type="text" id="metaIntituleUE" placeholder="Nom de l'UE" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none" oninput="saveAdminMetadata()">
+            <input type="text" id="metaIntituleUE" placeholder="Nom de l'UE"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Chargé de cours / Prof.</label>
-            <input type="text" id="metaTeacher" placeholder="Nom de l'enseignant" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none" oninput="saveAdminMetadata()">
+            <input type="text" id="metaTeacher" placeholder="Nom de l'enseignant"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Nombre de périodes</label>
-            <input type="text" id="metaPeriods" placeholder="Ex: 80p (50 min)" class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none" oninput="saveAdminMetadata()">
+            <input type="text" id="metaPeriods" placeholder="Ex: 80p (50 min)"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
           </div>
         </div>
       </div>
@@ -175,20 +201,25 @@
       <!-- Légende et statistiques rapides -->
       <div class="mt-2 pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs gap-2">
         <div class="flex items-center gap-3">
-          <span class="font-semibold text-slate-700">Étudiants : <span id="statStudentCount" class="font-bold text-blue-900">0</span></span>
+          <span class="font-semibold text-slate-700">Étudiants : <span id="statStudentCount"
+              class="font-bold text-blue-900">0</span></span>
           <span>•</span>
-          <span class="font-semibold text-slate-700">Séances : <span id="statSessionCount" class="font-bold text-blue-900">0</span></span>
+          <span class="font-semibold text-slate-700">Séances : <span id="statSessionCount"
+              class="font-bold text-blue-900">0</span></span>
           <span>•</span>
-          <span class="font-semibold text-slate-700">Moyenne présence : <span id="statAveragePresence" class="font-bold text-blue-900">0 %</span></span>
+          <span class="font-semibold text-slate-700">Moyenne présence : <span id="statAveragePresence"
+              class="font-bold text-blue-900">0 %</span></span>
         </div>
 
         <!-- Badges légende -->
         <div class="flex flex-wrap items-center gap-1.5">
           <span class="px-2 py-0.5 bg-emerald-400 text-emerald-950 font-bold rounded text-[11px]">P = Présent</span>
           <span class="px-2 py-0.5 bg-emerald-300 text-emerald-900 font-bold rounded text-[11px]">M = À distance</span>
-          <span class="px-2 py-0.5 bg-striped-retard font-bold rounded text-[11px] border border-emerald-400">R = Retard / Dép.</span>
+          <span class="px-2 py-0.5 bg-striped-retard font-bold rounded text-[11px] border border-emerald-400">R = Retard
+            / Dép.</span>
           <span class="px-2 py-0.5 bg-rose-300 text-rose-950 font-bold rounded text-[11px]">A = Absent</span>
-          <span class="px-2 py-0.5 bg-purple-200 text-purple-950 font-bold rounded text-[11px]">T = Inscrip. tardive</span>
+          <span class="px-2 py-0.5 bg-purple-200 text-purple-950 font-bold rounded text-[11px]">T = Inscrip.
+            tardive</span>
           <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">? = Non encodé</span>
         </div>
       </div>
@@ -199,16 +230,21 @@
   <main class="flex-1 p-3 overflow-auto">
     <div class="inline-block min-w-full align-middle">
       <div class="bg-white rounded shadow border border-slate-300 inline-block">
-        
+
         <table id="attendanceTable" class="border-collapse table-fixed text-xs text-left no-select">
           <thead>
             <!-- LIGNE 1 D'EN-TÊTE : Titres et Dates des séances -->
             <tr id="headerRowDates" class="header-primary text-white">
-              <th class="w-10 min-w-[40px] max-w-[40px] py-1.5 px-1 text-center font-bold border border-slate-400">N°</th>
-              <th class="w-20 min-w-[70px] max-w-[70px] py-1.5 px-1 text-center font-bold border border-slate-400">Matricule</th>
-              <th class="w-56 min-w-[220px] max-w-[220px] py-1.5 px-3 font-bold border border-slate-400">Nom & Prénom</th>
-              <th class="w-16 min-w-[64px] max-w-[64px] py-1.5 px-1 text-center font-bold border border-slate-400">Prés.</th>
-              <th class="w-20 min-w-[80px] max-w-[80px] py-1.5 px-1 text-center font-bold border border-slate-400">Abandon</th>
+              <th class="w-10 min-w-[40px] max-w-[40px] py-1.5 px-1 text-center font-bold border border-slate-400">N°
+              </th>
+              <th class="w-20 min-w-[70px] max-w-[70px] py-1.5 px-1 text-center font-bold border border-slate-400">
+                Matricule</th>
+              <th class="w-56 min-w-[220px] max-w-[220px] py-1.5 px-3 font-bold border border-slate-400">Nom & Prénom
+              </th>
+              <th class="w-16 min-w-[64px] max-w-[64px] py-1.5 px-1 text-center font-bold border border-slate-400">Prés.
+              </th>
+              <th class="w-20 min-w-[80px] max-w-[80px] py-1.5 px-1 text-center font-bold border border-slate-400">
+                Abandon</th>
               <!-- Les dates des séances s'insèrent ici dynamiquement -->
             </tr>
 
@@ -229,13 +265,17 @@
   </main>
 
   <!-- ================= POPUP DE POINTAGE INSTANTANÉ (CLIC UNIQUE) ================= -->
-  <div id="pointageModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-100">
-      
+  <div id="pointageModal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div
+      class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-100">
+
       <!-- Barre d'en-tête jaune/orangée fidèle au screen -->
-      <div class="bg-[#f59e0b] px-3 py-2 flex items-center justify-between text-[#003366] font-bold text-sm select-none">
+      <div
+        class="bg-[#f59e0b] px-3 py-2 flex items-center justify-between text-[#003366] font-bold text-sm select-none">
         <span id="modalHeaderTitle">Date - Horaire</span>
-        <button onclick="closePointageModal()" class="w-6 h-6 flex items-center justify-center rounded bg-[#78350f] text-white hover:bg-red-700 transition font-black text-xs">✕</button>
+        <button onclick="closePointageModal()"
+          class="w-6 h-6 flex items-center justify-center rounded bg-[#78350f] text-white hover:bg-red-700 transition font-black text-xs">✕</button>
       </div>
 
       <!-- Corps du pointage -->
@@ -247,36 +287,45 @@
         <!-- Grille 3x2 des 6 boutons (P, M, R, A, T, ?) -->
         <div class="grid grid-cols-3 gap-2 w-full max-w-[280px]">
           <!-- P : Présent -->
-          <button onclick="applyStatusAndClose('P')" class="h-20 bg-[#00ff66] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#006622] transition shadow">
+          <button onclick="applyStatusAndClose('P')"
+            class="h-20 bg-[#00ff66] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#006622] transition shadow">
             P
           </button>
           <!-- M : À distance -->
-          <button onclick="applyStatusAndClose('M')" class="h-20 bg-[#6ee7b7] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#047857] transition shadow">
+          <button onclick="applyStatusAndClose('M')"
+            class="h-20 bg-[#6ee7b7] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#047857] transition shadow">
             M
           </button>
           <!-- R : Retard (ouvre le volet des curseurs) -->
-          <button onclick="openRetardSliders()" class="h-20 bg-striped-retard hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#065f46] transition shadow">
+          <button onclick="openRetardSliders()"
+            class="h-20 bg-striped-retard hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#065f46] transition shadow">
             R
           </button>
           <!-- A : Absent -->
-          <button onclick="applyStatusAndClose('A')" class="h-20 bg-[#fca5a5] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#991b1b] transition shadow">
+          <button onclick="applyStatusAndClose('A')"
+            class="h-20 bg-[#fca5a5] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#991b1b] transition shadow">
             A
           </button>
           <!-- T : Inscription tardive -->
-          <button onclick="applyStatusAndClose('T')" class="h-20 bg-[#ddd6fe] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#5b21b6] transition shadow" title="Inscription tardive (non pénalisant)">
+          <button onclick="applyStatusAndClose('T')"
+            class="h-20 bg-[#ddd6fe] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#5b21b6] transition shadow"
+            title="Inscription tardive (non pénalisant)">
             T
           </button>
           <!-- ? : Non encodé -->
-          <button onclick="applyStatusAndClose('?')" class="h-20 bg-[#cbd5e1] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-slate-600 transition shadow">
+          <button onclick="applyStatusAndClose('?')"
+            class="h-20 bg-[#cbd5e1] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-slate-600 transition shadow">
             ?
           </button>
         </div>
 
         <!-- Volet déroulant des curseurs pour le statut R -->
-        <div id="retardSlidersBox" class="w-full mt-3 p-3 bg-white border border-emerald-500 rounded shadow-inner hidden">
+        <div id="retardSlidersBox"
+          class="w-full mt-3 p-3 bg-white border border-emerald-500 rounded shadow-inner hidden">
           <div class="text-xs font-bold text-emerald-900 mb-2 flex items-center justify-between">
             <span>Ajustement Retard / Départ</span>
-            <span id="retardPercentBadge" class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[10px]">100 % retenu</span>
+            <span id="retardPercentBadge" class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-[10px]">100
+              % retenu</span>
           </div>
 
           <!-- Curseur Retard arrivée -->
@@ -285,7 +334,8 @@
               <span>Arrivé en retard de :</span>
               <span id="lateArrivalLabel" class="text-emerald-700 font-bold">0 min</span>
             </div>
-            <input type="range" id="lateArrivalSlider" min="0" max="180" step="5" value="0" class="w-full accent-emerald-600" oninput="onRetardSliderChange()">
+            <input type="range" id="lateArrivalSlider" min="0" max="180" step="5" value="0"
+              class="w-full accent-emerald-600" oninput="onRetardSliderChange()">
           </div>
 
           <!-- Curseur Départ anticipé -->
@@ -294,32 +344,54 @@
               <span>Parti avant de :</span>
               <span id="earlyDepartureLabel" class="text-emerald-700 font-bold">0 min</span>
             </div>
-            <input type="range" id="earlyDepartureSlider" min="0" max="180" step="5" value="0" class="w-full accent-emerald-600" oninput="onRetardSliderChange()">
+            <input type="range" id="earlyDepartureSlider" min="0" max="180" step="5" value="0"
+              class="w-full accent-emerald-600" oninput="onRetardSliderChange()">
           </div>
 
-          <button onclick="applyRetardAndClose()" class="w-full py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded transition shadow">
+          <button onclick="applyRetardAndClose()"
+            class="w-full py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded transition shadow">
             Appliquer ce retard (R)
           </button>
         </div>
 
         <!-- Bouton déroulant Légende -->
         <div class="mt-3 w-full flex flex-col items-center">
-          <button onclick="toggleLegendBox()" id="toggleLegendBtn" class="px-3 py-1 bg-[#003366] text-white text-xs font-semibold rounded shadow hover:bg-blue-900 transition">
+          <button onclick="toggleLegendBox()" id="toggleLegendBtn"
+            class="px-3 py-1 bg-[#003366] text-white text-xs font-semibold rounded shadow hover:bg-blue-900 transition">
             Légende
           </button>
-          
-          <div id="modalLegendBox" class="mt-2 w-full bg-white border border-slate-400 rounded overflow-hidden hidden shadow text-[11px]">
+
+          <div id="modalLegendBox"
+            class="mt-2 w-full bg-white border border-slate-400 rounded overflow-hidden hidden shadow text-[11px]">
             <div class="px-2 py-1 bg-[#003366] text-white font-bold flex justify-between items-center">
               <span>Masquer la légende</span>
               <button onclick="toggleLegendBox()" class="text-white text-xs">▲</button>
             </div>
             <div class="p-1.5 space-y-1">
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#00ff66] border border-black inline-block text-[10px] text-center font-bold">P</span> <span>Présent</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#6ee7b7] border border-black inline-block text-[10px] text-center font-bold">M</span> <span>À distance</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-striped-retard border border-black inline-block text-[10px] text-center font-bold">R</span> <span>Arrivée tardive / départ</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#fca5a5] border border-black inline-block text-[10px] text-center font-bold">A</span> <span>Absent</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#ddd6fe] border border-black inline-block text-[10px] text-center font-bold">T</span> <span>Inscription tardive</span></div>
-              <div class="flex items-center gap-2"><span class="w-4 h-4 bg-[#cbd5e1] border border-black inline-block text-[10px] text-center font-bold">?</span> <span>Non encodé</span></div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#00ff66] border border-black inline-block text-[10px] text-center font-bold">P</span>
+                <span>Présent</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#6ee7b7] border border-black inline-block text-[10px] text-center font-bold">M</span>
+                <span>À distance</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-striped-retard border border-black inline-block text-[10px] text-center font-bold">R</span>
+                <span>Arrivée tardive / départ</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#fca5a5] border border-black inline-block text-[10px] text-center font-bold">A</span>
+                <span>Absent</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#ddd6fe] border border-black inline-block text-[10px] text-center font-bold">T</span>
+                <span>Inscription tardive</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#cbd5e1] border border-black inline-block text-[10px] text-center font-bold">?</span>
+                <span>Non encodé</span>
+              </div>
             </div>
           </div>
         </div>
@@ -330,7 +402,8 @@
   </div>
 
   <!-- ================= MODALE : AJOUTER SÉANCES (AVEC DÉCOUPAGE CONTINU) ================= -->
-  <div id="addSessionModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="addSessionModal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-md overflow-hidden">
       <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
         <span>Ajouter une ou plusieurs séances</span>
@@ -341,15 +414,13 @@
           <label class="block text-xs font-bold text-slate-700 uppercase mb-1">
             Dates des séances
           </label>
-          <textarea 
-            id="sessionDateInput" 
-            rows="3" 
-            placeholder="Ex : 8/09/269/09/2615/09/2616/09/26 ou 08/09/2026, 15/09/2026" 
+          <textarea id="sessionDateInput" rows="3"
+            placeholder="Ex : 8/09/269/09/2615/09/2616/09/26 ou 08/09/2026, 15/09/2026"
             class="w-full text-xs font-mono p-2 border border-slate-300 rounded focus:border-blue-600 outline-none"
-            oninput="previewParsedDates(this.value)"
-          ></textarea>
+            oninput="previewParsedDates(this.value)"></textarea>
           <p class="text-[11px] text-slate-500 mt-1">
-            Détection automatique de dates collées (ex: <code>8/09/269/09/26...</code>) ou séparées par des espaces/virgules.
+            Détection automatique de dates collées (ex: <code>8/09/269/09/26...</code>) ou séparées par des
+            espaces/virgules.
           </p>
           <div id="datesPreviewTagBox" class="mt-2 flex flex-wrap gap-1 max-h-24 overflow-y-auto"></div>
         </div>
@@ -357,24 +428,30 @@
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Heure début</label>
-            <input type="text" id="sessionStartInput" value="17:00" class="w-full text-xs p-2 border border-slate-300 rounded">
+            <input type="text" id="sessionStartInput" value="17:00"
+              class="w-full text-xs p-2 border border-slate-300 rounded">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Heure fin</label>
-            <input type="text" id="sessionEndInput" value="22:15" class="w-full text-xs p-2 border border-slate-300 rounded">
+            <input type="text" id="sessionEndInput" value="22:15"
+              class="w-full text-xs p-2 border border-slate-300 rounded">
           </div>
         </div>
 
         <div class="pt-2 flex justify-end gap-2">
-          <button onclick="closeAddSessionModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="confirmAddSessions()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Créer les séances</button>
+          <button onclick="closeAddSessionModal()"
+            class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
+          <button onclick="confirmAddSessions()"
+            class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Créer les
+            séances</button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ================= MODALE : AJOUTER ÉTUDIANT SEUL ================= -->
-  <div id="addStudentModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="addStudentModal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-sm overflow-hidden">
       <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
         <span>Ajouter un étudiant</span>
@@ -383,70 +460,85 @@
       <div class="p-4 space-y-3">
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Matricule / Identifiant</label>
-          <input type="text" id="newStudentMatricule" placeholder="Ex: E2026-042" class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600">
+          <input type="text" id="newStudentMatricule" placeholder="Ex: E2026-042"
+            class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600">
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">NOM (Famille)</label>
-          <input type="text" id="newStudentNom" placeholder="Ex: ANSART" class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 uppercase">
+          <input type="text" id="newStudentNom" placeholder="Ex: ANSART"
+            class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 uppercase">
         </div>
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Prénom</label>
-          <input type="text" id="newStudentPrenom" placeholder="Ex: Fabian" class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 capitalize">
+          <input type="text" id="newStudentPrenom" placeholder="Ex: Fabian"
+            class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 capitalize">
         </div>
         <div class="pt-2 flex justify-end gap-2">
-          <button onclick="closeAddStudentModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="confirmAddStudent()" class="px-4 py-1.5 text-xs font-bold bg-slate-800 text-white hover:bg-black rounded shadow">Ajouter</button>
+          <button onclick="closeAddStudentModal()"
+            class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
+          <button onclick="confirmAddStudent()"
+            class="px-4 py-1.5 text-xs font-bold bg-slate-800 text-white hover:bg-black rounded shadow">Ajouter</button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ================= MODALE : IMPORTER FICHIER DONNÉES / EXCEL OU LISTE ================= -->
-  <div id="importModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="importModal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-lg overflow-hidden">
       <div class="px-4 py-3 bg-emerald-800 text-white font-bold flex items-center justify-between text-sm">
         <span>Importer le fichier Données ou Liste d'étudiants</span>
         <button onclick="closeImportModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
       </div>
       <div class="p-4 space-y-4">
-        
+
         <!-- Fichier Excel / Données -->
-        <div class="border-2 border-dashed border-emerald-400 bg-emerald-50/50 rounded-lg p-3 text-center hover:border-emerald-600 transition">
+        <div
+          class="border-2 border-dashed border-emerald-400 bg-emerald-50/50 rounded-lg p-3 text-center hover:border-emerald-600 transition">
           <label class="cursor-pointer block">
-            <span class="text-xs font-bold text-emerald-900 block mb-1">Sélectionner le fichier Excel (donnees.xls / .xlsx)</span>
-            <span class="inline-block px-3 py-1 bg-emerald-700 text-white rounded text-xs font-semibold hover:bg-emerald-800">Parcourir les fichiers</span>
-            <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleExcelFile(event)">
+            <span class="text-xs font-bold text-emerald-900 block mb-1">Sélectionner le fichier Excel (donnees.xls /
+              .xlsx)</span>
+            <span
+              class="inline-block px-3 py-1 bg-emerald-700 text-white rounded text-xs font-semibold hover:bg-emerald-800">Parcourir
+              les fichiers</span>
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden"
+              onchange="handleExcelFile(event)">
             <p class="text-[11px] text-slate-600 mt-1">
-              Récupère automatiquement les <strong>informations administratives</strong> (UE, Enseignant, Périodes) ainsi que la <strong>liste des étudiants</strong> (Matricule, Nom, Prénom).
+              Récupère automatiquement les <strong>informations administratives</strong> (UE, Enseignant, Périodes)
+              ainsi que la <strong>liste des étudiants</strong> (Matricule, Nom, Prénom).
             </p>
           </label>
         </div>
 
         <div class="relative flex py-1 items-center">
           <div class="flex-grow border-t border-slate-200"></div>
-          <span class="flex-shrink mx-2 text-[11px] text-slate-400 font-semibold uppercase">ou copier-coller une liste</span>
+          <span class="flex-shrink mx-2 text-[11px] text-slate-400 font-semibold uppercase">ou copier-coller une
+            liste</span>
           <div class="flex-grow border-t border-slate-200"></div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Collez votre liste d'étudiants (Format: [Matricule] Nom Prénom ou Nom Prénom) :</label>
-          <textarea 
-            id="pasteStudentListInput" 
-            rows="5" 
-            placeholder="ANSART Fabian&#10;CHRISTMANN Roland&#10;COCHIN Eric" 
-            class="w-full text-xs font-mono p-2 border border-slate-300 rounded outline-none focus:border-emerald-700"
-          ></textarea>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Collez votre liste d'étudiants (Format:
+            [Matricule] Nom Prénom ou Nom Prénom) :</label>
+          <textarea id="pasteStudentListInput" rows="5"
+            placeholder="ANSART Fabian&#10;CHRISTMANN Roland&#10;COCHIN Eric"
+            class="w-full text-xs font-mono p-2 border border-slate-300 rounded outline-none focus:border-emerald-700"></textarea>
         </div>
 
         <div class="pt-1 flex justify-end gap-2">
-          <button onclick="closeImportModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="confirmImportList()" class="px-4 py-1.5 text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 rounded shadow">Importer la liste</button>
+          <button onclick="closeImportModal()"
+            class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
+          <button onclick="confirmImportList()"
+            class="px-4 py-1.5 text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 rounded shadow">Importer
+            la liste</button>
         </div>
       </div>
     </div>
   </div>
 
-  <input type="file" id="cesnaFileHiddenInput" accept=".cesna,.json" class="hidden" onchange="handleFileCESNaSelected(event)">
+  <input type="file" id="cesnaFileHiddenInput" accept=".cesna,.json" class="hidden"
+    onchange="handleFileCESNaSelected(event)">
 
   <!-- ================= JAVASCRIPT & MOTEUR DE PERSISTANCE ================= -->
   <script>
@@ -454,210 +546,210 @@
     // LISTE OFFICIELLE DES COURS CESNa AVEC DONNÉES ADMINISTRATIVES
     // -------------------------------------------------------------
     const OFFICIAL_COURSES = [
-        // --- SECTION : SOINS ET ESTHÉTIQUE ---
-        {
-          id: "ue_258_1_a_french_manucure",
-          section: "Esthétique",
-          bloc: "Bloc 1",
-          codeUE: "258-1-A",
-          intituleUE: "« French manucure », capsules et façonnage en gel",
-          titre: "« French manucure », capsules et façonnage en gel",
-          enseignant: "À définir",
-          periodes: "40p"
-        },
-        {
-          id: "ue_259_1_a_french_pedicure",
-          section: "Esthétique",
-          bloc: "Bloc 1",
-          codeUE: "259-1-A",
-          intituleUE: "« French pédicure » et façonnage en gel",
-          titre: "« French pédicure » et façonnage en gel",
-          enseignant: "À définir",
-          periodes: "40p"
-        },
-        {
-          id: "ue_260_1_a_soins_visage",
-          section: "Esthétique",
-          bloc: "Bloc 1",
-          codeUE: "260-1-A",
-          intituleUE: "Soins spécifiques du visage",
-          titre: "Soins spécifiques du visage",
-          enseignant: "À définir",
-          periodes: "100p"
-        },
-        {
-          id: "ue_261_1_a_maquillage",
-          section: "Esthétique",
-          bloc: "Bloc 1",
-          codeUE: "261-1-A",
-          intituleUE: "Maquillage du soir et semi-permanent, participation à la politique commerciale de l’institut",
-          titre: "Maquillage du soir et semi-permanent, participation à la politique commerciale de l’institut",
-          enseignant: "À définir",
-          periodes: "120p"
-        },
-        {
-          id: "ue_268_1_a_soin_corps",
-          section: "Esthétique",
-          bloc: "Bloc 1",
-          codeUE: "268-1-A",
-          intituleUE: "Soin de beauté du corps",
-          titre: "Soin de beauté du corps",
-          enseignant: "À définir",
-          periodes: "100p"
-        },
+      // --- SECTION : SOINS ET ESTHÉTIQUE ---
+      {
+        id: "ue_258_1_a_french_manucure",
+        section: "Esthétique",
+        bloc: "Esthétique",
+        codeUE: "258-1-A",
+        intituleUE: "« French manucure », capsules et façonnage en gel",
+        titre: "« French manucure », capsules et façonnage en gel",
+        enseignant: "À définir",
+        periodes: "40p"
+      },
+      {
+        id: "ue_259_1_a_french_pedicure",
+        section: "Esthétique",
+        bloc: "Esthétique",
+        codeUE: "259-1-A",
+        intituleUE: "« French pédicure » et façonnage en gel",
+        titre: "« French pédicure » et façonnage en gel",
+        enseignant: "À définir",
+        periodes: "40p"
+      },
+      {
+        id: "ue_260_1_a_soins_visage",
+        section: "Esthétique",
+        bloc: "Esthétique",
+        codeUE: "260-1-A",
+        intituleUE: "Soins spécifiques du visage",
+        titre: "Soins spécifiques du visage",
+        enseignant: "À définir",
+        periodes: "100p"
+      },
+      {
+        id: "ue_261_1_a_maquillage",
+        section: "Esthétique",
+        bloc: "Esthétique",
+        codeUE: "261-1-A",
+        intituleUE: "Maquillage du soir et semi-permanent, participation à la politique commerciale de l’institut",
+        titre: "Maquillage du soir et semi-permanent, participation à la politique commerciale de l’institut",
+        enseignant: "À définir",
+        periodes: "120p"
+      },
+      {
+        id: "ue_268_1_a_soin_corps",
+        section: "Esthétique",
+        bloc: "Esthétique",
+        codeUE: "268-1-A",
+        intituleUE: "Soin de beauté du corps",
+        titre: "Soin de beauté du corps",
+        enseignant: "À définir",
+        periodes: "100p"
+      },
 
-        // --- SECTION : BACHELIER EN E-BUSINESS ---
-        {
-          id: "ue_345_1_a_marketing",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "345-1-A",
-          intituleUE: "Principes de base du marketing",
-          titre: "Principes de base du marketing",
-          enseignant: "À définir",
-          periodes: "80p"
-        },
-        {
-          id: "ue_346_1_a_economie",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "346-1-A",
-          intituleUE: "Faits et institutions économiques",
-          titre: "Faits et institutions économiques",
-          enseignant: "À définir",
-          periodes: "60p"
-        },
-        {
-          id: "ue_348_1_a_management",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "348-1-A",
-          intituleUE: "Organisation des entreprises et éléments de management",
-          titre: "Organisation des entreprises et éléments de management",
-          enseignant: "À définir",
-          periodes: "40p"
-        },
-        {
-          id: "ue_349_1_a_statistique",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "349-1-A",
-          intituleUE: "Éléments de statistique",
-          titre: "Éléments de statistique",
-          enseignant: "À définir",
-          periodes: "40p"
-        },
-        {
-          id: "ue_353_1_a_principes_ebusiness",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "353-1-A",
-          intituleUE: "Principes de l’e-business",
-          titre: "Principes de l’e-business",
-          enseignant: "À définir",
-          periodes: "70p"
-        },
-        {
-          id: "ue_354_1_a_ecommerce",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "354-1-A",
-          intituleUE: "E-commerce",
-          titre: "E-commerce",
-          enseignant: "À définir",
-          periodes: "90p"
-        },
-        {
-          id: "ue_355_1_a_legislation_commerce",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "355-1-A",
-          intituleUE: "Éléments de législation appliquée au commerce",
-          titre: "Éléments de législation appliquée au commerce",
-          enseignant: "À définir",
-          periodes: "60p"
-        },
-        {
-          id: "ue_356_1_a_edroit",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "356-1-A",
-          intituleUE: "Éléments de e-droit",
-          titre: "Éléments de e-droit",
-          enseignant: "À définir",
-          periodes: "60p"
-        },
-        {
-          id: "ue_358_1_a_analyse_fonctionnelle",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "358-1-A",
-          intituleUE: "Analyse fonctionnelle appliquée à l’e-business",
-          titre: "Analyse fonctionnelle appliquée à l’e-business",
-          enseignant: "À définir",
-          periodes: "40p"
-        },
-        {
-          id: "ue_366_1_a_mktg_stats_ebusiness",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 2",
-          codeUE: "366-1-A",
-          intituleUE: "Techniques marketing et statistiques appliquées à l’e-business",
-          titre: "Techniques marketing et statistiques appliquées à l’e-business",
-          enseignant: "À définir",
-          periodes: "80p"
-        },
-        {
-          id: "ue_368_1_a_supply_chain",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 2",
-          codeUE: "368-1-A",
-          intituleUE: "Supply chain et e-logistique",
-          titre: "Supply chain et e-logistique",
-          enseignant: "À définir",
-          periodes: "100p"
-        },
-        {
-          id: "ue_371_1_a_langue_ue4",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 2",
-          codeUE: "371-1-A",
-          intituleUE: "Langue en situation appliquée à l’enseignement supérieur - UE 4",
-          titre: "Langue en situation appliquée à l’enseignement supérieur - UE 4",
-          enseignant: "À définir",
-          periodes: "80p"
-        },
-        {
-          id: "ue_372_1_a_langue_ue5",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 2",
-          codeUE: "372-1-A",
-          intituleUE: "Langue en situation appliquée à l’enseignement supérieur - UE 5",
-          titre: "Langue en situation appliquée à l’enseignement supérieur - UE 5",
-          enseignant: "À définir",
-          periodes: "80p"
-        },
-        {
-          id: "ue_374_1_a_activites_pro",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 3",
-          codeUE: "374-1-A",
-          intituleUE: "Bachelier en e-business : Activités professionnelles de formation",
-          titre: "Bachelier en e-business : Activités professionnelles de formation",
-          enseignant: "À définir",
-          periodes: "20p"
-        },
-        {
-          id: "ue_376_1_a_comm_pro",
-          section: "Bachelier en E-Business",
-          bloc: "Bloc 1",
-          codeUE: "376-1-A",
-          intituleUE: "Techniques de communication professionnelle",
-          titre: "Techniques de communication professionnelle",
-          enseignant: "À définir",
-          periodes: "70p"
-        }
-      ];
+      // --- SECTION : BACHELIER EN E-BUSINESS ---
+      {
+        id: "ue_345_1_a_marketing",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 1",
+        codeUE: "345-1-A",
+        intituleUE: "Principes de base du marketing",
+        titre: "Principes de base du marketing",
+        enseignant: "À définir",
+        periodes: "80p"
+      },
+      {
+        id: "ue_346_1_a_economie",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 1",
+        codeUE: "346-1-A",
+        intituleUE: "Faits et institutions économiques",
+        titre: "Faits et institutions économiques",
+        enseignant: "À définir",
+        periodes: "60p"
+      },
+      {
+        id: "ue_348_1_a_management",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 1",
+        codeUE: "348-1-A",
+        intituleUE: "Organisation des entreprises et éléments de management",
+        titre: "Organisation des entreprises et éléments de management",
+        enseignant: "À définir",
+        periodes: "40p"
+      },
+      {
+        id: "ue_349_1_a_statistique",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 1",
+        codeUE: "349-1-A",
+        intituleUE: "Éléments de statistique",
+        titre: "Éléments de statistique",
+        enseignant: "À définir",
+        periodes: "40p"
+      },
+      {
+        id: "ue_353_1_a_principes_ebusiness",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 1",
+        codeUE: "353-1-A",
+        intituleUE: "Principes de l’e-business",
+        titre: "Principes de l’e-business",
+        enseignant: "À définir",
+        periodes: "70p"
+      },
+      {
+        id: "ue_354_1_a_ecommerce",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 2",
+        codeUE: "354-1-A",
+        intituleUE: "E-commerce",
+        titre: "E-commerce",
+        enseignant: "À définir",
+        periodes: "90p"
+      },
+      {
+        id: "ue_355_1_a_legislation_commerce",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 2",
+        codeUE: "355-1-A",
+        intituleUE: "Éléments de législation appliquée au commerce",
+        titre: "Éléments de législation appliquée au commerce",
+        enseignant: "À définir",
+        periodes: "60p"
+      },
+      {
+        id: "ue_356_1_a_edroit",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 2",
+        codeUE: "356-1-A",
+        intituleUE: "Éléments de e-droit",
+        titre: "Éléments de e-droit",
+        enseignant: "À définir",
+        periodes: "60p"
+      },
+      {
+        id: "ue_358_1_a_analyse_fonctionnelle",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 2",
+        codeUE: "358-1-A",
+        intituleUE: "Analyse fonctionnelle appliquée à l’e-business",
+        titre: "Analyse fonctionnelle appliquée à l’e-business",
+        enseignant: "À définir",
+        periodes: "40p"
+      },
+      {
+        id: "ue_366_1_a_mktg_stats_ebusiness",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 2",
+        codeUE: "366-1-A",
+        intituleUE: "Techniques marketing et statistiques appliquées à l’e-business",
+        titre: "Techniques marketing et statistiques appliquées à l’e-business",
+        enseignant: "À définir",
+        periodes: "80p"
+      },
+      {
+        id: "ue_368_1_a_supply_chain",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 3",
+        codeUE: "368-1-A",
+        intituleUE: "Supply chain et e-logistique",
+        titre: "Supply chain et e-logistique",
+        enseignant: "À définir",
+        periodes: "100p"
+      },
+      {
+        id: "ue_371_1_a_langue_ue4",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 2",
+        codeUE: "371-1-A",
+        intituleUE: "Langue en situation appliquée à l’enseignement supérieur - UE 4",
+        titre: "Langue en situation appliquée à l’enseignement supérieur - UE 4",
+        enseignant: "À définir",
+        periodes: "80p"
+      },
+      {
+        id: "ue_372_1_a_langue_ue5",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 3",
+        codeUE: "372-1-A",
+        intituleUE: "Langue en situation appliquée à l’enseignement supérieur - UE 5",
+        titre: "Langue en situation appliquée à l’enseignement supérieur - UE 5",
+        enseignant: "À définir",
+        periodes: "80p"
+      },
+      {
+        id: "ue_374_1_a_activites_pro",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 3",
+        codeUE: "374-1-A",
+        intituleUE: "Bachelier en e-business : Activités professionnelles de formation",
+        titre: "Bachelier en e-business : Activités professionnelles de formation",
+        enseignant: "À définir",
+        periodes: "20p"
+      },
+      {
+        id: "ue_376_1_a_comm_pro",
+        section: "Bachelier en E-Business",
+        bloc: "Bloc 1",
+        codeUE: "376-1-A",
+        intituleUE: "Techniques de communication professionnelle",
+        titre: "Techniques de communication professionnelle",
+        enseignant: "À définir",
+        periodes: "70p"
+      }
+    ];
 
     // Données principales en mémoire
     let courseTitle = "";
@@ -675,7 +767,7 @@
     let attendanceData = {}; // "studentId_sessionId": { status, lateMin, earlyMin, quotite }
     let abandonedStudents = {}; // "studentId": true
 
-    let currentCell = { studentId: null, sessionId: null };
+    let currentCell = {studentId: null, sessionId: null};
 
     const STORAGE_KEY = "CESNA_PRESENCES_DATA_V2";
 
@@ -792,7 +884,7 @@
           sessions = parsed.sessions || [];
           attendanceData = parsed.attendanceData || {};
           abandonedStudents = parsed.abandonedStudents || {};
-          
+
           document.getElementById('courseTitleInput').value = courseTitle;
           syncMetadataInputs();
         }
@@ -896,7 +988,7 @@
           sessions = parsed.sessions || [];
           attendanceData = parsed.attendanceData || {};
           abandonedStudents = parsed.abandonedStudents || {};
-          
+
           document.getElementById('courseTitleInput').value = courseTitle;
           syncMetadataInputs();
           saveToStorage();
@@ -941,7 +1033,7 @@
     // -------------------------------------------------------------
     function calculateStudentRate(studentId) {
       if (sessions.length === 0) return 0;
-      
+
       let eligibleSessions = 0;
       let presencePoints = 0;
 
@@ -1055,8 +1147,8 @@
         // Col 5 : Abandon (NON / OUI)
         const tdAbandon = document.createElement('td');
         tdAbandon.className = "py-2 px-1 text-center font-bold border border-slate-300 cursor-pointer select-none";
-        tdAbandon.innerHTML = isAbandoned 
-          ? `<span class="text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-300">OUI</span>` 
+        tdAbandon.innerHTML = isAbandoned
+          ? `<span class="text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-300">OUI</span>`
           : `<span class="text-emerald-800">NON</span>`;
         tdAbandon.onclick = () => toggleAbandon(std.id);
         tr.appendChild(tdAbandon);
@@ -1324,9 +1416,9 @@
       reader.onload = (e) => {
         try {
           const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
+          const workbook = XLSX.read(data, {type: 'array'});
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+          const rows = XLSX.utils.sheet_to_json(firstSheet, {header: 1, defval: ""});
 
           let extractedMetaCount = 0;
           let addedStudentsCount = 0;
@@ -1334,7 +1426,7 @@
           // 1. Analyse intelligente des métadonnées (En-tête de fiche de données)
           rows.slice(0, 15).forEach(row => {
             const rowText = row.map(c => String(c).trim()).join(" ");
-            
+
             // Détection Année académique
             const yearMatch = rowText.match(/20\d{2}[-/]20\d{2}|20\d{2}/);
             if (yearMatch && !adminMetadata.academicYear) {
@@ -1546,14 +1638,14 @@
 
       // Largeur optimisée des colonnes
       const colWidths = [
-        { wch: 6 },  // N°
-        { wch: 14 }, // Matricule
-        { wch: 22 }, // Nom
-        { wch: 18 }, // Prénom
-        { wch: 16 }, // Taux
-        { wch: 10 }  // Abandon
+        {wch: 6},  // N°
+        {wch: 14}, // Matricule
+        {wch: 22}, // Nom
+        {wch: 18}, // Prénom
+        {wch: 16}, // Taux
+        {wch: 10}  // Abandon
       ];
-      sessions.forEach(() => colWidths.push({ wch: 14 }));
+      sessions.forEach(() => colWidths.push({wch: 14}));
       wsPresences['!cols'] = colWidths;
 
       XLSX.utils.book_append_sheet(wb, wsPresences, "Pointages & Présences");
@@ -1579,7 +1671,7 @@
       ];
 
       const wsDonnees = XLSX.utils.aoa_to_sheet(dataAdminSheet);
-      wsDonnees['!cols'] = [{ wch: 32 }, { wch: 50 }];
+      wsDonnees['!cols'] = [{wch: 32}, {wch: 50}];
       XLSX.utils.book_append_sheet(wb, wsDonnees, "Fiche Données");
 
       // Génération du nom de fichier propre
@@ -1591,10 +1683,11 @@
 
     function escapeHtml(str) {
       if (!str) return '';
-      return String(str).replace(/[&<>"']/g, function(m) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      return String(str).replace(/[&<>"']/g, function (m) {
+        return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m];
       });
     }
   </script>
 </body>
+
 </html>
