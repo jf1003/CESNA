@@ -454,192 +454,210 @@
     // LISTE OFFICIELLE DES COURS CESNa AVEC DONNÉES ADMINISTRATIVES
     // -------------------------------------------------------------
     const OFFICIAL_COURSES = [
-      // BLOC 1
-      {
-        id: "b1_prog_struct",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 1",
-        codeUE: "UE-INFO-101",
-        intituleUE: "Algorithmique et principes de programmation",
-        titre: "Algorithmique et Programmation structurée",
-        enseignant: "Prof. Informatique",
-        periodes: "100p"
-      },
-      {
-        id: "b1_bdd1",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 1",
-        codeUE: "UE-INFO-102",
-        intituleUE: "Bases de données relationnelles I",
-        titre: "Bases de données relationnelles & SQL",
-        enseignant: "Prof. Données",
-        periodes: "80p"
-      },
-      {
-        id: "b1_sys_arch",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 1",
-        codeUE: "UE-INFO-103",
-        intituleUE: "Architecture des ordinateurs et SE",
-        titre: "Systèmes d'exploitation & Architecture matérielle",
-        enseignant: "Prof. Systèmes",
-        periodes: "60p"
-      },
-      {
-        id: "b1_reseaux1",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 1",
-        codeUE: "UE-INFO-104",
-        intituleUE: "Réseaux informatiques - Notions de base",
-        titre: "Réseaux locaux et protocoles Internet",
-        enseignant: "Prof. Réseaux",
-        periodes: "60p"
-      },
-      {
-        id: "b1_maths",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 1",
-        codeUE: "UE-INFO-105",
-        intituleUE: "Mathématiques appliquées à l'informatique",
-        titre: "Mathématiques appliquées & Algèbre booléenne",
-        enseignant: "Prof. Mathématiques",
-        periodes: "60p"
-      },
-      {
-        id: "b1_gestion",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 1",
-        codeUE: "UE-INFO-106",
-        intituleUE: "Organisation et gestion de l'entreprise",
-        titre: "Économie et Comptabilité générale de l'entreprise",
-        enseignant: "Prof. Économie",
-        periodes: "40p"
-      },
-      {
-        id: "b1_anglais1",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 1",
-        codeUE: "UE-INFO-107",
-        intituleUE: "Langue en situation - Anglais I",
-        titre: "Anglais technique appliqué à l'informatique - Niveau 1",
-        enseignant: "Prof. Langues",
-        periodes: "60p"
-      },
+        // --- SECTION : SOINS ET ESTHÉTIQUE ---
+        {
+          id: "ue_258_1_a_french_manucure",
+          section: "Esthétique",
+          bloc: "Bloc 1",
+          codeUE: "258-1-A",
+          intituleUE: "« French manucure », capsules et façonnage en gel",
+          titre: "« French manucure », capsules et façonnage en gel",
+          enseignant: "À définir",
+          periodes: "40p"
+        },
+        {
+          id: "ue_259_1_a_french_pedicure",
+          section: "Esthétique",
+          bloc: "Bloc 1",
+          codeUE: "259-1-A",
+          intituleUE: "« French pédicure » et façonnage en gel",
+          titre: "« French pédicure » et façonnage en gel",
+          enseignant: "À définir",
+          periodes: "40p"
+        },
+        {
+          id: "ue_260_1_a_soins_visage",
+          section: "Esthétique",
+          bloc: "Bloc 1",
+          codeUE: "260-1-A",
+          intituleUE: "Soins spécifiques du visage",
+          titre: "Soins spécifiques du visage",
+          enseignant: "À définir",
+          periodes: "100p"
+        },
+        {
+          id: "ue_261_1_a_maquillage",
+          section: "Esthétique",
+          bloc: "Bloc 1",
+          codeUE: "261-1-A",
+          intituleUE: "Maquillage du soir et semi-permanent, participation à la politique commerciale de l’institut",
+          titre: "Maquillage du soir et semi-permanent, participation à la politique commerciale de l’institut",
+          enseignant: "À définir",
+          periodes: "120p"
+        },
+        {
+          id: "ue_268_1_a_soin_corps",
+          section: "Esthétique",
+          bloc: "Bloc 1",
+          codeUE: "268-1-A",
+          intituleUE: "Soin de beauté du corps",
+          titre: "Soin de beauté du corps",
+          enseignant: "À définir",
+          periodes: "100p"
+        },
 
-      // BLOC 2
-      {
-        id: "b2_poo",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 2",
-        codeUE: "UE-INFO-201",
-        intituleUE: "Programmation orientée objet",
-        titre: "Programmation Orientée Objet (Java / C#)",
-        enseignant: "Prof. Développement",
-        periodes: "100p"
-      },
-      {
-        id: "b2_web1",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 2",
-        codeUE: "UE-INFO-202",
-        intituleUE: "Technologies du Web - Client & Serveur",
-        titre: "Programmation Web (HTML5, CSS3, JS, PHP/Node)",
-        enseignant: "Prof. Web",
-        periodes: "120p"
-      },
-      {
-        id: "b2_bdd2",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 2",
-        codeUE: "UE-INFO-203",
-        intituleUE: "Analyse et modélisation des SI",
-        titre: "Conception de Bases de données & Modélisation UML",
-        enseignant: "Prof. Analyse",
-        periodes: "80p"
-      },
-      {
-        id: "b2_admin_sys",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 2",
-        codeUE: "UE-INFO-204",
-        intituleUE: "Administration de systèmes et serveurs",
-        titre: "Administration Linux & Windows Server",
-        enseignant: "Prof. Infrastructure",
-        periodes: "80p"
-      },
-      {
-        id: "b2_securite",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 2",
-        codeUE: "UE-INFO-205",
-        intituleUE: "Sécurité des systèmes informatiques",
-        titre: "Cybersécurité, durcissement et RGPD",
-        enseignant: "Prof. Sécurité",
-        periodes: "60p"
-      },
-      {
-        id: "b2_anglais2",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 2",
-        codeUE: "UE-INFO-206",
-        intituleUE: "Langue en situation - Anglais II",
-        titre: "Anglais technique professionnel - Niveau 2",
-        enseignant: "Prof. Langues",
-        periodes: "60p"
-      },
-
-      // BLOC 3
-      {
-        id: "b3_web_adv",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 3",
-        codeUE: "UE-INFO-301",
-        intituleUE: "Développement Web avancé et Frameworks",
-        titre: "Développement Web Avancé (React, Vue, REST APIs)",
-        enseignant: "Prof. Développement Web",
-        periodes: "100p"
-      },
-      {
-        id: "b3_mobile",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 3",
-        codeUE: "UE-INFO-302",
-        intituleUE: "Développement d'applications mobiles",
-        titre: "Développement Mobile (Flutter / Android / iOS)",
-        enseignant: "Prof. Mobile",
-        periodes: "80p"
-      },
-      {
-        id: "b3_cloud_devops",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 3",
-        codeUE: "UE-INFO-303",
-        intituleUE: "Infrastructures Cloud & DevOps",
-        titre: "Cloud Computing, Docker et Déploiement CI/CD",
-        enseignant: "Prof. Cloud",
-        periodes: "80p"
-      },
-      {
-        id: "b3_gestion_projet",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 3",
-        codeUE: "UE-INFO-304",
-        intituleUE: "Gestion de projet agile",
-        titre: "Méthodologie Agile, Scrum & Conduite de projet",
-        enseignant: "Prof. Projets",
-        periodes: "40p"
-      },
-      {
-        id: "b3_stage_tfe",
-        section: "Bachelier en Informatique de gestion",
-        bloc: "Bloc 3",
-        codeUE: "UE-INFO-305",
-        intituleUE: "Épreuve intégrée & Stage en entreprise",
-        titre: "Stage professionnel & Travail de Fin d'Études (TFE)",
-        enseignant: "Commission TFE",
-        periodes: "160p"
-      }
-    ];
+        // --- SECTION : BACHELIER EN E-BUSINESS ---
+        {
+          id: "ue_345_1_a_marketing",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "345-1-A",
+          intituleUE: "Principes de base du marketing",
+          titre: "Principes de base du marketing",
+          enseignant: "À définir",
+          periodes: "80p"
+        },
+        {
+          id: "ue_346_1_a_economie",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "346-1-A",
+          intituleUE: "Faits et institutions économiques",
+          titre: "Faits et institutions économiques",
+          enseignant: "À définir",
+          periodes: "60p"
+        },
+        {
+          id: "ue_348_1_a_management",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "348-1-A",
+          intituleUE: "Organisation des entreprises et éléments de management",
+          titre: "Organisation des entreprises et éléments de management",
+          enseignant: "À définir",
+          periodes: "40p"
+        },
+        {
+          id: "ue_349_1_a_statistique",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "349-1-A",
+          intituleUE: "Éléments de statistique",
+          titre: "Éléments de statistique",
+          enseignant: "À définir",
+          periodes: "40p"
+        },
+        {
+          id: "ue_353_1_a_principes_ebusiness",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "353-1-A",
+          intituleUE: "Principes de l’e-business",
+          titre: "Principes de l’e-business",
+          enseignant: "À définir",
+          periodes: "70p"
+        },
+        {
+          id: "ue_354_1_a_ecommerce",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "354-1-A",
+          intituleUE: "E-commerce",
+          titre: "E-commerce",
+          enseignant: "À définir",
+          periodes: "90p"
+        },
+        {
+          id: "ue_355_1_a_legislation_commerce",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "355-1-A",
+          intituleUE: "Éléments de législation appliquée au commerce",
+          titre: "Éléments de législation appliquée au commerce",
+          enseignant: "À définir",
+          periodes: "60p"
+        },
+        {
+          id: "ue_356_1_a_edroit",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "356-1-A",
+          intituleUE: "Éléments de e-droit",
+          titre: "Éléments de e-droit",
+          enseignant: "À définir",
+          periodes: "60p"
+        },
+        {
+          id: "ue_358_1_a_analyse_fonctionnelle",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "358-1-A",
+          intituleUE: "Analyse fonctionnelle appliquée à l’e-business",
+          titre: "Analyse fonctionnelle appliquée à l’e-business",
+          enseignant: "À définir",
+          periodes: "40p"
+        },
+        {
+          id: "ue_366_1_a_mktg_stats_ebusiness",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 2",
+          codeUE: "366-1-A",
+          intituleUE: "Techniques marketing et statistiques appliquées à l’e-business",
+          titre: "Techniques marketing et statistiques appliquées à l’e-business",
+          enseignant: "À définir",
+          periodes: "80p"
+        },
+        {
+          id: "ue_368_1_a_supply_chain",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 2",
+          codeUE: "368-1-A",
+          intituleUE: "Supply chain et e-logistique",
+          titre: "Supply chain et e-logistique",
+          enseignant: "À définir",
+          periodes: "100p"
+        },
+        {
+          id: "ue_371_1_a_langue_ue4",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 2",
+          codeUE: "371-1-A",
+          intituleUE: "Langue en situation appliquée à l’enseignement supérieur - UE 4",
+          titre: "Langue en situation appliquée à l’enseignement supérieur - UE 4",
+          enseignant: "À définir",
+          periodes: "80p"
+        },
+        {
+          id: "ue_372_1_a_langue_ue5",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 2",
+          codeUE: "372-1-A",
+          intituleUE: "Langue en situation appliquée à l’enseignement supérieur - UE 5",
+          titre: "Langue en situation appliquée à l’enseignement supérieur - UE 5",
+          enseignant: "À définir",
+          periodes: "80p"
+        },
+        {
+          id: "ue_374_1_a_activites_pro",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 3",
+          codeUE: "374-1-A",
+          intituleUE: "Bachelier en e-business : Activités professionnelles de formation",
+          titre: "Bachelier en e-business : Activités professionnelles de formation",
+          enseignant: "À définir",
+          periodes: "20p"
+        },
+        {
+          id: "ue_376_1_a_comm_pro",
+          section: "Bachelier en E-Business",
+          bloc: "Bloc 1",
+          codeUE: "376-1-A",
+          intituleUE: "Techniques de communication professionnelle",
+          titre: "Techniques de communication professionnelle",
+          enseignant: "À définir",
+          periodes: "70p"
+        }
+      ];
 
     // Données principales en mémoire
     let courseTitle = "";
