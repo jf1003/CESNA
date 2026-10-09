@@ -1347,9 +1347,21 @@
     // -------------------------------------------------------------
     // CALCUL DU TAUX DE PRÉSENCE
     // -------------------------------------------------------------
-    function calculateStudentRate(studentId) {
-      if (sessions.length === 0) return 0;
+    // Une séance compte dans le taux si elle a déjà eu lieu (date passée).
+    // Séance du jour : comptée seulement une fois encodée. Séance future : jamais comptée.
+    function isSessionRealised(sess, encoded) {
+      const d = parseSessionDate(sess.date);
+      if (!d) return true; // date illisible : on la compte plutôt que de la cacher
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const day = new Date(d.year, d.month - 1, d.day).getTime();
+      if (day < today) return true;
+      if (day === today) return encoded;
+      return false;
+    }
 
+    // Retourne un pourcentage, ou null s'il n'y a encore aucune séance à prendre en compte
+    function calculateStudentRate(studentId) {
       let eligibleSessions = 0;
       let presencePoints = 0;
 
@@ -1357,9 +1369,8 @@
         const record = attendanceData[`${studentId}_${sess.id}`];
         const status = record ? record.status : '?';
 
-        if (status === 'T') {
-          return; // Inscription tardive non pénalisante
-        }
+        if (!isSessionRealised(sess, status !== '?')) return; // séance pas encore réalisée
+        if (status === 'T') return; // Inscription tardive non pénalisante
 
         eligibleSessions++;
 
@@ -1367,15 +1378,15 @@
           presencePoints += 1.0;
         } else if (status === 'R') {
           presencePoints += (record.quotite !== undefined ? record.quotite : 1.0);
-        } else if (status === 'A') {
-          presencePoints += 0;
-        } else {
-          presencePoints += 0;
         }
       });
 
-      if (eligibleSessions === 0) return 100;
+      if (eligibleSessions === 0) return null;
       return Math.round((presencePoints / eligibleSessions) * 100);
+    }
+
+    function fmtRate(r) {
+      return r === null ? '–' : `${r} %`;
     }
 
     // -------------------------------------------------------------
@@ -1474,8 +1485,9 @@
         // Col 4 : Taux Prés.
         const tdRate = document.createElement('td');
         tdRate.className = "py-2 px-1 text-center font-bold border border-slate-300";
-        tdRate.innerText = `${studentRate} %`;
-        if (studentRate >= 80) tdRate.classList.add('text-emerald-700');
+        tdRate.innerText = fmtRate(studentRate);
+        if (studentRate === null) tdRate.classList.add('text-slate-400');
+        else if (studentRate >= 80) tdRate.classList.add('text-emerald-700');
         else if (studentRate >= 50) tdRate.classList.add('text-amber-700');
         else tdRate.classList.add('text-rose-700');
         tr.appendChild(tdRate);
@@ -1531,17 +1543,13 @@
       document.getElementById('statStudentCount').innerText = students.length;
       document.getElementById('statSessionCount').innerText = sessions.length;
 
-      if (students.length === 0 || sessions.length === 0) {
-        document.getElementById('statAveragePresence').innerText = "0 %";
-        return;
-      }
-
       let totalRate = 0;
-      students.forEach(s => {
-        totalRate += calculateStudentRate(s.id);
+      let counted = 0;
+      students.forEach(st => {
+        const r = calculateStudentRate(st.id);
+        if (r !== null) { totalRate += r; counted++; }
       });
-      const avg = Math.round(totalRate / students.length);
-      document.getElementById('statAveragePresence').innerText = `${avg} %`;
+      document.getElementById('statAveragePresence').innerText = counted === 0 ? "–" : `${Math.round(totalRate / counted)} %`;
     }
 
     function toggleAbandon(studentId) {
@@ -2097,7 +2105,7 @@
       const hs = wd.addRow(["Nom", "Prénom", "Matricule", "Taux de présence", "Abandon"]);
       hs.eachCell(c => { c.font = bold; c.fill = fill(GRAY); c.border = border; });
       students.forEach((s, idx) => {
-        const row = wd.addRow([(s.nom || '').toUpperCase(), s.prenom || '', s.matricule || `CES-${(idx + 1).toString().padStart(3, '0')}`, `${rate(s.id)} %`, abandonedStudents[s.id] ? "OUI" : "NON"]);
+        const row = wd.addRow([(s.nom || '').toUpperCase(), s.prenom || '', s.matricule || `CES-${(idx + 1).toString().padStart(3, '0')}`, fmtRate(rate(s.id)), abandonedStudents[s.id] ? "OUI" : "NON"]);
         row.eachCell({includeEmpty: true}, (c, n) => { if (n <= 5) c.border = border; });
       });
 
