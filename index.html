@@ -10,6 +10,11 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS pour import/export Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- ExcelJS : export Excel mis en forme (bordures, couleurs, impression A4) -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <!-- Firebase (Firestore) pour la synchronisation entre navigateurs -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
   <style>
     /* Styles institutionnels et hachures pour le statut R (Retard) */
@@ -158,7 +163,7 @@
             exporté</span>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Année académique</label>
             <input type="text" id="metaAcademicYear" value="2026-2027"
@@ -192,6 +197,30 @@
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Nombre de périodes</label>
             <input type="text" id="metaPeriods" placeholder="Ex: 80p (50 min)"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
+          </div>
+          <div>
+            <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Début de l'UE</label>
+            <input type="date" id="metaDateDebut"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
+          </div>
+          <div>
+            <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">1/10è (optionnel)</label>
+            <input type="date" id="metaDate110"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
+          </div>
+          <div>
+            <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">5/10è (optionnel)</label>
+            <input type="date" id="metaDate510"
+              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
+          </div>
+          <div>
+            <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Fin de l'UE</label>
+            <input type="date" id="metaDateFin"
               class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
@@ -769,14 +798,199 @@
 
     let currentCell = {studentId: null, sessionId: null};
 
-    const STORAGE_KEY = "CESNA_PRESENCES_DATA_V2";
+    // Ancienne clé unique (V2) : conservée uniquement pour migrer les données existantes
+    const LEGACY_STORAGE_KEY = "CESNA_PRESENCES_DATA_V2";
+    // Nouvelle clé : une sauvegarde distincte PAR UE
+    const STORAGE_PREFIX = "CESNA_PRESENCES_V3_";
+    let currentCourseId = null; // aucun cours choisi à l'arrivée sur le site
+    let lastSavedAt = "";       // horodatage de la dernière version connue (local ou distante)
+
+    // -------------------------------------------------------------
+    // FIREBASE / FIRESTORE : un document par UE dans la collection "registres"
+    // -------------------------------------------------------------
+    const firebaseConfig = {
+      apiKey: "AIzaSyB4vOtLTopCxefpH-duBHk_jfXwZvvsVnI",
+      authDomain: "cesna-presences.firebaseapp.com",
+      projectId: "cesna-presences",
+      storageBucket: "cesna-presences.firebasestorage.app",
+      messagingSenderId: "162301242616",
+      appId: "1:162301242616:web:03b52bafb3ac7deedc9f0d"
+    };
+    const REMOTE_COLLECTION = "registres";
+    let db = null;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+    } catch (e) {
+      console.warn("Firebase indisponible, mode local uniquement :", e);
+    }
+    let remoteUnsub = null;
+    let remoteCourseId = null;
+    let remoteSaveTimer = null;
+
+    function setSyncStatus(state, code) {
+      const badge = document.getElementById('saveStatusBadge');
+      if (!badge) return;
+      if (state === 'saving') {
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Synchronisation...`;
+        badge.className = "inline-flex items-center gap-1 text-amber-700 font-medium";
+        badge.title = "";
+      } else if (state === 'ok') {
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Synchronisé (en ligne)`;
+        badge.className = "inline-flex items-center gap-1 text-emerald-700 font-medium";
+        badge.title = "";
+      } else {
+        const denied = code === 'permission-denied';
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> ${denied ? "Accès refusé (règles Firestore)" : "Hors ligne : sauvegardé localement"}`;
+        badge.className = "inline-flex items-center gap-1 text-rose-700 font-medium";
+        badge.title = code || "";
+      }
+    }
+
+    function buildPayload() {
+      return {
+        courseTitle,
+        adminMetadata,
+        students,
+        sessions,
+        attendanceData,
+        abandonedStudents,
+        savedAt: new Date().toISOString()
+      };
+    }
+
+    function scheduleRemoteSave(payload) {
+      if (!db || !currentCourseId) return;
+      const courseId = currentCourseId;
+      setSyncStatus('saving');
+      clearTimeout(remoteSaveTimer);
+      remoteSaveTimer = setTimeout(() => {
+        remoteSaveTimer = null;
+        pushRemote(courseId, payload);
+      }, 600);
+    }
+
+    function pushRemote(courseId, payload) {
+      if (!db) return;
+      db.collection(REMOTE_COLLECTION).doc(courseId).set({
+        data: JSON.stringify(payload),
+        savedAt: payload.savedAt || "",
+        codeUE: (payload.adminMetadata && payload.adminMetadata.codeUE) || "",
+        courseTitle: payload.courseTitle || ""
+      }).then(() => {
+        if (courseId === currentCourseId) setSyncStatus('ok');
+      }).catch(err => {
+        console.warn("Échec d'écriture Firestore :", err);
+        if (courseId === currentCourseId) setSyncStatus('error', err && err.code);
+      });
+    }
+
+    function stopRemoteSync() {
+      if (remoteUnsub) { remoteUnsub(); remoteUnsub = null; }
+      remoteCourseId = null;
+    }
+
+    // Écoute le document du cours : récupère la version en ligne si elle est plus récente
+    function startRemoteSync(courseId) {
+      if (!db) return;
+      if (remoteCourseId === courseId && remoteUnsub) return;
+      stopRemoteSync();
+      remoteCourseId = courseId;
+      remoteUnsub = db.collection(REMOTE_COLLECTION).doc(courseId).onSnapshot(snap => {
+        if (courseId !== currentCourseId) return;
+        if (snap.metadata.hasPendingWrites) return;   // notre propre écriture en cours
+        if (remoteSaveTimer) return;                  // une sauvegarde locale va partir
+
+        if (!snap.exists) {
+          // Premier usage de cette UE en ligne : on envoie ce qu'on a en local
+          pushRemote(courseId, Object.assign(buildPayload(), {savedAt: lastSavedAt || new Date().toISOString()}));
+          return;
+        }
+
+        let remote;
+        try { remote = JSON.parse(snap.data().data); } catch (e) { return; }
+        const remoteTs = remote.savedAt || "";
+
+        if (remoteTs === lastSavedAt) { setSyncStatus('ok'); return; }   // déjà à jour
+        if (lastSavedAt && lastSavedAt > remoteTs) {
+          // La version locale est plus récente (ex : modifs faites hors ligne)
+          pushRemote(courseId, Object.assign(buildPayload(), {savedAt: lastSavedAt}));
+          return;
+        }
+
+        // La version en ligne est plus récente : on l'applique
+        courseTitle = remote.courseTitle || "";
+        adminMetadata = Object.assign(blankAdminMetadata(), remote.adminMetadata || {});
+        students = remote.students || [];
+        sessions = remote.sessions || [];
+        attendanceData = remote.attendanceData || {};
+        abandonedStudents = remote.abandonedStudents || {};
+        lastSavedAt = remoteTs;
+        try { localStorage.setItem(storageKeyFor(courseId), JSON.stringify(remote)); } catch (e) {}
+        document.getElementById('courseTitleInput').value = courseTitle;
+        syncMetadataInputs();
+        renderTable();
+        setSyncStatus('ok');
+      }, err => {
+        console.warn("Erreur d'écoute Firestore :", err);
+        setSyncStatus('error', err && err.code);
+      });
+    }
+
+    function storageKeyFor(courseId) {
+      return STORAGE_PREFIX + courseId;
+    }
+
+    function blankAdminMetadata() {
+      return {
+        academicYear: "2026-2027",
+        section: "Bachelier en Informatique de gestion",
+        codeUE: "",
+        intituleUE: "",
+        teacher: "",
+        periods: "",
+        dateDebut: "",
+        date110: "",
+        date510: "",
+        dateFin: ""
+      };
+    }
+
+    function resetInMemoryData() {
+      lastSavedAt = "";
+      courseTitle = "";
+      adminMetadata = blankAdminMetadata();
+      students = [];
+      sessions = [];
+      attendanceData = {};
+      abandonedStudents = {};
+    }
+
+    // Reprend l'ancienne sauvegarde unique et la range dans le bon cours (si reconnu par son code UE)
+    function migrateLegacyData() {
+      try {
+        const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        const code = parsed.adminMetadata && parsed.adminMetadata.codeUE;
+        const match = OFFICIAL_COURSES.find(c => c.codeUE === code);
+        if (match && !localStorage.getItem(storageKeyFor(match.id))) {
+          localStorage.setItem(storageKeyFor(match.id), raw);
+        }
+        // On ne supprime pas l'ancienne clé : elle reste comme filet de sécurité
+      } catch (e) {
+        console.warn("Migration des anciennes données impossible :", e);
+      }
+    }
 
     // -------------------------------------------------------------
     // INITIALISATION & SAUVEGARDE AUTOMATIQUE
     // -------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
       buildCourseSelector();
-      loadFromStorage();
+      migrateLegacyData();
+      resetInMemoryData();
+      updateCourseUI();
       renderTable();
     });
 
@@ -803,22 +1017,67 @@
     }
 
     function onSelectOfficialCourse(courseId) {
-      if (!courseId) return;
+      if (!courseId) {
+        // retour à l'écran d'accueil
+        stopRemoteSync();
+        currentCourseId = null;
+        resetInMemoryData();
+        document.getElementById('courseTitleInput').value = "";
+        syncMetadataInputs();
+        updateCourseUI();
+        renderTable();
+        return;
+      }
       const found = OFFICIAL_COURSES.find(c => c.id === courseId);
-      if (found) {
-        courseTitle = `${found.titre} (${found.bloc})`;
-        document.getElementById('courseTitleInput').value = courseTitle;
+      if (!found) return;
 
+      // Les données du cours précédent sont déjà sauvegardées à chaque modification.
+      currentCourseId = found.id;
+      resetInMemoryData();
+
+      const hadSaved = loadFromStorage();
+      if (!hadSaved) {
+        courseTitle = `${found.titre} (${found.bloc})`;
         adminMetadata.section = found.section;
         adminMetadata.codeUE = found.codeUE;
         adminMetadata.intituleUE = found.intituleUE;
         adminMetadata.teacher = found.enseignant;
         adminMetadata.periods = found.periodes;
+      }
 
-        syncMetadataInputs();
+      document.getElementById('courseTitleInput').value = courseTitle;
+      syncMetadataInputs();
+      updateCourseUI();
+      renderTable();
+      if (db) {
+        // Firestore décide : version en ligne si elle existe, sinon on envoie la version locale
+        setSyncStatus('saving');
+        startRemoteSync(found.id);
+      } else if (!hadSaved) {
         indicateSaving();
         saveToStorage();
+      } else {
+        indicateSaved();
       }
+    }
+
+    // Active / désactive les champs selon qu'un cours est choisi ou non
+    function updateCourseUI() {
+      const input = document.getElementById('courseTitleInput');
+      if (input) {
+        input.disabled = !currentCourseId;
+        input.placeholder = currentCourseId ? "Intitulé du cours" : "Choisissez votre UE dans le menu déroulant";
+      }
+      const sel = document.getElementById('courseSelector');
+      if (sel) sel.value = currentCourseId || "";
+    }
+
+    function ensureCourseSelected() {
+      if (currentCourseId) return true;
+      alert("Choisissez d'abord votre UE dans le menu déroulant.");
+      const sel = document.getElementById('courseSelector');
+      if (sel) sel.focus();
+      return false;
     }
 
     function syncMetadataInputs() {
@@ -828,6 +1087,10 @@
       document.getElementById('metaIntituleUE').value = adminMetadata.intituleUE || "";
       document.getElementById('metaTeacher').value = adminMetadata.teacher || "";
       document.getElementById('metaPeriods').value = adminMetadata.periods || "";
+      document.getElementById('metaDateDebut').value = adminMetadata.dateDebut || "";
+      document.getElementById('metaDate110').value = adminMetadata.date110 || "";
+      document.getElementById('metaDate510').value = adminMetadata.date510 || "";
+      document.getElementById('metaDateFin').value = adminMetadata.dateFin || "";
     }
 
     function saveAdminMetadata() {
@@ -837,6 +1100,10 @@
       adminMetadata.intituleUE = document.getElementById('metaIntituleUE').value;
       adminMetadata.teacher = document.getElementById('metaTeacher').value;
       adminMetadata.periods = document.getElementById('metaPeriods').value;
+      adminMetadata.dateDebut = document.getElementById('metaDateDebut').value;
+      adminMetadata.date110 = document.getElementById('metaDate110').value;
+      adminMetadata.date510 = document.getElementById('metaDate510').value;
+      adminMetadata.dateFin = document.getElementById('metaDateFin').value;
       indicateSaving();
       saveToStorage();
     }
@@ -847,50 +1114,40 @@
     }
 
     function saveToStorage() {
-      const payload = {
-        courseTitle,
-        adminMetadata,
-        students,
-        sessions,
-        attendanceData,
-        abandonedStudents,
-        savedAt: new Date().toISOString()
-      };
+      if (!currentCourseId) return; // rien à sauvegarder sans cours choisi
+      const payload = buildPayload();
+      lastSavedAt = payload.savedAt;
 
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-        indicateSaved();
+        localStorage.setItem(storageKeyFor(currentCourseId), JSON.stringify(payload));
+        if (!db) indicateSaved();
       } catch (e) {
         console.warn("Échec d'écriture localStorage:", e);
       }
+      scheduleRemoteSave(payload);
     }
 
+    // Retourne true si une sauvegarde existait pour le cours courant
     function loadFromStorage() {
+      if (!currentCourseId) return false;
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(storageKeyFor(currentCourseId));
         if (raw) {
           const parsed = JSON.parse(raw);
           courseTitle = parsed.courseTitle || "";
-          adminMetadata = Object.assign({
-            academicYear: "2026-2027",
-            section: "Bachelier en Informatique de gestion",
-            codeUE: "",
-            intituleUE: "",
-            teacher: "",
-            periods: ""
-          }, parsed.adminMetadata || {});
+          adminMetadata = Object.assign(blankAdminMetadata(), parsed.adminMetadata || {});
 
           students = parsed.students || [];
           sessions = parsed.sessions || [];
           attendanceData = parsed.attendanceData || {};
           abandonedStudents = parsed.abandonedStudents || {};
-
-          document.getElementById('courseTitleInput').value = courseTitle;
-          syncMetadataInputs();
+          lastSavedAt = parsed.savedAt || "";
+          return true;
         }
       } catch (e) {
         console.error("Erreur de chargement des données locales :", e);
       }
+      return false;
     }
 
     function indicateSaved() {
@@ -916,23 +1173,19 @@
     }
 
     function createNewCourse() {
-      if (confirm("Voulez-vous créer un nouveau registre vierge ? Pensez à faire 'Sauvegarder' pour archiver le fichier actuel.")) {
-        courseTitle = "";
-        adminMetadata = {
-          academicYear: "2026-2027",
-          section: "Bachelier en Informatique de gestion",
-          codeUE: "",
-          intituleUE: "",
-          teacher: "",
-          periods: ""
-        };
-        students = [];
-        sessions = [];
-        attendanceData = {};
-        abandonedStudents = {};
-
-        document.getElementById('courseTitleInput').value = "";
-        document.getElementById('courseSelector').value = "";
+      if (!ensureCourseSelected()) return;
+      if (confirm("Voulez-vous vider le registre de ce cours (étudiants, séances, pointages) ? Pensez à faire 'Sauvegarder' pour archiver le fichier actuel.")) {
+        const found = OFFICIAL_COURSES.find(c => c.id === currentCourseId);
+        resetInMemoryData();
+        if (found) {
+          courseTitle = `${found.titre} (${found.bloc})`;
+          adminMetadata.section = found.section;
+          adminMetadata.codeUE = found.codeUE;
+          adminMetadata.intituleUE = found.intituleUE;
+          adminMetadata.teacher = found.enseignant;
+          adminMetadata.periods = found.periodes;
+        }
+        document.getElementById('courseTitleInput').value = courseTitle;
         syncMetadataInputs();
         saveToStorage();
         renderTable();
@@ -943,6 +1196,7 @@
     // GESTION DU FICHIER .cesna (ONEDRIVE / TEAMS)
     // -------------------------------------------------------------
     function saveToFileCESNa() {
+      if (!ensureCourseSelected()) return;
       const payload = {
         courseTitle,
         adminMetadata,
@@ -975,15 +1229,19 @@
       reader.onload = (e) => {
         try {
           const parsed = JSON.parse(e.target.result);
+          // Rattache le fichier au bon cours via son code UE
+          const fileCode = parsed.adminMetadata && parsed.adminMetadata.codeUE;
+          const matchCourse = OFFICIAL_COURSES.find(c => c.codeUE === fileCode);
+          if (matchCourse) {
+            currentCourseId = matchCourse.id;
+          } else if (!currentCourseId) {
+            alert("Ce fichier ne correspond à aucune UE de la liste. Choisissez d'abord une UE dans le menu déroulant, puis rouvrez le fichier.");
+            return;
+          }
+          updateCourseUI();
+          startRemoteSync(currentCourseId);
           courseTitle = parsed.courseTitle || "";
-          adminMetadata = parsed.adminMetadata || {
-            academicYear: "2026-2027",
-            section: "",
-            codeUE: "",
-            intituleUE: "",
-            teacher: "",
-            periods: ""
-          };
+          adminMetadata = Object.assign(blankAdminMetadata(), parsed.adminMetadata || {});
           students = parsed.students || [];
           sessions = parsed.sessions || [];
           attendanceData = parsed.attendanceData || {};
@@ -1089,6 +1347,19 @@
 
       const tbody = document.getElementById('studentTableBody');
       tbody.innerHTML = '';
+
+      if (!currentCourseId) {
+        const welcomeTr = document.createElement('tr');
+        welcomeTr.innerHTML = `
+          <td colspan="5" class="py-16 px-6 text-center bg-white">
+            <p class="font-bold text-[#0a3a60] text-lg mb-1">Choisissez votre UE dans le menu déroulant</p>
+            <p class="text-xs text-slate-500">Utilisez la liste en haut à gauche pour ouvrir le registre de présences de votre cours.</p>
+          </td>
+        `;
+        tbody.appendChild(welcomeTr);
+        updateGlobalStats();
+        return;
+      }
 
       if (students.length === 0) {
         const totalCols = 5 + sessions.length;
@@ -1325,6 +1596,7 @@
     // AJOUT SÉANCES & ÉTUDIANTS
     // -------------------------------------------------------------
     function openAddSessionModal() {
+      if (!ensureCourseSelected()) return;
       document.getElementById('sessionDateInput').value = '';
       document.getElementById('datesPreviewTagBox').innerHTML = '';
       document.getElementById('addSessionModal').classList.remove('hidden');
@@ -1363,6 +1635,7 @@
     }
 
     function openAddStudentModal() {
+      if (!ensureCourseSelected()) return;
       document.getElementById('newStudentMatricule').value = '';
       document.getElementById('newStudentNom').value = '';
       document.getElementById('newStudentPrenom').value = '';
@@ -1400,6 +1673,7 @@
     // IMPORT EXCEL AVEC EXTRACTION DES DONNÉES DE COURS & ÉTUDIANTS
     // -------------------------------------------------------------
     function openImportModal() {
+      if (!ensureCourseSelected()) return;
       document.getElementById('pasteStudentListInput').value = '';
       document.getElementById('importModal').classList.remove('hidden');
     }
@@ -1559,126 +1833,285 @@
     // -------------------------------------------------------------
     // EXPORT COMPLET EXCEL : PRÉSENCES + FICHIER DONNÉES
     // -------------------------------------------------------------
-    function exportToExcel() {
+    const EXPORT_TITLE = "CESNa - Liste de présences"; // titre imprimé en haut de la liste
+
+    function fmtShortDate(d) {
+      const m = String(d || '').match(/(\d{1,2})\/(\d{1,2})/);
+      return m ? `${m[1].padStart(2, '0')}/${m[2].padStart(2, '0')}` : String(d || '');
+    }
+
+    function fmtIsoToFr(iso) {
+      const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+    }
+
+    // Construit le classeur : feuille 1 = liste de présences (A4 paysage), feuille 2 = fiche données
+    function buildAttendanceWorkbook(ExcelJS, ctx, logoDataUrl) {
+      const {students, sessions, attendanceData, abandonedStudents, adminMetadata: meta, courseTitle, rate, avgText} = ctx;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "CESNa";
+      wb.created = new Date();
+
+      const ws = wb.addWorksheet("Liste de présences", {views: [{showGridLines: false}]});
+      const N = Math.max(sessions.length, 12);  // colonnes de dates (au minimum 12 pour une mise en page stable)
+      const FIRST = 3, LAST = 2 + N;
+      const thin = {style: 'thin', color: {argb: 'FF000000'}};
+      const border = {top: thin, left: thin, bottom: thin, right: thin};
+      const GRAY = 'FFC0C0C0', LGRAY = 'FFEDEDED', DGRAY = 'FFA6A6A6';
+      const fill = argb => ({type: 'pattern', pattern: 'solid', fgColor: {argb}});
+
+      ws.getColumn(1).width = 6;
+      ws.getColumn(2).width = 34;
+      for (let c = FIRST; c <= LAST; c++) ws.getColumn(c).width = 6.3;
+
+      // Bloc fusionné avec bordures / style appliqués à chaque cellule
+      function block(r1, c1, r2, c2, value, o) {
+        o = o || {};
+        if (r1 !== r2 || c1 !== c2) ws.mergeCells(r1, c1, r2, c2);
+        for (let r = r1; r <= r2; r++) {
+          for (let c = c1; c <= c2; c++) {
+            const cell = ws.getCell(r, c);
+            if (o.border !== false) cell.border = border;
+            if (o.fill) cell.fill = o.fill;
+            if (o.font) cell.font = o.font;
+            cell.alignment = o.alignment || {vertical: 'middle'};
+          }
+        }
+        ws.getCell(r1, c1).value = value;
+      }
+      const bold = {bold: true};
+      const left = {vertical: 'middle', horizontal: 'left', indent: 1, wrapText: true};
+      const center = {vertical: 'middle', horizontal: 'center'};
+
+      // --- Titre ---
+      block(1, 2, 1, LAST, EXPORT_TITLE, {font: {bold: true, size: 13}, alignment: {vertical: 'middle', indent: 1}, border: false});
+      for (let c = 2; c <= LAST; c++) ws.getCell(1, c).border = {bottom: thin};
+      ws.getRow(1).height = 24;
+
+      // --- Bloc d'en-tête (gauche : formation / classe / professeur) ---
+      const formation = `${meta.codeUE ? meta.codeUE + ' - ' : ''}${meta.intituleUE || courseTitle || ''}`;
+      const classe = `${meta.section || ''}${meta.academicYear ? '  ' + meta.academicYear : ''}`;
+      const VAL_END = LAST - 5;
+      block(2, 2, 3, 2, "Formation", {fill: fill(GRAY), font: bold, alignment: left});
+      block(2, 3, 3, VAL_END, formation, {alignment: left});
+      block(4, 2, 4, 2, "Classe", {fill: fill(GRAY), font: bold, alignment: left});
+      block(4, 3, 4, VAL_END, classe, {alignment: left});
+      block(5, 2, 5, 2, "Professeur", {fill: fill(GRAY), font: bold, alignment: left});
+      block(5, 3, 5, VAL_END, meta.teacher || '', {alignment: left});
+
+      // --- Bloc d'en-tête (droite : dates de l'UE) ---
+      [["Début", meta.dateDebut, 2], ["1/10è", meta.date110, 3], ["5/10è", meta.date510, 4], ["Fin", meta.dateFin, 5]]
+        .forEach(([lab, val, row]) => {
+          block(row, LAST - 3, row, LAST - 2, lab, {fill: fill(GRAY), font: bold, alignment: left});
+          block(row, LAST - 1, row, LAST, fmtIsoToFr(val), {alignment: center});
+        });
+      for (let r = 2; r <= 5; r++) ws.getRow(r).height = 21;
+
+      // --- Logo ---
+      if (logoDataUrl) {
+        try {
+          const imgId = wb.addImage({base64: logoDataUrl, extension: 'png'});
+          ws.addImage(imgId, {tl: {col: 0.1, row: 0.15}, ext: {width: 54, height: 54}});
+        } catch (e) { /* le logo est facultatif */ }
+      }
+
+      // --- En-tête du tableau (ligne 7) ---
+      const HEAD = 7;
+      block(HEAD, 1, HEAD, 1, "N°", {fill: fill(GRAY), font: bold, alignment: center});
+      block(HEAD, 2, HEAD, 2, "Nom & Prénom", {fill: fill(GRAY), font: bold, alignment: left});
+      for (let i = 0; i < N; i++) {
+        const sess = sessions[i];
+        block(HEAD, FIRST + i, HEAD, FIRST + i, sess ? fmtShortDate(sess.date) : '', {fill: fill(GRAY), font: {bold: true, size: 10}, alignment: center});
+      }
+      ws.getRow(HEAD).height = 20;
+
+      // --- Étudiants ---
+      students.forEach((std, idx) => {
+        const r = HEAD + 1 + idx;
+        const zebra = idx % 2 === 1 ? fill(LGRAY) : null;
+        const name = `${(std.nom || '').toUpperCase()} ${std.prenom || ''}`.trim() + (abandonedStudents[std.id] ? ' [Abandon]' : '');
+        block(r, 1, r, 1, idx + 1, {fill: zebra, alignment: center});
+        block(r, 2, r, 2, name, {fill: zebra, alignment: {vertical: 'middle', horizontal: 'left', indent: 1}});
+        for (let i = 0; i < N; i++) {
+          const sess = sessions[i];
+          const rec = sess ? attendanceData[`${std.id}_${sess.id}`] : null;
+          let val = '';
+          if (rec && rec.status && rec.status !== '?') val = rec.status;
+          block(r, FIRST + i, r, FIRST + i, val, {fill: zebra, alignment: center});
+          if (rec && rec.status === 'R' && (rec.lateMin > 0 || rec.earlyMin > 0)) {
+            ws.getCell(r, FIRST + i).note = `Retard : +${rec.lateMin || 0} min / Départ anticipé : -${rec.earlyMin || 0} min`;
+          }
+        }
+        ws.getRow(r).height = 17;
+      });
+
+      // --- Nb de présents (présents sur place : P et R ; M = à distance n'est pas compté) ---
+      const NB = HEAD + 1 + students.length;
+      block(NB, 1, NB, 2, "Nb de présents", {fill: fill(DGRAY), font: bold, alignment: {vertical: 'middle', horizontal: 'center'}});
+      for (let i = 0; i < N; i++) {
+        const sess = sessions[i];
+        let val = '';
+        if (sess) {
+          let encoded = 0, present = 0;
+          students.forEach(std => {
+            const rec = attendanceData[`${std.id}_${sess.id}`];
+            if (rec && rec.status && rec.status !== '?') {
+              encoded++;
+              if (rec.status === 'P' || rec.status === 'R') present++;
+            }
+          });
+          if (encoded > 0) val = present;
+        }
+        block(NB, FIRST + i, NB, FIRST + i, val, {fill: fill(DGRAY), font: bold, alignment: center});
+      }
+      ws.getRow(NB).height = 19;
+
+      // --- Signatures ---
+      const SIG = NB + 1;
+      block(SIG, 1, SIG, 2, "Signatures", {fill: fill(DGRAY), font: bold, alignment: {vertical: 'middle', horizontal: 'center'}});
+      for (let i = 0; i < N; i++) block(SIG, FIRST + i, SIG, FIRST + i, '', {});
+      ws.getRow(SIG).height = 62;
+
+      // --- Légende ---
+      const LEG = SIG + 2;
+      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)",
+        {font: {italic: true, size: 8}, alignment: {vertical: 'middle', horizontal: 'left'}, border: false});
+
+      // --- Impression A4 paysage, 1 page en largeur ---
+      ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD, showGridLines: false}];
+      ws.pageSetup = {
+        paperSize: 9, // A4
+        orientation: 'landscape',
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        horizontalCentered: true,
+        margins: {left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3},
+        printTitlesRow: `${HEAD}:${HEAD}`
+      };
+      ws.pageSetup.printArea = `A1:${ws.getColumn(LAST).letter}${LEG}`;
+      ws.headerFooter = {oddFooter: `&L&8${EXPORT_TITLE}&C&8Page &P / &N&R&8Imprimé le &D`};
+
+      // ================= FEUILLE 2 : FICHE DONNÉES =================
+      const wd = wb.addWorksheet("Fiche Données", {views: [{showGridLines: false}]});
+      wd.columns = [{width: 34}, {width: 26}, {width: 26}, {width: 18}, {width: 12}];
+      const titleRow = wd.addRow(["FICHE DE DONNÉES DE L'ACTIVITÉ D'APPRENTISSAGE"]);
+      titleRow.font = {bold: true, size: 13};
+      wd.addRow([]);
+      const kv = [
+        ["Établissement", "Centre d'Enseignement Supérieur Namurois (CESNa)"],
+        ["Année académique", meta.academicYear || "-"],
+        ["Section / Orientation", meta.section || "-"],
+        ["Code de l'UE", meta.codeUE || "-"],
+        ["Intitulé de l'UE", meta.intituleUE || "-"],
+        ["Intitulé du cours (AA)", courseTitle || "-"],
+        ["Enseignant responsable", meta.teacher || "-"],
+        ["Volume horaire (périodes)", meta.periods || "-"],
+        ["Début de l'UE", fmtIsoToFr(meta.dateDebut) || "-"],
+        ["1/10è", fmtIsoToFr(meta.date110) || "-"],
+        ["5/10è", fmtIsoToFr(meta.date510) || "-"],
+        ["Fin de l'UE", fmtIsoToFr(meta.dateFin) || "-"],
+        ["Nombre d'étudiants inscrits", students.length],
+        ["Nombre d'abandons déclarés", Object.values(abandonedStudents).filter(Boolean).length],
+        ["Nombre de séances", sessions.length],
+        ["Moyenne générale de présence", avgText || ""],
+        ["Date d'exportation", new Date().toLocaleString('fr-BE')]
+      ];
+      kv.forEach(([k, v]) => {
+        const row = wd.addRow([k, v]);
+        row.getCell(1).font = bold;
+        row.getCell(1).fill = fill(LGRAY);
+        row.getCell(1).border = border;
+        row.getCell(2).border = border;
+        row.getCell(2).alignment = {horizontal: 'left', wrapText: true};
+      });
+
+      wd.addRow([]);
+      const h1 = wd.addRow(["Détail par étudiant"]); h1.font = {bold: true, size: 11};
+      const hs = wd.addRow(["Nom", "Prénom", "Matricule", "Taux de présence", "Abandon"]);
+      hs.eachCell(c => { c.font = bold; c.fill = fill(GRAY); c.border = border; });
+      students.forEach((s, idx) => {
+        const row = wd.addRow([(s.nom || '').toUpperCase(), s.prenom || '', s.matricule || `CES-${(idx + 1).toString().padStart(3, '0')}`, `${rate(s.id)} %`, abandonedStudents[s.id] ? "OUI" : "NON"]);
+        row.eachCell({includeEmpty: true}, (c, n) => { if (n <= 5) c.border = border; });
+      });
+
+      wd.addRow([]);
+      const h2 = wd.addRow(["Séances"]); h2.font = {bold: true, size: 11};
+      const hq = wd.addRow(["Date", "Début", "Fin"]);
+      hq.eachCell(c => { c.font = bold; c.fill = fill(GRAY); c.border = border; });
+      sessions.forEach(sess => {
+        const row = wd.addRow([sess.date, sess.start, sess.end]);
+        row.eachCell({includeEmpty: true}, (c, n) => { if (n <= 3) c.border = border; });
+      });
+
+      wd.pageSetup = {paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: {left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3}};
+      return wb;
+    }
+
+    // Convertit le logo SVG de la page en PNG (pour l'incruster dans le fichier Excel)
+    function getLogoPng() {
+      return new Promise(resolve => {
+        try {
+          const svg = document.querySelector('header svg');
+          if (!svg) return resolve('');
+          const clone = svg.cloneNode(true);
+          clone.setAttribute('width', '450');
+          clone.setAttribute('height', '450');
+          const xml = new XMLSerializer().serializeToString(clone);
+          const img = new Image();
+          const timer = setTimeout(() => resolve(''), 2000);
+          img.onload = () => {
+            try {
+              const cv = document.createElement('canvas');
+              cv.width = 300; cv.height = 300;
+              const cx = cv.getContext('2d');
+              cx.fillStyle = '#ffffff';
+              cx.fillRect(0, 0, 300, 300);
+              cx.drawImage(img, 0, 0, 300, 300);
+              clearTimeout(timer);
+              resolve(cv.toDataURL('image/png'));
+            } catch (e) { clearTimeout(timer); resolve(''); }
+          };
+          img.onerror = () => { clearTimeout(timer); resolve(''); };
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+        } catch (e) { resolve(''); }
+      });
+    }
+
+    async function exportToExcel() {
+      if (!ensureCourseSelected()) return;
       if (students.length === 0) {
         alert("Aucun étudiant à exporter.");
         return;
       }
+      if (typeof ExcelJS === 'undefined') {
+        alert("La bibliothèque d'export (ExcelJS) n'a pas pu être chargée. Vérifiez votre connexion internet et rechargez la page.");
+        return;
+      }
+      try {
+        const logo = await getLogoPng();
+        const wb = buildAttendanceWorkbook(ExcelJS, {
+          students, sessions, attendanceData, abandonedStudents, adminMetadata, courseTitle,
+          rate: calculateStudentRate,
+          avgText: document.getElementById('statAveragePresence').innerText
+        }, logo);
 
-      const wb = XLSX.utils.book_new();
-
-      // ================= FEUILLE 1 : REGISTRE DE PRÉSENCES AVEC EN-TÊTE DONNÉES =================
-      const sheetData = [];
-
-      // 1. En-tête institutionnel CESNa & Données de l'activité d'apprentissage
-      sheetData.push(["CENTRE D'ENSEIGNEMENT SUPÉRIEUR NAMUROIS (CESNa) - REGISTRE DES PRÉSENCES"]);
-      sheetData.push(["Année académique :", adminMetadata.academicYear || "2026-2027", "", "Section :", adminMetadata.section || "Bachelier en Informatique"]);
-      sheetData.push(["Code UE :", adminMetadata.codeUE || "-", "", "Intitulé UE :", adminMetadata.intituleUE || courseTitle || "-"]);
-      sheetData.push(["Cours / AA :", courseTitle || "Non spécifié", "", "Chargé de cours :", adminMetadata.teacher || "-"]);
-      sheetData.push(["Nombre de périodes :", adminMetadata.periods || "-", "", "Séances encodées :", sessions.length]);
-      sheetData.push([]); // Ligne vide de séparation
-
-      // 2. Ligne des dates de séances
-      const headerRow1 = ["N°", "Matricule", "Nom", "Prénom", "Taux de présence", "Abandon"];
-      sessions.forEach(s => {
-        headerRow1.push(`${s.date}`);
-      });
-      sheetData.push(headerRow1);
-
-      // 3. Ligne des horaires de séances
-      const headerRow2 = ["", "", "", "", "", ""];
-      sessions.forEach(s => {
-        headerRow2.push(`${s.start} - ${s.end}`);
-      });
-      sheetData.push(headerRow2);
-
-      // 4. Lignes des étudiants avec pointages
-      students.forEach((s, idx) => {
-        const rate = calculateStudentRate(s.id);
-        const isAbandon = abandonedStudents[s.id] ? "OUI" : "NON";
-        const row = [
-          idx + 1,
-          s.matricule || `CES-${(idx + 1).toString().padStart(3, '0')}`,
-          s.nom.toUpperCase(),
-          s.prenom,
-          `${rate} %`,
-          isAbandon
-        ];
-
-        sessions.forEach(sess => {
-          const rec = attendanceData[`${s.id}_${sess.id}`];
-          if (!rec) {
-            row.push("?");
-          } else if (rec.status === 'R') {
-            row.push(`R (+${rec.lateMin || 0}m)`);
-          } else {
-            row.push(rec.status);
-          }
-        });
-
-        sheetData.push(row);
-      });
-
-      // 5. Ligne de statistiques / totaux par séance
-      sheetData.push([]); // Séparateur
-      const totalsPresenceRow = ["TOTAUX", "", "", "", "Présents / Séance :", ""];
-      sessions.forEach(sess => {
-        let presCount = 0;
-        students.forEach(std => {
-          const rec = attendanceData[`${std.id}_${sess.id}`];
-          if (rec && (rec.status === 'P' || rec.status === 'M' || rec.status === 'R')) {
-            presCount++;
-          }
-        });
-        totalsPresenceRow.push(`${presCount} / ${students.length}`);
-      });
-      sheetData.push(totalsPresenceRow);
-
-      const wsPresences = XLSX.utils.aoa_to_sheet(sheetData);
-
-      // Largeur optimisée des colonnes
-      const colWidths = [
-        {wch: 6},  // N°
-        {wch: 14}, // Matricule
-        {wch: 22}, // Nom
-        {wch: 18}, // Prénom
-        {wch: 16}, // Taux
-        {wch: 10}  // Abandon
-      ];
-      sessions.forEach(() => colWidths.push({wch: 14}));
-      wsPresences['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, wsPresences, "Pointages & Présences");
-
-      // ================= FEUILLE 2 : FICHE DONNÉES & STATISTIQUES =================
-      const dataAdminSheet = [
-        ["FICHE DE DONNÉES DE L'ACTIVITÉ D'APPRENTISSAGE"],
-        [],
-        ["PARAMÈTRE", "VALEUR OFFICIELLE"],
-        ["Établissement", "Centre d'Enseignement Supérieur Namurois (CESNa)"],
-        ["Année académique", adminMetadata.academicYear || "2026-2027"],
-        ["Section / Orientation", adminMetadata.section || "Bachelier en Informatique"],
-        ["Code de l'UE", adminMetadata.codeUE || "-"],
-        ["Intitulé de l'UE", adminMetadata.intituleUE || "-"],
-        ["Intitulé du Cours (AA)", courseTitle || "-"],
-        ["Enseignant responsable", adminMetadata.teacher || "-"],
-        ["Volume horaire (Périodes)", adminMetadata.periods || "-"],
-        ["Nombre total d'étudiants inscrits", students.length],
-        ["Nombre d'abandons déclarés", Object.values(abandonedStudents).filter(Boolean).length],
-        ["Nombre total de séances", sessions.length],
-        ["Moyenne générale de présence", document.getElementById('statAveragePresence').innerText],
-        ["Date d'exportation", new Date().toLocaleString('fr-BE')]
-      ];
-
-      const wsDonnees = XLSX.utils.aoa_to_sheet(dataAdminSheet);
-      wsDonnees['!cols'] = [{wch: 32}, {wch: 50}];
-      XLSX.utils.book_append_sheet(wb, wsDonnees, "Fiche Données");
-
-      // Génération du nom de fichier propre
-      const cleanTitle = (courseTitle ? courseTitle.replace(/[^a-z0-9_-]/gi, '_') : 'CESNa_Pointage_Donnees');
-      const filename = `${cleanTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-      XLSX.writeFile(wb, filename);
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+        const cleanTitle = (courseTitle ? courseTitle.replace(/[^a-z0-9_-]/gi, '_') : 'CESNa_Pointage_Donnees');
+        const filename = `${cleanTitle}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } catch (err) {
+        console.error(err);
+        alert("Erreur lors de la génération du fichier Excel : " + err.message);
+      }
     }
 
     function escapeHtml(str) {
