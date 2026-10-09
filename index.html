@@ -1287,6 +1287,64 @@
     }
 
     // -------------------------------------------------------------
+    // DATES DE SÉANCES : lecture, normalisation, tri chronologique
+    // -------------------------------------------------------------
+    // Lit "8/09/26", "08/09/2026" ou "10/10" (sans année : déduite de l'année académique)
+    function parseSessionDate(str) {
+      const m = String(str || '').match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+      if (!m) return null;
+      const day = parseInt(m[1], 10);
+      const month = parseInt(m[2], 10);
+      let year;
+      if (m[3]) {
+        year = parseInt(m[3], 10);
+        if (m[3].length === 2) year += 2000;
+      } else {
+        const ay = String((adminMetadata && adminMetadata.academicYear) || '').match(/(20\d{2})/);
+        const startYear = ay ? parseInt(ay[1], 10) : new Date().getFullYear();
+        year = month >= 9 ? startYear : startYear + 1;   // sept-déc = 1re année, janv-août = 2e année
+      }
+      if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+      return {day, month, year};
+    }
+
+    // Écrit toujours la date sous la même forme : 8/09/26
+    function normalizeSessionDate(raw) {
+      const d = parseSessionDate(raw);
+      if (!d) return raw;
+      return `${d.day}/${String(d.month).padStart(2, '0')}/${String(d.year % 100).padStart(2, '0')}`;
+    }
+
+    function sessionSortKey(sess) {
+      const d = parseSessionDate(sess.date);
+      if (!d) return Number.MAX_SAFE_INTEGER;   // date illisible : en fin de liste
+      const t = String(sess.start || '').match(/(\d{1,2}):(\d{2})/);
+      const minutes = t ? parseInt(t[1], 10) * 60 + parseInt(t[2], 10) : 0;
+      return new Date(d.year, d.month - 1, d.day).getTime() + minutes * 60000;
+    }
+
+    function sortSessions() {
+      sessions.sort((a, b) => sessionSortKey(a) - sessionSortKey(b));
+    }
+
+    function deleteSession(sessionId) {
+      const sess = sessions.find(x => x.id === sessionId);
+      if (!sess) return;
+      const suffix = `_${sessionId}`;
+      const keys = Object.keys(attendanceData).filter(k => k.endsWith(suffix));
+      const encoded = keys.filter(k => attendanceData[k] && attendanceData[k].status && attendanceData[k].status !== '?').length;
+      const msg = encoded > 0
+        ? `Supprimer la séance du ${sess.date} ?\n\n${encoded} pointage(s) déjà encodé(s) pour cette séance seront définitivement effacés.`
+        : `Supprimer la séance du ${sess.date} ?`;
+      if (!confirm(msg)) return;
+      indicateSaving();
+      sessions = sessions.filter(x => x.id !== sessionId);
+      keys.forEach(k => delete attendanceData[k]);
+      saveToStorage();
+      renderTable();
+    }
+
+    // -------------------------------------------------------------
     // CALCUL DU TAUX DE PRÉSENCE
     // -------------------------------------------------------------
     function calculateStudentRate(studentId) {
@@ -1324,6 +1382,7 @@
     // RENDU VISUEL DU TABLEAU
     // -------------------------------------------------------------
     function renderTable() {
+      sortSessions();   // toujours dans l'ordre chronologique
       const datesRow = document.getElementById('headerRowDates');
       const hoursRow = document.getElementById('headerRowHours');
 
@@ -1342,6 +1401,12 @@
         const thHours = document.createElement('th');
         thHours.className = "w-14 min-w-[56px] max-w-[56px] py-0.5 px-0.5 text-[9px] leading-tight text-center font-normal border border-slate-400 text-white";
         thHours.innerHTML = `${sess.start}<br>${sess.end}`;
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑';
+        delBtn.title = `Supprimer la séance du ${sess.date}`;
+        delBtn.className = 'block mx-auto mt-0.5 text-[11px] leading-none opacity-60 hover:opacity-100 hover:scale-125 transition';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteSession(sess.id); };
+        thHours.appendChild(delBtn);
         hoursRow.appendChild(thHours);
       });
 
@@ -1623,12 +1688,13 @@
       parsedDates.forEach((d, idx) => {
         sessions.push({
           id: `sess_${ts}_${idx}`,
-          date: d,
+          date: normalizeSessionDate(d),
           start: start,
           end: end
         });
       });
 
+      sortSessions();
       saveToStorage();
       closeAddSessionModal();
       renderTable();
