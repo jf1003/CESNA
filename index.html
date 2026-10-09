@@ -245,6 +245,7 @@
           <span class="px-2 py-0.5 bg-purple-200 text-purple-950 font-bold rounded text-[11px]">T = Inscrip.
             tardive</span>
           <span class="px-2 py-0.5 bg-sky-200 text-sky-900 font-bold rounded text-[11px]">D = Dispensé</span>
+          <span class="px-2 py-0.5 bg-amber-200 text-amber-950 font-bold rounded text-[11px]">CM = Certificat médical</span>
           <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">? = Non encodé</span>
         </div>
       </div>
@@ -307,7 +308,7 @@
           NOM Prénom
         </div>
 
-        <!-- Grille 3x2 des 6 boutons (P, M, R, A, T, ?) -->
+        <!-- Grille 3 colonnes des boutons (P, M, R, A, T, ?, D, CM) -->
         <div class="grid grid-cols-3 gap-2 w-full max-w-[280px]">
           <!-- P : Présent -->
           <button onclick="applyStatusAndClose('P')"
@@ -345,6 +346,12 @@
             class="h-20 bg-[#bae6fd] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#075985] transition shadow"
             title="Dispensé">
             D
+          </button>
+          <!-- CM : Certificat médical -->
+          <button onclick="applyStatusAndClose('CM')"
+            class="h-20 bg-[#fde68a] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#92400e] transition shadow"
+            title="Certificat médical (non pénalisant)">
+            CM
           </button>
         </div>
 
@@ -420,6 +427,10 @@
               <div class="flex items-center gap-2"><span
                   class="w-4 h-4 bg-[#bae6fd] border border-black inline-block text-[10px] text-center font-bold">D</span>
                 <span>Dispensé</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="min-w-4 h-4 px-0.5 bg-[#fde68a] border border-black inline-block text-[10px] text-center font-bold">CM</span>
+                <span>Certificat médical</span>
               </div>
               <div class="flex items-center gap-2"><span
                   class="w-4 h-4 bg-[#cbd5e1] border border-black inline-block text-[10px] text-center font-bold">?</span>
@@ -1731,7 +1742,8 @@
         const status = record ? record.status : '?';
 
         if (!isSessionRealised(sess, status !== '?')) return;
-        if (status === 'T' || status === 'D') return;
+        // T (inscription tardive), D (dispensé) et CM (certificat médical) : non pénalisants
+        if (status === 'T' || status === 'D' || status === 'CM') return;
 
         eligibleSessions++;
 
@@ -1896,6 +1908,9 @@
           } else if (status === 'D') {
             tdCell.className += " bg-[#bae6fd] text-[#075985] hover:brightness-95";
             tdCell.title = "Dispensé (non pénalisé)";
+          } else if (status === 'CM') {
+            tdCell.className += " bg-[#fde68a] text-[#92400e] hover:brightness-95";
+            tdCell.title = "Certificat médical (non pénalisé)";
           } else {
             tdCell.className += " text-slate-400 hover:bg-slate-200";
           }
@@ -2459,7 +2474,7 @@
       ws.getRow(SIG).height = 62;
 
       const LEG = SIG + 2;
-      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)",
+      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)",
         {font: {italic: true, size: 8}, alignment: {vertical: 'middle', horizontal: 'left'}, border: false});
 
       ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD, showGridLines: false}];
