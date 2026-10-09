@@ -115,6 +115,8 @@
               <span>•</span>
               <button onclick="createNewCourse()" class="text-slate-600 hover:text-slate-900 font-medium">+ Nouveau
                 registre</button>
+              <span>•</span>
+              <button id="coursesBtn" onclick="openCoursesModal()" class="text-slate-600 hover:text-slate-900 font-medium">⚙ Gérer les cours</button>
             </div>
           </div>
         </div>
@@ -159,8 +161,8 @@
             <span class="w-2.5 h-2.5 bg-blue-700 rounded-sm"></span> Informations administratives (Fichier Données &
             Export)
           </h3>
-          <span class="text-[11px] text-slate-500 italic">Ces informations sont reprises dans l'en-tête du fichier Excel
-            exporté</span>
+          <span class="text-[11px] text-slate-500 italic">Reprises dans l'en-tête du fichier Excel exporté. Pour les modifier (sauf l'année académique) :
+            <button onclick="openCoursesModal()" class="text-blue-700 font-semibold hover:underline not-italic">⚙ Gérer les cours</button></span>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
@@ -172,56 +174,62 @@
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Section / Formation</label>
-            <input type="text" id="metaSection" placeholder="Bachelier en Informatique..."
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="text" id="metaSection" readonly placeholder="Bachelier en Informatique..."
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Code UE</label>
-            <input type="text" id="metaCodeUE" placeholder="Ex: UE-INFO-201"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="text" id="metaCodeUE" readonly placeholder="Ex: UE-INFO-201"
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+              oninput="saveAdminMetadata()">
+          </div>
+          <div>
+            <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Code COG</label>
+            <input type="text" id="metaCodeCOG" readonly
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Intitulé UE / AA</label>
-            <input type="text" id="metaIntituleUE" placeholder="Nom de l'UE"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="text" id="metaIntituleUE" readonly placeholder="Nom de l'UE"
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Chargé de cours / Prof.</label>
-            <input type="text" id="metaTeacher" placeholder="Nom de l'enseignant"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="text" id="metaTeacher" readonly placeholder="Nom de l'enseignant"
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Nombre de périodes</label>
-            <input type="text" id="metaPeriods" placeholder="Ex: 80p (50 min)"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="text" id="metaPeriods" readonly placeholder="Ex: 80p (50 min)"
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Début de l'UE</label>
-            <input type="date" id="metaDateDebut"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="date" id="metaDateDebut" readonly
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">1/10è (optionnel)</label>
-            <input type="date" id="metaDate110"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="date" id="metaDate110" readonly
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">5/10è (optionnel)</label>
-            <input type="date" id="metaDate510"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="date" id="metaDate510" readonly
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
           <div>
             <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Fin de l'UE</label>
-            <input type="date" id="metaDateFin"
-              class="w-full bg-white border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
+            <input type="date" id="metaDateFin" readonly
+              class="w-full bg-slate-100 text-slate-600 cursor-not-allowed border border-slate-300 rounded px-2 py-1 font-medium focus:border-blue-600 outline-none"
               oninput="saveAdminMetadata()">
           </div>
         </div>
@@ -561,6 +569,102 @@
           <button onclick="confirmImportList()"
             class="px-4 py-1.5 text-xs font-bold bg-emerald-800 text-white hover:bg-emerald-900 rounded shadow">Importer
             la liste</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODALE : GÉRER LA LISTE DES COURS (CRUD) ================= -->
+  <div id="coursesModal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
+        <span>Gérer la liste des cours</span>
+        <button onclick="closeCoursesModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+
+      <div class="overflow-y-auto p-4 space-y-4">
+        <p id="coursesSyncMsg" class="text-xs font-semibold text-rose-700 hidden"></p>
+
+        <!-- Liste -->
+        <div class="border border-slate-300 rounded overflow-hidden">
+          <div class="max-h-64 overflow-y-auto">
+            <table class="w-full text-xs">
+              <thead class="bg-slate-200 text-slate-700 sticky top-0">
+                <tr>
+                  <th class="text-left px-2 py-1.5">Code UE</th>
+                  <th class="text-left px-2 py-1.5">Intitulé</th>
+                  <th class="text-left px-2 py-1.5">Bloc</th>
+                  <th class="text-left px-2 py-1.5">Code COG</th>
+                  <th class="text-left px-2 py-1.5">Début</th>
+                  <th class="text-left px-2 py-1.5">Fin</th>
+                  <th class="px-2 py-1.5 w-24"></th>
+                </tr>
+              </thead>
+              <tbody id="coursesListBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Formulaire ajout / modification -->
+        <div class="border border-slate-300 rounded bg-slate-50 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h3 id="courseFormTitle" class="text-xs font-bold text-slate-800 uppercase tracking-wide">Nouveau cours</h3>
+            <button onclick="resetCourseForm()" class="text-[11px] text-blue-700 hover:underline font-semibold">+ Nouveau (vider le formulaire)</button>
+          </div>
+          <input type="hidden" id="cmEditId">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+            <div class="lg:col-span-2">
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Intitulé de l'UE / AA *</label>
+              <input type="text" id="cmTitre" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Code UE *</label>
+              <input type="text" id="cmCodeUE" placeholder="Ex: 354-1-A" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Code COG</label>
+              <input type="text" id="cmCodeCOG" placeholder="Ex: 433116U11E1" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Section / Formation</label>
+              <input type="text" id="cmSection" list="cmSectionList" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+              <datalist id="cmSectionList"></datalist>
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Bloc</label>
+              <input type="text" id="cmBloc" list="cmBlocList" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+              <datalist id="cmBlocList"></datalist>
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Chargé de cours / Prof.</label>
+              <input type="text" id="cmEnseignant" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Nombre de périodes</label>
+              <input type="text" id="cmPeriodes" placeholder="Ex: 80p" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Début de l'UE</label>
+              <input type="date" id="cmDateDebut" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">1/10è (optionnel)</label>
+              <input type="date" id="cmDate110" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">5/10è (optionnel)</label>
+              <input type="date" id="cmDate510" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Fin de l'UE</label>
+              <input type="date" id="cmDateFin" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+          </div>
+          <div class="pt-3 flex justify-end gap-2">
+            <button onclick="closeCoursesModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Fermer</button>
+            <button onclick="saveCourseForm()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Enregistrer le cours</button>
+          </div>
         </div>
       </div>
     </div>
@@ -926,6 +1030,7 @@
         attendanceData = remote.attendanceData || {};
         abandonedStudents = remote.abandonedStudents || {};
         lastSavedAt = remoteTs;
+        applyCurrentCourseToMetadata();
         try { localStorage.setItem(storageKeyFor(courseId), JSON.stringify(remote)); } catch (e) {}
         document.getElementById('courseTitleInput').value = courseTitle;
         syncMetadataInputs();
@@ -949,6 +1054,7 @@
         intituleUE: "",
         teacher: "",
         periods: "",
+        codeCOG: "",
         dateDebut: "",
         date110: "",
         date510: "",
@@ -973,7 +1079,7 @@
         if (!raw) return;
         const parsed = JSON.parse(raw);
         const code = parsed.adminMetadata && parsed.adminMetadata.codeUE;
-        const match = OFFICIAL_COURSES.find(c => c.codeUE === code);
+        const match = courses.find(c => c.codeUE === code);
         if (match && !localStorage.getItem(storageKeyFor(match.id))) {
           localStorage.setItem(storageKeyFor(match.id), raw);
         }
@@ -987,33 +1093,305 @@
     // INITIALISATION & SAUVEGARDE AUTOMATIQUE
     // -------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
+      courses = loadCoursesLocal();
       buildCourseSelector();
+      startCoursesSync();
       migrateLegacyData();
       resetInMemoryData();
       updateCourseUI();
       renderTable();
     });
 
+    // -------------------------------------------------------------
+    // CATALOGUE DES COURS (CRUD) : stocké dans Firestore, collection "cours"
+    // La liste OFFICIAL_COURSES ci-dessus ne sert plus que de contenu de départ.
+    // -------------------------------------------------------------
+    const COURSES_LS_KEY = "CESNA_COURSES_V1";
+    const COURSES_COLLECTION = "cours";
+    const DEFAULT_COURSE_FIELDS = {
+      section: "", bloc: "", codeUE: "", intituleUE: "", titre: "", enseignant: "À définir", periodes: "",
+      codeCOG: "", dateDebut: "", date110: "", date510: "", dateFin: ""
+    };
+    let courses = [];
+
+    function loadCoursesLocal() {
+      try {
+        const raw = localStorage.getItem(COURSES_LS_KEY);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr) && arr.length > 0) {
+            return arr.map(c => Object.assign({}, DEFAULT_COURSE_FIELDS, c));
+          }
+        }
+      } catch (e) { /* on retombe sur la liste de départ */ }
+      return OFFICIAL_COURSES.map(c => Object.assign({}, DEFAULT_COURSE_FIELDS, c));
+    }
+
+    function saveCoursesLocal() {
+      try { localStorage.setItem(COURSES_LS_KEY, JSON.stringify(courses)); } catch (e) { /* ignoré */ }
+    }
+
+    function sortedCourses() {
+      return courses.slice().sort((a, b) =>
+        (a.section || '').localeCompare(b.section || '', 'fr') ||
+        (a.bloc || '').localeCompare(b.bloc || '', 'fr') ||
+        String(a.codeUE || '').localeCompare(String(b.codeUE || ''), 'fr', {numeric: true}));
+    }
+
+    function setCoursesStatus(msg) {
+      const el = document.getElementById('coursesSyncMsg');
+      if (el) {
+        el.textContent = msg || '';
+        el.classList.toggle('hidden', !msg);
+      }
+      const btn = document.getElementById('coursesBtn');
+      if (btn) {
+        btn.textContent = msg ? '⚠ Gérer les cours' : '⚙ Gérer les cours';
+        btn.title = msg || '';
+      }
+    }
+
+    // Recopie les infos du cours (catalogue) dans le registre courant
+    function applyCourseToMetadata(c) {
+      if (!c) return;
+      const real = v => v && String(v).trim() && v !== 'À définir';
+      if (c.section) adminMetadata.section = c.section;
+      if (c.codeUE) adminMetadata.codeUE = c.codeUE;
+      if (c.intituleUE || c.titre) adminMetadata.intituleUE = c.intituleUE || c.titre;
+      if (real(c.enseignant)) adminMetadata.teacher = c.enseignant;
+      else if (!adminMetadata.teacher) adminMetadata.teacher = c.enseignant || '';
+      if (c.periodes) adminMetadata.periods = c.periodes;
+      // Le catalogue fait foi pour le code COG et les dates
+      adminMetadata.codeCOG = c.codeCOG || '';
+      adminMetadata.dateDebut = c.dateDebut || '';
+      adminMetadata.date110 = c.date110 || '';
+      adminMetadata.date510 = c.date510 || '';
+      adminMetadata.dateFin = c.dateFin || '';
+    }
+
+    function applyCurrentCourseToMetadata() {
+      if (!currentCourseId) return;
+      applyCourseToMetadata(courses.find(c => c.id === currentCourseId));
+    }
+
     function buildCourseSelector() {
       const select = document.getElementById('courseSelector');
-      // Regrouper par bloc
+      const keep = currentCourseId || "";
+      select.innerHTML = '<option value="">-- Sélectionner un cours dans la liste --</option>';
       const groups = {};
-      OFFICIAL_COURSES.forEach(c => {
-        if (!groups[c.bloc]) groups[c.bloc] = [];
-        groups[c.bloc].push(c);
+      const order = [];
+      sortedCourses().forEach(c => {
+        const label = (c.bloc && c.bloc !== c.section) ? `${c.section} · ${c.bloc}` : (c.section || c.bloc || 'Autres');
+        if (!groups[label]) { groups[label] = []; order.push(label); }
+        groups[label].push(c);
       });
-
-      Object.keys(groups).forEach(blocName => {
+      order.forEach(label => {
         const optgroup = document.createElement('optgroup');
-        optgroup.label = `--- ${blocName} ---`;
-        groups[blocName].forEach(c => {
+        optgroup.label = `--- ${label} ---`;
+        groups[label].forEach(c => {
           const opt = document.createElement('option');
           opt.value = c.id;
-          opt.textContent = `${c.codeUE} - ${c.titre}`;
+          opt.textContent = `${c.codeUE} - ${c.titre || c.intituleUE}`;
           optgroup.appendChild(opt);
         });
         select.appendChild(optgroup);
       });
+      select.value = keep;
+    }
+
+    // À appeler dès que la liste des cours change (ici ou depuis un autre navigateur)
+    function onCoursesChanged() {
+      buildCourseSelector();
+      renderCoursesList();
+      if (currentCourseId) {
+        const c = courses.find(x => x.id === currentCourseId);
+        if (!c) {
+          alert("Le cours affiché a été retiré de la liste.");
+          onSelectOfficialCourse('');
+          return;
+        }
+        applyCourseToMetadata(c);
+        syncMetadataInputs();
+        renderTable();
+      }
+    }
+
+    function startCoursesSync() {
+      if (!db) return;
+      db.collection(COURSES_COLLECTION).onSnapshot(snap => {
+        if (snap.empty && !snap.metadata.fromCache) { seedCoursesRemote(); return; }
+        if (snap.empty) return; // cache vide : on attend la réponse du serveur
+        const list = [];
+        snap.forEach(d => {
+          if (d.id.startsWith('_')) return; // document technique (_meta)
+          list.push(Object.assign({}, DEFAULT_COURSE_FIELDS, d.data(), {id: d.id}));
+        });
+        courses = list;
+        saveCoursesLocal();
+        setCoursesStatus('');
+        onCoursesChanged();
+      }, err => {
+        console.warn("Erreur Firestore (cours) :", err);
+        setCoursesStatus(err && err.code === 'permission-denied'
+          ? "Liste des cours non synchronisée : ajoutez la collection « cours » dans les règles Firestore."
+          : "Liste des cours non synchronisée (hors ligne ?).");
+      });
+    }
+
+    // Premier lancement : envoie la liste de départ dans Firestore (une seule fois)
+    function seedCoursesRemote() {
+      const batch = db.batch();
+      courses.forEach(c => {
+        const {id, ...data} = c;
+        batch.set(db.collection(COURSES_COLLECTION).doc(id), data);
+      });
+      batch.set(db.collection(COURSES_COLLECTION).doc('_meta'), {seeded: true, at: new Date().toISOString()});
+      batch.commit().catch(err => {
+        console.warn("Initialisation de la liste des cours impossible :", err);
+        setCoursesStatus(err && err.code === 'permission-denied'
+          ? "Liste des cours non synchronisée : ajoutez la collection « cours » dans les règles Firestore."
+          : "Liste des cours non synchronisée (hors ligne ?).");
+      });
+    }
+
+    // ---------- Interface de gestion ----------
+    function openCoursesModal() {
+      renderCoursesList();
+      resetCourseForm();
+      document.getElementById('coursesModal').classList.remove('hidden');
+    }
+
+    function closeCoursesModal() {
+      document.getElementById('coursesModal').classList.add('hidden');
+    }
+
+    function renderCoursesList() {
+      const tbody = document.getElementById('coursesListBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      sortedCourses().forEach(c => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-yellow-50";
+        tr.innerHTML = `
+          <td class="px-2 py-1 font-mono text-[11px]">${escapeHtml(c.codeUE)}</td>
+          <td class="px-2 py-1 font-semibold">${escapeHtml(c.titre || c.intituleUE)}</td>
+          <td class="px-2 py-1 text-slate-600">${escapeHtml(c.bloc)}</td>
+          <td class="px-2 py-1 font-mono text-[11px]">${escapeHtml(c.codeCOG) || '<span class="text-slate-300">–</span>'}</td>
+          <td class="px-2 py-1">${escapeHtml(fmtIsoToFr(c.dateDebut)) || '<span class="text-slate-300">–</span>'}</td>
+          <td class="px-2 py-1">${escapeHtml(fmtIsoToFr(c.dateFin)) || '<span class="text-slate-300">–</span>'}</td>
+          <td class="px-2 py-1 text-right whitespace-nowrap">
+            <button class="px-1.5 py-0.5 text-blue-700 hover:bg-blue-100 rounded font-semibold" onclick="editCourse('${c.id}')">Modifier</button>
+            <button class="px-1.5 py-0.5 text-rose-700 hover:bg-rose-100 rounded font-semibold" onclick="deleteCourse('${c.id}')" title="Supprimer ce cours">🗑</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+
+      // Suggestions pour Section / Bloc
+      const fill = (id, values) => {
+        const dl = document.getElementById(id);
+        if (!dl) return;
+        dl.innerHTML = '';
+        [...new Set(values.filter(Boolean))].forEach(v => {
+          const o = document.createElement('option');
+          o.value = v;
+          dl.appendChild(o);
+        });
+      };
+      fill('cmSectionList', courses.map(c => c.section));
+      fill('cmBlocList', courses.map(c => c.bloc));
+    }
+
+    const COURSE_FORM_FIELDS = {
+      cmTitre: 'titre', cmCodeUE: 'codeUE', cmCodeCOG: 'codeCOG', cmSection: 'section', cmBloc: 'bloc',
+      cmEnseignant: 'enseignant', cmPeriodes: 'periodes',
+      cmDateDebut: 'dateDebut', cmDate110: 'date110', cmDate510: 'date510', cmDateFin: 'dateFin'
+    };
+
+    function resetCourseForm() {
+      document.getElementById('cmEditId').value = '';
+      Object.keys(COURSE_FORM_FIELDS).forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('courseFormTitle').textContent = 'Nouveau cours';
+    }
+
+    function editCourse(id) {
+      const c = courses.find(x => x.id === id);
+      if (!c) return;
+      document.getElementById('cmEditId').value = c.id;
+      Object.keys(COURSE_FORM_FIELDS).forEach(fid => {
+        const key = COURSE_FORM_FIELDS[fid];
+        document.getElementById(fid).value = (key === 'titre' ? (c.titre || c.intituleUE) : c[key]) || '';
+      });
+      document.getElementById('courseFormTitle').textContent = `Modifier : ${c.codeUE}`;
+      document.getElementById('cmTitre').focus();
+    }
+
+    function saveCourseForm() {
+      const v = id => document.getElementById(id).value.trim();
+      const codeUE = v('cmCodeUE');
+      const titre = v('cmTitre');
+      if (!codeUE || !titre) {
+        alert("Le code UE et l'intitulé sont obligatoires.");
+        return;
+      }
+      const editId = document.getElementById('cmEditId').value;
+      if (courses.some(c => c.codeUE === codeUE && c.id !== editId) &&
+          !confirm(`Le code UE ${codeUE} existe déjà dans la liste. Créer quand même ?`)) return;
+
+      // L'identifiant d'un cours existant ne change jamais : les registres y sont rattachés
+      const id = editId || ('c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+      const section = v('cmSection') || 'Autres';
+      upsertCourse({
+        id,
+        section,
+        bloc: v('cmBloc') || section,
+        codeUE,
+        intituleUE: titre,
+        titre,
+        enseignant: v('cmEnseignant') || 'À définir',
+        periodes: v('cmPeriodes'),
+        codeCOG: v('cmCodeCOG'),
+        dateDebut: v('cmDateDebut'),
+        date110: v('cmDate110'),
+        date510: v('cmDate510'),
+        dateFin: v('cmDateFin')
+      });
+      resetCourseForm();
+    }
+
+    function upsertCourse(course) {
+      const i = courses.findIndex(c => c.id === course.id);
+      if (i >= 0) courses[i] = course; else courses.push(course);
+      saveCoursesLocal();
+      if (db) {
+        const {id, ...data} = course;
+        db.collection(COURSES_COLLECTION).doc(id).set(data).catch(err => {
+          console.warn("Échec d'écriture du cours :", err);
+          setCoursesStatus(err && err.code === 'permission-denied'
+            ? "Liste des cours non synchronisée : ajoutez la collection « cours » dans les règles Firestore."
+            : "Liste des cours non synchronisée (hors ligne ?).");
+        });
+      }
+      onCoursesChanged();
+    }
+
+    function deleteCourse(id) {
+      const c = courses.find(x => x.id === id);
+      if (!c) return;
+      let hasRegistre = false;
+      try { hasRegistre = localStorage.getItem(storageKeyFor(id)) !== null; } catch (e) {}
+      const msg = `Supprimer le cours « ${c.codeUE} - ${c.titre || c.intituleUE} » de la liste ?` +
+        (hasRegistre ? "\n\nUn registre de présences existe pour ce cours : il n'est pas effacé de la base, mais le cours ne sera plus sélectionnable." : "");
+      if (!confirm(msg)) return;
+      if (currentCourseId === id) onSelectOfficialCourse('');
+      courses = courses.filter(x => x.id !== id);
+      saveCoursesLocal();
+      if (db) {
+        db.collection(COURSES_COLLECTION).doc(id).delete().catch(err => {
+          console.warn("Échec de suppression du cours :", err);
+          setCoursesStatus("La suppression n'a pas pu être synchronisée (règles Firestore ou hors ligne).");
+        });
+      }
+      onCoursesChanged();
     }
 
     function onSelectOfficialCourse(courseId) {
@@ -1028,7 +1406,7 @@
         renderTable();
         return;
       }
-      const found = OFFICIAL_COURSES.find(c => c.id === courseId);
+      const found = courses.find(c => c.id === courseId);
       if (!found) return;
 
       // Les données du cours précédent sont déjà sauvegardées à chaque modification.
@@ -1044,6 +1422,7 @@
         adminMetadata.teacher = found.enseignant;
         adminMetadata.periods = found.periodes;
       }
+      applyCourseToMetadata(found);
 
       document.getElementById('courseTitleInput').value = courseTitle;
       syncMetadataInputs();
@@ -1087,6 +1466,7 @@
       document.getElementById('metaIntituleUE').value = adminMetadata.intituleUE || "";
       document.getElementById('metaTeacher').value = adminMetadata.teacher || "";
       document.getElementById('metaPeriods').value = adminMetadata.periods || "";
+      document.getElementById('metaCodeCOG').value = adminMetadata.codeCOG || "";
       document.getElementById('metaDateDebut').value = adminMetadata.dateDebut || "";
       document.getElementById('metaDate110').value = adminMetadata.date110 || "";
       document.getElementById('metaDate510').value = adminMetadata.date510 || "";
@@ -1100,6 +1480,7 @@
       adminMetadata.intituleUE = document.getElementById('metaIntituleUE').value;
       adminMetadata.teacher = document.getElementById('metaTeacher').value;
       adminMetadata.periods = document.getElementById('metaPeriods').value;
+      adminMetadata.codeCOG = document.getElementById('metaCodeCOG').value;
       adminMetadata.dateDebut = document.getElementById('metaDateDebut').value;
       adminMetadata.date110 = document.getElementById('metaDate110').value;
       adminMetadata.date510 = document.getElementById('metaDate510').value;
@@ -1175,7 +1556,7 @@
     function createNewCourse() {
       if (!ensureCourseSelected()) return;
       if (confirm("Voulez-vous vider le registre de ce cours (étudiants, séances, pointages) ? Pensez à faire 'Sauvegarder' pour archiver le fichier actuel.")) {
-        const found = OFFICIAL_COURSES.find(c => c.id === currentCourseId);
+        const found = courses.find(c => c.id === currentCourseId);
         resetInMemoryData();
         if (found) {
           courseTitle = `${found.titre} (${found.bloc})`;
@@ -1184,6 +1565,7 @@
           adminMetadata.intituleUE = found.intituleUE;
           adminMetadata.teacher = found.enseignant;
           adminMetadata.periods = found.periodes;
+          applyCourseToMetadata(found);
         }
         document.getElementById('courseTitleInput').value = courseTitle;
         syncMetadataInputs();
@@ -1231,7 +1613,7 @@
           const parsed = JSON.parse(e.target.result);
           // Rattache le fichier au bon cours via son code UE
           const fileCode = parsed.adminMetadata && parsed.adminMetadata.codeUE;
-          const matchCourse = OFFICIAL_COURSES.find(c => c.codeUE === fileCode);
+          const matchCourse = courses.find(c => c.codeUE === fileCode);
           if (matchCourse) {
             currentCourseId = matchCourse.id;
           } else if (!currentCourseId) {
@@ -1242,6 +1624,7 @@
           startRemoteSync(currentCourseId);
           courseTitle = parsed.courseTitle || "";
           adminMetadata = Object.assign(blankAdminMetadata(), parsed.adminMetadata || {});
+          applyCurrentCourseToMetadata();
           students = parsed.students || [];
           sessions = parsed.sessions || [];
           attendanceData = parsed.attendanceData || {};
@@ -1963,15 +2346,20 @@
       ws.getRow(1).height = 24;
 
       // --- Bloc d'en-tête (gauche : formation / classe / professeur) ---
-      const formation = `${meta.codeUE ? meta.codeUE + ' - ' : ''}${meta.intituleUE || courseTitle || ''}`;
+      const formation = meta.intituleUE || courseTitle || '';
       const classe = `${meta.section || ''}${meta.academicYear ? '  ' + meta.academicYear : ''}`;
       const VAL_END = LAST - 5;
-      block(2, 2, 3, 2, "Formation", {fill: fill(GRAY), font: bold, alignment: left});
-      block(2, 3, 3, VAL_END, formation, {alignment: left});
-      block(4, 2, 4, 2, "Classe", {fill: fill(GRAY), font: bold, alignment: left});
-      block(4, 3, 4, VAL_END, classe, {alignment: left});
-      block(5, 2, 5, 2, "Professeur", {fill: fill(GRAY), font: bold, alignment: left});
-      block(5, 3, 5, VAL_END, meta.teacher || '', {alignment: left});
+      const lines = Math.max(1, Math.ceil(formation.length / 42));
+      block(2, 2, 2, 2, "Formation", {fill: fill(GRAY), font: bold, alignment: left});
+      block(2, 3, 2, VAL_END, formation, {alignment: left});
+      block(3, 2, 3, 2, "Code UE", {fill: fill(GRAY), font: bold, alignment: left});
+      block(3, 3, 3, VAL_END, meta.codeUE || '', {alignment: left});
+      block(4, 2, 4, 2, "Code COG", {fill: fill(GRAY), font: bold, alignment: left});
+      block(4, 3, 4, VAL_END, meta.codeCOG || '', {alignment: left});
+      block(5, 2, 5, 2, "Classe", {fill: fill(GRAY), font: bold, alignment: left});
+      block(5, 3, 5, VAL_END, classe, {alignment: left});
+      block(6, 2, 6, 2, "Professeur", {fill: fill(GRAY), font: bold, alignment: left});
+      block(6, 3, 6, VAL_END, meta.teacher || '', {alignment: left});
 
       // --- Bloc d'en-tête (droite : dates de l'UE) ---
       [["Début", meta.dateDebut, 2], ["1/10è", meta.date110, 3], ["5/10è", meta.date510, 4], ["Fin", meta.dateFin, 5]]
@@ -1979,7 +2367,8 @@
           block(row, LAST - 3, row, LAST - 2, lab, {fill: fill(GRAY), font: bold, alignment: left});
           block(row, LAST - 1, row, LAST, fmtIsoToFr(val), {alignment: center});
         });
-      for (let r = 2; r <= 5; r++) ws.getRow(r).height = 21;
+      for (let r = 2; r <= 6; r++) ws.getRow(r).height = 21;
+      ws.getRow(2).height = Math.max(21, lines * 15 + 6);
 
       // --- Logo ---
       if (logoDataUrl) {
@@ -1989,8 +2378,8 @@
         } catch (e) { /* le logo est facultatif */ }
       }
 
-      // --- En-tête du tableau (ligne 7) ---
-      const HEAD = 7;
+      // --- En-tête du tableau (ligne 8) ---
+      const HEAD = 8;
       block(HEAD, 1, HEAD, 1, "N°", {fill: fill(GRAY), font: bold, alignment: center});
       block(HEAD, 2, HEAD, 2, "Nom & Prénom", {fill: fill(GRAY), font: bold, alignment: left});
       for (let i = 0; i < N; i++) {
@@ -2077,6 +2466,7 @@
         ["Année académique", meta.academicYear || "-"],
         ["Section / Orientation", meta.section || "-"],
         ["Code de l'UE", meta.codeUE || "-"],
+        ["Code COG", meta.codeCOG || "-"],
         ["Intitulé de l'UE", meta.intituleUE || "-"],
         ["Intitulé du cours (AA)", courseTitle || "-"],
         ["Enseignant responsable", meta.teacher || "-"],
