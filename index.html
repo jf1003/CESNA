@@ -478,17 +478,23 @@
     </div>
   </div>
 
-  <!-- ================= MODALE : AJOUTER ÉTUDIANT SEUL ================= -->
+  <!-- ================= MODALE : AJOUTER / MODIFIER ÉTUDIANT (CRUD) ================= -->
   <div id="addStudentModal"
     class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-sm overflow-hidden">
       <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
-        <span>Ajouter un étudiant</span>
+        <span id="studentModalTitle">Ajouter un étudiant</span>
         <button onclick="closeAddStudentModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
       </div>
       <div class="p-4 space-y-3">
+        <input type="hidden" id="editStudentId">
         <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">NOM (Famille)</label>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Matricule (optionnel)</label>
+          <input type="text" id="newStudentMatricule" placeholder="Ex: 2026-001"
+            class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 uppercase">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">NOM (Famille) *</label>
           <input type="text" id="newStudentNom" placeholder="Ex: ANSART"
             class="w-full text-xs p-2 border border-slate-300 rounded focus:border-blue-600 uppercase">
         </div>
@@ -500,8 +506,8 @@
         <div class="pt-2 flex justify-end gap-2">
           <button onclick="closeAddStudentModal()"
             class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="confirmAddStudent()"
-            class="px-4 py-1.5 text-xs font-bold bg-slate-800 text-white hover:bg-black rounded shadow">Ajouter</button>
+          <button id="studentModalSubmitBtn" onclick="confirmAddStudent()"
+            class="px-4 py-1.5 text-xs font-bold bg-slate-800 text-white hover:bg-black rounded shadow">Enregistrer</button>
         </div>
       </div>
     </div>
@@ -1085,17 +1091,15 @@
 
     // -------------------------------------------------------------
     // CATALOGUE DES COURS (CRUD) : stocké dans Firestore, collection "cours"
-    // La liste OFFICIAL_COURSES ci-dessus ne sert plus que de contenu de départ.
     // -------------------------------------------------------------
-    const COURSES_LS_KEY = "CESNA_COURSES_V2";       // V1 ignorée : elle pouvait contenir des cours vides
-    const COURSES_COLLECTION = "catalogue_ue";       // collection dédiée (distincte d'éventuelles anciennes données)
+    const COURSES_LS_KEY = "CESNA_COURSES_V2";
+    const COURSES_COLLECTION = "catalogue_ue";
     const DEFAULT_COURSE_FIELDS = {
       section: "", bloc: "", codeUE: "", intituleUE: "", titre: "", enseignant: "À définir", periodes: "",
       dateDebut: "", date110: "", date510: "", dateFin: ""
     };
     let courses = [];
 
-    // Un cours valide a au moins un code UE et un intitulé
     function isValidCourse(c) {
       return !!(c && c.id && String(c.codeUE || '').trim() && String(c.titre || c.intituleUE || '').trim());
     }
@@ -1138,7 +1142,6 @@
       }
     }
 
-    // Recopie les infos du cours (catalogue) dans le registre courant
     function applyCourseToMetadata(c) {
       if (!c) return;
       const real = v => v && String(v).trim() && v !== 'À définir';
@@ -1148,7 +1151,6 @@
       if (real(c.enseignant)) adminMetadata.teacher = c.enseignant;
       else if (!adminMetadata.teacher) adminMetadata.teacher = c.enseignant || '';
       if (c.periodes) adminMetadata.periods = c.periodes;
-      // Le catalogue fait foi pour les dates
       adminMetadata.dateDebut = c.dateDebut || '';
       adminMetadata.date110 = c.date110 || '';
       adminMetadata.date510 = c.date510 || '';
@@ -1185,7 +1187,6 @@
       select.value = keep;
     }
 
-    // À appeler dès que la liste des cours change (ici ou depuis un autre navigateur)
     function onCoursesChanged() {
       buildCourseSelector();
       renderCoursesList();
@@ -1211,11 +1212,10 @@
           if (d.id === '_meta') { hasMeta = true; return; }
           if (d.id.startsWith('_')) return;
           const c = Object.assign({}, DEFAULT_COURSE_FIELDS, d.data(), {id: d.id});
-          if (isValidCourse(c)) list.push(c);   // les documents incomplets sont ignorés
+          if (isValidCourse(c)) list.push(c);
         });
 
         if (!hasMeta) {
-          // Collection jamais initialisée : on attend la réponse du serveur, puis on envoie la liste de départ
           if (!snap.metadata.fromCache) seedCoursesRemote();
           return;
         }
@@ -1231,7 +1231,6 @@
       });
     }
 
-    // Premier lancement : envoie la liste de départ dans Firestore (une seule fois)
     function seedCoursesRemote() {
       const batch = db.batch();
       courses.forEach(c => {
@@ -1247,7 +1246,6 @@
       });
     }
 
-    // ---------- Interface de gestion ----------
     function openCoursesModal() {
       renderCoursesList();
       resetCourseForm();
@@ -1278,7 +1276,6 @@
         tbody.appendChild(tr);
       });
 
-      // Suggestions pour Section / Bloc
       const fill = (id, values) => {
         const dl = document.getElementById(id);
         if (!dl) return;
@@ -1329,7 +1326,6 @@
       if (courses.some(c => c.codeUE === codeUE && c.id !== editId) &&
           !confirm(`Le code UE ${codeUE} existe déjà dans la liste. Créer quand même ?`)) return;
 
-      // L'identifiant d'un cours existant ne change jamais : les registres y sont rattachés
       const id = editId || ('c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
       const section = v('cmSection') || 'Autres';
       upsertCourse({
@@ -1387,7 +1383,6 @@
 
     function onSelectOfficialCourse(courseId) {
       if (!courseId) {
-        // retour à l'écran d'accueil
         stopRemoteSync();
         currentCourseId = null;
         resetInMemoryData();
@@ -1400,7 +1395,6 @@
       const found = courses.find(c => c.id === courseId);
       if (!found) return;
 
-      // Les données du cours précédent sont déjà sauvegardées à chaque modification.
       currentCourseId = found.id;
       resetInMemoryData();
 
@@ -1420,7 +1414,6 @@
       updateCourseUI();
       renderTable();
       if (db) {
-        // Firestore décide : version en ligne si elle existe, sinon on envoie la version locale
         setSyncStatus('saving');
         startRemoteSync(found.id);
       } else if (!hadSaved) {
@@ -1431,7 +1424,6 @@
       }
     }
 
-    // Active / désactive les champs selon qu'un cours est choisi ou non
     function updateCourseUI() {
       const input = document.getElementById('courseTitleInput');
       if (input) {
@@ -1484,7 +1476,7 @@
     }
 
     function saveToStorage() {
-      if (!currentCourseId) return; // rien à sauvegarder sans cours choisi
+      if (!currentCourseId) return;
       const payload = buildPayload();
       lastSavedAt = payload.savedAt;
 
@@ -1497,7 +1489,6 @@
       scheduleRemoteSave(payload);
     }
 
-    // Retourne true si une sauvegarde existait pour le cours courant
     function loadFromStorage() {
       if (!currentCourseId) return false;
       try {
@@ -1600,7 +1591,6 @@
       reader.onload = (e) => {
         try {
           const parsed = JSON.parse(e.target.result);
-          // Rattache le fichier au bon cours via son code UE
           const fileCode = parsed.adminMetadata && parsed.adminMetadata.codeUE;
           const matchCourse = courses.find(c => c.codeUE === fileCode);
           if (matchCourse) {
@@ -1661,7 +1651,6 @@
     // -------------------------------------------------------------
     // DATES DE SÉANCES : lecture, normalisation, tri chronologique
     // -------------------------------------------------------------
-    // Lit "8/09/26", "08/09/2026" ou "10/10" (sans année : déduite de l'année académique)
     function parseSessionDate(str) {
       const m = String(str || '').match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
       if (!m) return null;
@@ -1674,13 +1663,12 @@
       } else {
         const ay = String((adminMetadata && adminMetadata.academicYear) || '').match(/(20\d{2})/);
         const startYear = ay ? parseInt(ay[1], 10) : new Date().getFullYear();
-        year = month >= 9 ? startYear : startYear + 1;   // sept-déc = 1re année, janv-août = 2e année
+        year = month >= 9 ? startYear : startYear + 1;
       }
       if (month < 1 || month > 12 || day < 1 || day > 31) return null;
       return {day, month, year};
     }
 
-    // Écrit toujours la date sous la même forme : 8/09/26
     function normalizeSessionDate(raw) {
       const d = parseSessionDate(raw);
       if (!d) return raw;
@@ -1689,7 +1677,7 @@
 
     function sessionSortKey(sess) {
       const d = parseSessionDate(sess.date);
-      if (!d) return Number.MAX_SAFE_INTEGER;   // date illisible : en fin de liste
+      if (!d) return Number.MAX_SAFE_INTEGER;
       const t = String(sess.start || '').match(/(\d{1,2}):(\d{2})/);
       const minutes = t ? parseInt(t[1], 10) * 60 + parseInt(t[2], 10) : 0;
       return new Date(d.year, d.month - 1, d.day).getTime() + minutes * 60000;
@@ -1719,11 +1707,9 @@
     // -------------------------------------------------------------
     // CALCUL DU TAUX DE PRÉSENCE
     // -------------------------------------------------------------
-    // Une séance compte dans le taux si elle a déjà eu lieu (date passée).
-    // Séance du jour : comptée seulement une fois encodée. Séance future : jamais comptée.
     function isSessionRealised(sess, encoded) {
       const d = parseSessionDate(sess.date);
-      if (!d) return true; // date illisible : on la compte plutôt que de la cacher
+      if (!d) return true;
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
       const day = new Date(d.year, d.month - 1, d.day).getTime();
@@ -1732,7 +1718,6 @@
       return false;
     }
 
-    // Retourne un pourcentage, ou null s'il n'y a encore aucune séance à prendre en compte
     function calculateStudentRate(studentId) {
       let eligibleSessions = 0;
       let presencePoints = 0;
@@ -1741,8 +1726,8 @@
         const record = attendanceData[`${studentId}_${sess.id}`];
         const status = record ? record.status : '?';
 
-        if (!isSessionRealised(sess, status !== '?')) return; // séance pas encore réalisée
-        if (status === 'T') return; // Inscription tardive non pénalisante
+        if (!isSessionRealised(sess, status !== '?')) return;
+        if (status === 'T') return;
 
         eligibleSessions++;
 
@@ -1762,14 +1747,13 @@
     }
 
     // -------------------------------------------------------------
-    // RENDU VISUEL DU TABLEAU
+    // RENDU VISUEL DU TABLEAU (AVEC CRUD ÉTUDIANTS)
     // -------------------------------------------------------------
     function renderTable() {
-      sortSessions();   // toujours dans l'ordre chronologique
+      sortSessions();
       const datesRow = document.getElementById('headerRowDates');
       const hoursRow = document.getElementById('headerRowHours');
 
-      // Nettoyer les colonnes séances existantes (conserver les 5 colonnes fixes : N°, Matricule, Nom & Prénom, Prés., Abandon)
       while (datesRow.children.length > 4) datesRow.removeChild(datesRow.lastChild);
       while (hoursRow.children.length > 1) hoursRow.removeChild(hoursRow.lastChild);
 
@@ -1839,16 +1823,30 @@
         tdIndex.innerText = index + 1;
         tr.appendChild(tdIndex);
 
-        // Col 3 : Nom & Prénom
+        // Col 2 : Nom & Prénom + Boutons CRUD
         const tdName = document.createElement('td');
-        tdName.className = "py-2 px-3 border border-slate-300 leading-tight";
+        tdName.className = "py-1.5 px-3 border border-slate-300 leading-tight group";
         tdName.innerHTML = `
-          <div class="font-bold uppercase text-slate-900">${escapeHtml(std.nom)}</div>
-          <div class="capitalize text-slate-600">${escapeHtml(std.prenom)}</div>
+          <div class="flex items-center justify-between gap-1">
+            <div class="min-w-0 flex-1">
+              <div class="font-bold uppercase text-slate-900 truncate">${escapeHtml(std.nom)}</div>
+              <div class="capitalize text-slate-600 truncate flex items-center gap-1.5">
+                <span>${escapeHtml(std.prenom)}</span>
+                ${std.matricule ? `<span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(std.matricule)})</span>` : ''}
+              </div>
+            </div>
+            <!-- Boutons CRUD Étudiant -->
+            <div class="flex items-center gap-0.5 opacity-40 group-hover:opacity-100 transition flex-shrink-0">
+              <button onclick="openEditStudentModal('${std.id}')" title="Modifier l'étudiant"
+                class="p-1 text-blue-700 hover:bg-blue-100 rounded text-xs transition">✏️</button>
+              <button onclick="deleteStudent('${std.id}')" title="Supprimer l'étudiant"
+                class="p-1 text-rose-700 hover:bg-rose-100 rounded text-xs transition">🗑</button>
+            </div>
+          </div>
         `;
         tr.appendChild(tdName);
 
-        // Col 4 : Taux Prés.
+        // Col 3 : Taux Prés.
         const tdRate = document.createElement('td');
         tdRate.className = "py-2 px-1 text-center font-bold border border-slate-300";
         tdRate.innerText = fmtRate(studentRate);
@@ -1858,7 +1856,7 @@
         else tdRate.classList.add('text-rose-700');
         tr.appendChild(tdRate);
 
-        // Col 5 : Abandon (NON / OUI)
+        // Col 4 : Abandon (NON / OUI)
         const tdAbandon = document.createElement('td');
         tdAbandon.className = "py-2 px-1 text-center font-bold border border-slate-300 cursor-pointer select-none";
         tdAbandon.innerHTML = isAbandoned
@@ -2032,7 +2030,7 @@
     }
 
     // -------------------------------------------------------------
-    // AJOUT SÉANCES & ÉTUDIANTS
+    // AJOUT SÉANCES
     // -------------------------------------------------------------
     function openAddSessionModal() {
       if (!ensureCourseSelected()) return;
@@ -2074,10 +2072,29 @@
       renderTable();
     }
 
+    // -------------------------------------------------------------
+    // CRUD ÉTUDIANTS (Ajouter, Modifier, Supprimer)
+    // -------------------------------------------------------------
     function openAddStudentModal() {
       if (!ensureCourseSelected()) return;
+      document.getElementById('editStudentId').value = '';
+      document.getElementById('newStudentMatricule').value = '';
       document.getElementById('newStudentNom').value = '';
       document.getElementById('newStudentPrenom').value = '';
+      document.getElementById('studentModalTitle').innerText = 'Ajouter un étudiant';
+      document.getElementById('studentModalSubmitBtn').innerText = 'Ajouter';
+      document.getElementById('addStudentModal').classList.remove('hidden');
+    }
+
+    function openEditStudentModal(studentId) {
+      const std = students.find(s => s.id === studentId);
+      if (!std) return;
+      document.getElementById('editStudentId').value = std.id;
+      document.getElementById('newStudentMatricule').value = std.matricule || '';
+      document.getElementById('newStudentNom').value = std.nom || '';
+      document.getElementById('newStudentPrenom').value = std.prenom || '';
+      document.getElementById('studentModalTitle').innerText = "Modifier l'étudiant";
+      document.getElementById('studentModalSubmitBtn').innerText = 'Enregistrer';
       document.getElementById('addStudentModal').classList.remove('hidden');
     }
 
@@ -2086,6 +2103,8 @@
     }
 
     function confirmAddStudent() {
+      const editId = document.getElementById('editStudentId').value;
+      const matricule = document.getElementById('newStudentMatricule').value.trim();
       const nom = document.getElementById('newStudentNom').value.trim();
       const prenom = document.getElementById('newStudentPrenom').value.trim();
 
@@ -2095,15 +2114,50 @@
       }
 
       indicateSaving();
-      students.push({
-        id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-        matricule: '',
-        nom: nom,
-        prenom: prenom
-      });
+      if (editId) {
+        // Modification
+        const idx = students.findIndex(s => s.id === editId);
+        if (idx !== -1) {
+          students[idx].matricule = matricule;
+          students[idx].nom = nom;
+          students[idx].prenom = prenom;
+        }
+      } else {
+        // Ajout
+        students.push({
+          id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          matricule: matricule,
+          nom: nom,
+          prenom: prenom
+        });
+      }
 
       saveToStorage();
       closeAddStudentModal();
+      renderTable();
+    }
+
+    function deleteStudent(studentId) {
+      const std = students.find(s => s.id === studentId);
+      if (!std) return;
+
+      const confirmMsg = `Supprimer l'étudiant « ${std.nom.toUpperCase()} ${std.prenom} » ?\n\nCette action supprimera également ses pointages enregistrés pour ce cours.`;
+      if (!confirm(confirmMsg)) return;
+
+      indicateSaving();
+      // Retirer l'étudiant de la liste
+      students = students.filter(s => s.id !== studentId);
+      delete abandonedStudents[studentId];
+
+      // Nettoyer ses pointages
+      const prefix = `${studentId}_`;
+      Object.keys(attendanceData).forEach(key => {
+        if (key.startsWith(prefix)) {
+          delete attendanceData[key];
+        }
+      });
+
+      saveToStorage();
       renderTable();
     }
 
@@ -2135,18 +2189,15 @@
           let extractedMetaCount = 0;
           let addedStudentsCount = 0;
 
-          // 1. Analyse intelligente des métadonnées (En-tête de fiche de données)
           rows.slice(0, 15).forEach(row => {
             const rowText = row.map(c => String(c).trim()).join(" ");
 
-            // Détection Année académique
             const yearMatch = rowText.match(/20\d{2}[-/]20\d{2}|20\d{2}/);
             if (yearMatch && !adminMetadata.academicYear) {
               adminMetadata.academicYear = yearMatch[0];
               extractedMetaCount++;
             }
 
-            // Détection UE / Code
             row.forEach((cell, idx) => {
               const str = String(cell).trim();
               if (/^(ue|code\s*ue|code)\s*:/i.test(str) && row[idx + 1]) {
@@ -2169,13 +2220,11 @@
             });
           });
 
-          // 2. Extraction des étudiants (recherche de colonnes Nom, Prénom, Matricule)
           let colIdxMatricule = -1;
           let colIdxNom = 0;
           let colIdxPrenom = 1;
           let dataStartRow = 0;
 
-          // Détecter la ligne d'en-tête du tableau
           for (let r = 0; r < Math.min(rows.length, 15); r++) {
             const row = rows[r];
             row.forEach((cell, cIdx) => {
@@ -2198,7 +2247,6 @@
             const prenom = String(row[colIdxPrenom] || '').trim();
             const matricule = colIdxMatricule !== -1 ? String(row[colIdxMatricule] || '').trim() : '';
 
-            // Éviter les lignes de total ou vides
             if (nom && !nom.toLowerCase().includes('total') && !nom.toLowerCase().includes('nom')) {
               students.push({
                 id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2241,7 +2289,6 @@
         let nom = "";
         let prenom = "";
 
-        // Si commence par un matricule (ex: 2026-01 ou chiffres)
         if (parts.length >= 3 && /^\d+|^[A-Z]\d+/.test(parts[0])) {
           mat = parts[0];
           nom = parts[1];
@@ -2271,7 +2318,7 @@
     // -------------------------------------------------------------
     // EXPORT COMPLET EXCEL : PRÉSENCES + FICHIER DONNÉES
     // -------------------------------------------------------------
-    const EXPORT_TITLE = "CESNa - Liste de présences"; // titre imprimé en haut de la liste
+    const EXPORT_TITLE = "CESNa - Liste de présences";
 
     function fmtShortDate(d) {
       const m = String(d || '').match(/(\d{1,2})\/(\d{1,2})/);
@@ -2283,7 +2330,6 @@
       return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
     }
 
-    // Construit le classeur : feuille 1 = liste de présences (A4 paysage), feuille 2 = fiche données
     function buildAttendanceWorkbook(ExcelJS, ctx, logoDataUrl) {
       const {students, sessions, attendanceData, abandonedStudents, adminMetadata: meta, courseTitle, rate, avgText} = ctx;
       const wb = new ExcelJS.Workbook();
@@ -2291,7 +2337,7 @@
       wb.created = new Date();
 
       const ws = wb.addWorksheet("Liste de présences", {views: [{showGridLines: false}]});
-      const N = Math.max(sessions.length, 12);  // colonnes de dates (au minimum 12 pour une mise en page stable)
+      const N = Math.max(sessions.length, 12);
       const FIRST = 3, LAST = 2 + N;
       const thin = {style: 'thin', color: {argb: 'FF000000'}};
       const border = {top: thin, left: thin, bottom: thin, right: thin};
@@ -2302,7 +2348,6 @@
       ws.getColumn(2).width = 34;
       for (let c = FIRST; c <= LAST; c++) ws.getColumn(c).width = 6.3;
 
-      // Bloc fusionné avec bordures / style appliqués à chaque cellule
       function block(r1, c1, r2, c2, value, o) {
         o = o || {};
         if (r1 !== r2 || c1 !== c2) ws.mergeCells(r1, c1, r2, c2);
@@ -2321,12 +2366,10 @@
       const left = {vertical: 'middle', horizontal: 'left', indent: 1, wrapText: true};
       const center = {vertical: 'middle', horizontal: 'center'};
 
-      // --- Titre ---
       block(1, 2, 1, LAST, EXPORT_TITLE, {font: {bold: true, size: 13}, alignment: {vertical: 'middle', indent: 1}, border: false});
       for (let c = 2; c <= LAST; c++) ws.getCell(1, c).border = {bottom: thin};
       ws.getRow(1).height = 24;
 
-      // --- Bloc d'en-tête (gauche : formation / classe / professeur) ---
       const formation = meta.intituleUE || courseTitle || '';
       const classe = `${meta.section || ''}${meta.academicYear ? '  ' + meta.academicYear : ''}`;
       const VAL_END = LAST - 5;
@@ -2340,7 +2383,6 @@
       block(5, 2, 5, 2, "Professeur", {fill: fill(GRAY), font: bold, alignment: left});
       block(5, 3, 5, VAL_END, meta.teacher || '', {alignment: left});
 
-      // --- Bloc d'en-tête (droite : dates de l'UE) ---
       [["Début", meta.dateDebut, 2], ["1/10è", meta.date110, 3], ["5/10è", meta.date510, 4], ["Fin", meta.dateFin, 5]]
         .forEach(([lab, val, row]) => {
           block(row, LAST - 3, row, LAST - 2, lab, {fill: fill(GRAY), font: bold, alignment: left});
@@ -2349,7 +2391,6 @@
       for (let r = 2; r <= 5; r++) ws.getRow(r).height = 21;
       ws.getRow(2).height = Math.max(21, lines * 15 + 6);
 
-      // --- Logo ---
       if (logoDataUrl) {
         try {
           const imgId = wb.addImage({base64: logoDataUrl, extension: 'png'});
@@ -2357,7 +2398,6 @@
         } catch (e) { /* le logo est facultatif */ }
       }
 
-      // --- En-tête du tableau (ligne 7) ---
       const HEAD = 7;
       block(HEAD, 1, HEAD, 1, "N°", {fill: fill(GRAY), font: bold, alignment: center});
       block(HEAD, 2, HEAD, 2, "Nom & Prénom", {fill: fill(GRAY), font: bold, alignment: left});
@@ -2367,7 +2407,6 @@
       }
       ws.getRow(HEAD).height = 20;
 
-      // --- Étudiants ---
       students.forEach((std, idx) => {
         const r = HEAD + 1 + idx;
         const zebra = idx % 2 === 1 ? fill(LGRAY) : null;
@@ -2387,7 +2426,6 @@
         ws.getRow(r).height = 17;
       });
 
-      // --- Nb de présents (présents sur place : P et R ; M = à distance n'est pas compté) ---
       const NB = HEAD + 1 + students.length;
       block(NB, 1, NB, 2, "Nb de présents", {fill: fill(DGRAY), font: bold, alignment: {vertical: 'middle', horizontal: 'center'}});
       for (let i = 0; i < N; i++) {
@@ -2408,21 +2446,18 @@
       }
       ws.getRow(NB).height = 19;
 
-      // --- Signatures ---
       const SIG = NB + 1;
       block(SIG, 1, SIG, 2, "Signatures", {fill: fill(DGRAY), font: bold, alignment: {vertical: 'middle', horizontal: 'center'}});
       for (let i = 0; i < N; i++) block(SIG, FIRST + i, SIG, FIRST + i, '', {});
       ws.getRow(SIG).height = 62;
 
-      // --- Légende ---
       const LEG = SIG + 2;
       block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)",
         {font: {italic: true, size: 8}, alignment: {vertical: 'middle', horizontal: 'left'}, border: false});
 
-      // --- Impression A4 paysage, 1 page en largeur ---
       ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD, showGridLines: false}];
       ws.pageSetup = {
-        paperSize: 9, // A4
+        paperSize: 9,
         orientation: 'landscape',
         fitToPage: true,
         fitToWidth: 1,
@@ -2490,7 +2525,6 @@
       return wb;
     }
 
-    // Convertit le logo SVG de la page en PNG (pour l'incruster dans le fichier Excel)
     function getLogoPng() {
       return new Promise(resolve => {
         try {
