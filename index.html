@@ -1106,21 +1106,27 @@
     // CATALOGUE DES COURS (CRUD) : stocké dans Firestore, collection "cours"
     // La liste OFFICIAL_COURSES ci-dessus ne sert plus que de contenu de départ.
     // -------------------------------------------------------------
-    const COURSES_LS_KEY = "CESNA_COURSES_V1";
-    const COURSES_COLLECTION = "cours";
+    const COURSES_LS_KEY = "CESNA_COURSES_V2";       // V1 ignorée : elle pouvait contenir des cours vides
+    const COURSES_COLLECTION = "catalogue_ue";       // collection dédiée (distincte d'éventuelles anciennes données)
     const DEFAULT_COURSE_FIELDS = {
       section: "", bloc: "", codeUE: "", intituleUE: "", titre: "", enseignant: "À définir", periodes: "",
       codeCOG: "", dateDebut: "", date110: "", date510: "", dateFin: ""
     };
     let courses = [];
 
+    // Un cours valide a au moins un code UE et un intitulé
+    function isValidCourse(c) {
+      return !!(c && c.id && String(c.codeUE || '').trim() && String(c.titre || c.intituleUE || '').trim());
+    }
+
     function loadCoursesLocal() {
       try {
         const raw = localStorage.getItem(COURSES_LS_KEY);
         if (raw) {
           const arr = JSON.parse(raw);
-          if (Array.isArray(arr) && arr.length > 0) {
-            return arr.map(c => Object.assign({}, DEFAULT_COURSE_FIELDS, c));
+          if (Array.isArray(arr)) {
+            const valid = arr.map(c => Object.assign({}, DEFAULT_COURSE_FIELDS, c)).filter(isValidCourse);
+            if (valid.length > 0) return valid;
           }
         }
       } catch (e) { /* on retombe sur la liste de départ */ }
@@ -1219,13 +1225,20 @@
     function startCoursesSync() {
       if (!db) return;
       db.collection(COURSES_COLLECTION).onSnapshot(snap => {
-        if (snap.empty && !snap.metadata.fromCache) { seedCoursesRemote(); return; }
-        if (snap.empty) return; // cache vide : on attend la réponse du serveur
+        let hasMeta = false;
         const list = [];
         snap.forEach(d => {
-          if (d.id.startsWith('_')) return; // document technique (_meta)
-          list.push(Object.assign({}, DEFAULT_COURSE_FIELDS, d.data(), {id: d.id}));
+          if (d.id === '_meta') { hasMeta = true; return; }
+          if (d.id.startsWith('_')) return;
+          const c = Object.assign({}, DEFAULT_COURSE_FIELDS, d.data(), {id: d.id});
+          if (isValidCourse(c)) list.push(c);   // les documents incomplets sont ignorés
         });
+
+        if (!hasMeta) {
+          // Collection jamais initialisée : on attend la réponse du serveur, puis on envoie la liste de départ
+          if (!snap.metadata.fromCache) seedCoursesRemote();
+          return;
+        }
         courses = list;
         saveCoursesLocal();
         setCoursesStatus('');
@@ -1233,7 +1246,7 @@
       }, err => {
         console.warn("Erreur Firestore (cours) :", err);
         setCoursesStatus(err && err.code === 'permission-denied'
-          ? "Liste des cours non synchronisée : ajoutez la collection « cours » dans les règles Firestore."
+          ? "Liste des cours non synchronisée : ajoutez la collection « catalogue_ue » dans les règles Firestore."
           : "Liste des cours non synchronisée (hors ligne ?).");
       });
     }
@@ -1249,7 +1262,7 @@
       batch.commit().catch(err => {
         console.warn("Initialisation de la liste des cours impossible :", err);
         setCoursesStatus(err && err.code === 'permission-denied'
-          ? "Liste des cours non synchronisée : ajoutez la collection « cours » dans les règles Firestore."
+          ? "Liste des cours non synchronisée : ajoutez la collection « catalogue_ue » dans les règles Firestore."
           : "Liste des cours non synchronisée (hors ligne ?).");
       });
     }
@@ -1367,7 +1380,7 @@
         db.collection(COURSES_COLLECTION).doc(id).set(data).catch(err => {
           console.warn("Échec d'écriture du cours :", err);
           setCoursesStatus(err && err.code === 'permission-denied'
-            ? "Liste des cours non synchronisée : ajoutez la collection « cours » dans les règles Firestore."
+            ? "Liste des cours non synchronisée : ajoutez la collection « catalogue_ue » dans les règles Firestore."
             : "Liste des cours non synchronisée (hors ligne ?).");
         });
       }
