@@ -268,8 +268,6 @@
             <tr id="headerRowDates" class="header-primary text-white">
               <th class="w-10 min-w-[40px] max-w-[40px] py-1.5 px-1 text-center font-bold border border-slate-400">N°
               </th>
-              <th class="w-20 min-w-[70px] max-w-[70px] py-1.5 px-1 text-center font-bold border border-slate-400">
-                Matricule</th>
               <th class="w-56 min-w-[220px] max-w-[220px] py-1.5 px-3 font-bold border border-slate-400">Nom & Prénom
               </th>
               <th class="w-16 min-w-[64px] max-w-[64px] py-1.5 px-1 text-center font-bold border border-slate-400">Prés.
@@ -281,7 +279,7 @@
 
             <!-- LIGNE 2 D'EN-TÊTE : Horaires de chaque séance -->
             <tr id="headerRowHours" class="header-secondary text-white">
-              <th class="border border-slate-400 bg-slate-900/40" colspan="5"></th>
+              <th class="border border-slate-400 bg-slate-900/40" colspan="4"></th>
               <!-- Les horaires des séances s'insèrent ici dynamiquement -->
             </tr>
           </thead>
@@ -1777,7 +1775,7 @@
       const hoursRow = document.getElementById('headerRowHours');
 
       // Nettoyer les colonnes séances existantes (conserver les 5 colonnes fixes : N°, Matricule, Nom & Prénom, Prés., Abandon)
-      while (datesRow.children.length > 5) datesRow.removeChild(datesRow.lastChild);
+      while (datesRow.children.length > 4) datesRow.removeChild(datesRow.lastChild);
       while (hoursRow.children.length > 1) hoursRow.removeChild(hoursRow.lastChild);
 
       sessions.forEach((sess) => {
@@ -1806,7 +1804,7 @@
       if (!currentCourseId) {
         const welcomeTr = document.createElement('tr');
         welcomeTr.innerHTML = `
-          <td colspan="5" class="py-16 px-6 text-center bg-white">
+          <td colspan="4" class="py-16 px-6 text-center bg-white">
             <p class="font-bold text-[#0a3a60] text-lg mb-1">Choisissez votre UE dans le menu déroulant</p>
             <p class="text-xs text-slate-500">Utilisez la liste en haut à gauche pour ouvrir le registre de présences de votre cours.</p>
           </td>
@@ -1817,7 +1815,7 @@
       }
 
       if (students.length === 0) {
-        const totalCols = 5 + sessions.length;
+        const totalCols = 4 + sessions.length;
         const emptyTr = document.createElement('tr');
         emptyTr.innerHTML = `
           <td colspan="${totalCols}" class="py-12 px-4 text-center text-slate-400 bg-white">
@@ -1845,12 +1843,6 @@
         tdIndex.className = "py-2 px-1 text-center font-medium border border-slate-300 text-slate-700";
         tdIndex.innerText = index + 1;
         tr.appendChild(tdIndex);
-
-        // Col 2 : Matricule
-        const tdMat = document.createElement('td');
-        tdMat.className = "py-2 px-1 text-center font-mono text-[11px] text-slate-600 border border-slate-300";
-        tdMat.innerText = std.matricule || `CES-${(index + 1).toString().padStart(3, '0')}`;
-        tr.appendChild(tdMat);
 
         // Col 3 : Nom & Prénom
         const tdName = document.createElement('td');
