@@ -123,8 +123,13 @@
 
         <!-- Boutons d'action rapides -->
         <div class="flex flex-wrap items-center gap-1.5">
+          <button id="gradesViewBtn" onclick="toggleGradesView()"
+            class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-[#003366] rounded text-xs font-bold shadow-sm flex items-center gap-1 transition"
+            title="Encoder les points des étudiants de ce cours (1re et 2e session)">
+            <span>🎓</span> Encodage des points
+          </button>
           <button onclick="openAddSessionModal()"
-            class="px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
+            class="pointage-only px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
             <span>+</span> Séance(s)
           </button>
           <button onclick="openAddStudentModal()"
@@ -137,7 +142,7 @@
             <span>📄</span> Importer Données/Excel
           </button>
           <button onclick="exportToExcel()"
-            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1 transition"
+            class="pointage-only px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1 transition"
             title="Exporter les présences + les données administratives">
             <span>📊</span> Exporter Excel (.xlsx)
           </button>
@@ -227,16 +232,16 @@
         <div class="flex items-center gap-3">
           <span class="font-semibold text-slate-700">Étudiants : <span id="statStudentCount"
               class="font-bold text-blue-900">0</span></span>
-          <span>•</span>
-          <span class="font-semibold text-slate-700">Séances : <span id="statSessionCount"
+          <span class="pointage-only">•</span>
+          <span class="pointage-only font-semibold text-slate-700">Séances : <span id="statSessionCount"
               class="font-bold text-blue-900">0</span></span>
-          <span>•</span>
-          <span class="font-semibold text-slate-700">Moyenne présence : <span id="statAveragePresence"
+          <span class="pointage-only">•</span>
+          <span class="pointage-only font-semibold text-slate-700">Moyenne présence : <span id="statAveragePresence"
               class="font-bold text-blue-900">0 %</span></span>
         </div>
 
         <!-- Badges légende -->
-        <div class="flex flex-wrap items-center gap-1.5">
+        <div id="legendPointages" class="pointage-only flex flex-wrap items-center gap-1.5">
           <span class="px-2 py-0.5 bg-emerald-400 text-emerald-950 font-bold rounded text-[11px]">P = Présent</span>
           <span class="px-2 py-0.5 bg-emerald-300 text-emerald-900 font-bold rounded text-[11px]">M = À distance</span>
           <span class="px-2 py-0.5 bg-striped-retard font-bold rounded text-[11px] border border-emerald-400">R = Retard
@@ -248,13 +253,21 @@
           <span class="px-2 py-0.5 bg-amber-200 text-amber-950 font-bold rounded text-[11px]">CM = Certificat médical</span>
           <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">? = Non encodé</span>
         </div>
+        <!-- Compteurs de l'encodage des points -->
+        <div id="legendPoints" class="points-only hidden flex flex-wrap items-center gap-1.5">
+          <span class="px-2 py-0.5 bg-[#86efac] text-[#14532d] font-bold rounded text-[11px]">Réussis : <span id="cntSuccess">0</span></span>
+          <span class="px-2 py-0.5 bg-[#fdba9c] text-[#7c2d12] font-bold rounded text-[11px]">Ajournés → 2<sup>e</sup> session : <span id="cntSecond">0</span></span>
+          <span class="px-2 py-0.5 bg-[#fdba9c] text-[#7c2d12] font-bold rounded text-[11px]">Refus : <span id="cntRefus">0</span></span>
+          <span class="px-2 py-0.5 bg-red-200 text-red-900 font-bold rounded text-[11px]">Abandons : <span id="cntAbandon">0</span></span>
+          <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">Non encodés : <span id="cntNone">0</span></span>
+        </div>
       </div>
     </div>
   </header>
 
   <!-- ================= ZONE PRINCIPALE (TABLEAU) ================= -->
   <main class="flex-1 p-3 overflow-auto">
-    <div class="inline-block min-w-full align-middle">
+    <div id="viewPointages" class="inline-block min-w-full align-middle">
       <div class="bg-white rounded shadow border border-slate-300 inline-block">
 
         <table id="attendanceTable" class="border-collapse table-fixed text-xs text-left no-select">
@@ -284,6 +297,47 @@
           </tbody>
         </table>
 
+      </div>
+    </div>
+
+    <!-- ===== PAGE D'ENCODAGE DES POINTS (affichée à la place des pointages) ===== -->
+    <div id="viewPoints" class="hidden">
+      <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-bold text-[#0a3a60]">Encodage des points <span id="gradesCourseName" class="font-normal text-slate-600"></span></h2>
+          <p class="text-[11px] text-slate-500 max-w-3xl">
+            Points de <strong>50 à 100</strong> = réussite. En dessous de 50, on n'encode pas de points : cliquez sur <strong>Ajourné</strong>.
+            Réussite en 1ʳᵉ session : la 2ᵉ session est grisée. Un étudiant en abandon est marqué <strong>Abandon</strong>.
+            <span class="text-slate-400">Entrée = case suivante.</span>
+          </p>
+        </div>
+        <div id="gradesNotice" class="hidden text-xs font-semibold px-3 py-1.5 rounded bg-rose-100 text-rose-800 border border-rose-300"></div>
+      </div>
+
+      <div class="inline-block min-w-full align-middle">
+        <div class="bg-white rounded shadow border border-slate-300 inline-block">
+          <table id="gradesTable" class="border-collapse table-fixed text-xs text-left">
+            <thead>
+              <tr class="header-primary text-white">
+                <th rowspan="2" class="w-10 min-w-[40px] max-w-[40px] py-1.5 px-1 text-center font-bold border border-slate-400">N°</th>
+                <th rowspan="2" class="w-56 min-w-[220px] max-w-[220px] py-1.5 px-3 font-bold border border-slate-400">Nom &amp; Prénom</th>
+                <th rowspan="2" class="w-16 min-w-[64px] max-w-[64px] py-1.5 px-1 text-center font-bold border border-slate-400">Prés.</th>
+                <th rowspan="2" class="w-20 min-w-[80px] max-w-[80px] py-1.5 px-1 text-center font-bold border border-slate-400">Abandon</th>
+                <th colspan="3" class="py-1.5 px-1 text-center font-bold border border-slate-400 border-l-4 border-l-slate-500">1<sup>ère</sup> session</th>
+                <th colspan="3" class="py-1.5 px-1 text-center font-bold border border-slate-400 border-l-4 border-l-slate-500">2<sup>ème</sup> session</th>
+              </tr>
+              <tr class="header-secondary text-white">
+                <th class="w-20 min-w-[80px] max-w-[80px] py-1 px-1 text-center font-bold border border-slate-400 border-l-4 border-l-slate-500">Points</th>
+                <th class="w-32 min-w-[128px] max-w-[128px] py-1 px-1 text-center font-bold border border-slate-400">Décision</th>
+                <th class="w-52 min-w-[208px] max-w-[208px] py-1 px-1 text-center font-bold border border-slate-400">Commentaires</th>
+                <th class="w-20 min-w-[80px] max-w-[80px] py-1 px-1 text-center font-bold border border-slate-400 border-l-4 border-l-slate-500">Points</th>
+                <th class="w-32 min-w-[128px] max-w-[128px] py-1 px-1 text-center font-bold border border-slate-400">Décision</th>
+                <th class="w-52 min-w-[208px] max-w-[208px] py-1 px-1 text-center font-bold border border-slate-400">Commentaires</th>
+              </tr>
+            </thead>
+            <tbody id="gradesTableBody" class="divide-y divide-slate-200 bg-amber-50/20"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </main>
@@ -902,6 +956,7 @@
     let sessions = []; // { id, date, start, end }
     let attendanceData = {}; // "studentId_sessionId": { status, lateMin, earlyMin, quotite }
     let abandonedStudents = {}; // "studentId": true
+    let grades = {}; // "studentId": { p1, c1, p2, c2 } : points et commentaires des 2 sessions
 
     let currentCell = {studentId: null, sessionId: null};
 
@@ -962,6 +1017,7 @@
         sessions,
         attendanceData,
         abandonedStudents,
+        grades,
         savedAt: new Date().toISOString()
       };
     }
@@ -1032,6 +1088,7 @@
         sessions = remote.sessions || [];
         attendanceData = remote.attendanceData || {};
         abandonedStudents = remote.abandonedStudents || {};
+        grades = remote.grades || {};
         lastSavedAt = remoteTs;
         applyCurrentCourseToMetadata();
         try { localStorage.setItem(storageKeyFor(courseId), JSON.stringify(remote)); } catch (e) {}
@@ -1072,6 +1129,7 @@
       sessions = [];
       attendanceData = {};
       abandonedStudents = {};
+      grades = {};
     }
 
     // Reprend l'ancienne sauvegarde unique et la range dans le bon cours (si reconnu par son code UE)
@@ -1397,6 +1455,7 @@
     }
 
     function onSelectOfficialCourse(courseId) {
+      flushGradeSave();   // un commentaire en cours de frappe est enregistré avant de changer d'UE
       if (!courseId) {
         stopRemoteSync();
         currentCourseId = null;
@@ -1517,6 +1576,7 @@
           sessions = parsed.sessions || [];
           attendanceData = parsed.attendanceData || {};
           abandonedStudents = parsed.abandonedStudents || {};
+          grades = parsed.grades || {};
           lastSavedAt = parsed.savedAt || "";
           return true;
         }
@@ -1550,7 +1610,7 @@
 
     function createNewCourse() {
       if (!ensureCourseSelected()) return;
-      if (confirm("Voulez-vous vider le registre de ce cours (étudiants, séances, pointages) ? Pensez à faire 'Sauvegarder' pour archiver le fichier actuel.")) {
+      if (confirm("Voulez-vous vider le registre de ce cours (étudiants, séances, pointages, points) ? Pensez à faire 'Sauvegarder' pour archiver le fichier actuel.")) {
         const found = courses.find(c => c.id === currentCourseId);
         resetInMemoryData();
         if (found) {
@@ -1581,6 +1641,7 @@
         sessions,
         attendanceData,
         abandonedStudents,
+        grades,
         exportedAt: new Date().toISOString()
       };
 
@@ -1623,6 +1684,7 @@
           sessions = parsed.sessions || [];
           attendanceData = parsed.attendanceData || {};
           abandonedStudents = parsed.abandonedStudents || {};
+          grades = parsed.grades || {};
 
           document.getElementById('courseTitleInput').value = courseTitle;
           syncMetadataInputs();
@@ -1766,6 +1828,11 @@
     // RENDU VISUEL DU TABLEAU (AVEC CRUD ÉTUDIANTS)
     // -------------------------------------------------------------
     function renderTable() {
+      renderAttendanceTable();
+      if (currentView === 'points') renderGradesTable();
+    }
+
+    function renderAttendanceTable() {
       sortSessions();
       const datesRow = document.getElementById('headerRowDates');
       const hoursRow = document.getElementById('headerRowHours');
@@ -2163,13 +2230,14 @@
       const std = students.find(s => s.id === studentId);
       if (!std) return;
 
-      const confirmMsg = `Supprimer l'étudiant « ${std.nom.toUpperCase()} ${std.prenom} » ?\n\nCette action supprimera également ses pointages enregistrés pour ce cours.`;
+      const confirmMsg = `Supprimer l'étudiant « ${std.nom.toUpperCase()} ${std.prenom} » ?\n\nCette action supprimera également ses pointages et ses points enregistrés pour ce cours.`;
       if (!confirm(confirmMsg)) return;
 
       indicateSaving();
       // Retirer l'étudiant de la liste
       students = students.filter(s => s.id !== studentId);
       delete abandonedStudents[studentId];
+      delete grades[studentId];
 
       // Nettoyer ses pointages
       const prefix = `${studentId}_`;
@@ -2338,9 +2406,383 @@
     }
 
     // -------------------------------------------------------------
+    // ENCODAGE DES POINTS (2 sessions) : une page par UE, mêmes étudiants que les pointages
+    // Règles :
+    //  - points de 50 à 100 = Réussite ; sous 50 on n'encode pas de points : bouton « Ajourné » (0)
+    //  - réussite en 1re session => 2e session grisée
+    //  - étudiant en abandon (colonne Abandon des pointages) => « Abandon » dans les deux sessions
+    //  - 1re session ratée = « Ajournement » ; 2e session ratée = « Refus »
+    // Données : grades[studentId] = { p1, c1, p2, c2 }  (p = points, 0 = ajourné/refus ; c = commentaire)
+    // -------------------------------------------------------------
+    const PASS_MARK = 50;
+    let currentView = 'pointages';   // 'pointages' | 'points'
+    let gradeRows = [];              // lignes affichées : { id, tr, inputs, refresh }
+    let gradeSaveTimer = null;
+    let gradeNoticeTimer = null;
+
+    function gradeResult(p) {
+      if (p === null || p === undefined || p === '') return 'none';
+      return p >= PASS_MARK ? 'success' : 'fail';
+    }
+
+    // État effectif des deux sessions d'un étudiant
+    function gradeState(stdId) {
+      if (abandonedStudents[stdId]) return {s1: 'abandon', s2: 'abandon'};
+      const g = grades[stdId] || {};
+      const r1 = gradeResult(g.p1);
+      let s2;
+      if (r1 === 'fail') s2 = gradeResult(g.p2);          // none | success | fail
+      else if (r1 === 'success') s2 = 'locked-success';   // réussi en 1re : 2e session grisée
+      else s2 = 'locked-none';                            // 1re pas encore encodée
+      return {s1: r1, s2};
+    }
+
+    function pruneGrade(stdId) {
+      const g = grades[stdId];
+      if (g && g.p1 === undefined && g.p2 === undefined && !g.c1 && !g.c2) delete grades[stdId];
+    }
+
+    function showGradeNotice(msg) {
+      const el = document.getElementById('gradesNotice');
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(gradeNoticeTimer);
+      gradeNoticeTimer = setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    function saveGrades() {
+      indicateSaving();
+      saveToStorage();
+    }
+
+    // Enregistre tout de suite une sauvegarde de commentaire en attente
+    function flushGradeSave() {
+      if (gradeSaveTimer) {
+        clearTimeout(gradeSaveTimer);
+        gradeSaveTimer = null;
+        saveToStorage();
+      }
+    }
+
+    function setGradeValue(stdId, k, value) {   // value : nombre (>= 50), 0 (ajourné) ou null (effacer)
+      const g = grades[stdId] || (grades[stdId] = {});
+      if (value === null) delete g['p' + k]; else g['p' + k] = value;
+      pruneGrade(stdId);
+    }
+
+    function setGradeComment(stdId, k, text) {
+      const g = grades[stdId] || (grades[stdId] = {});
+      if (text) g['c' + k] = text; else delete g['c' + k];
+      pruneGrade(stdId);
+      indicateSaving();
+      clearTimeout(gradeSaveTimer);
+      gradeSaveTimer = setTimeout(() => { gradeSaveTimer = null; saveToStorage(); }, 700);
+    }
+
+    function refreshGradeRow(stdId) {
+      const row = gradeRows.find(r => r.id === stdId);
+      if (row) row.refresh();
+    }
+
+    // Valide et enregistre les points saisis. Retourne false si la valeur est refusée.
+    function commitGradePoints(stdId, k, input) {
+      const g = grades[stdId] || {};
+      const cur = g['p' + k] === undefined ? null : g['p' + k];
+      const raw = String(input.value).trim().replace(',', '.');
+      let next;
+
+      if (raw === '') {
+        next = null;
+      } else {
+        const n = Number(raw);
+        if (!isFinite(n)) {
+          showGradeNotice("Valeur invalide : encodez un nombre entre 50 et 100.");
+          refreshGradeRow(stdId);
+          return false;
+        }
+        if (n === cur) { refreshGradeRow(stdId); return true; }   // inchangé (ex : « 0 » d'un ajourné)
+        if (n < PASS_MARK) {
+          showGradeNotice(`Pas de points en dessous de ${PASS_MARK} : cliquez sur « ${k === 1 ? 'Ajourné' : 'Refus'} ».`);
+          refreshGradeRow(stdId);
+          return false;
+        }
+        if (n > 100) {
+          showGradeNotice("Le maximum est 100.");
+          refreshGradeRow(stdId);
+          return false;
+        }
+        next = Math.round(n * 10) / 10;
+      }
+
+      if (next === cur) { refreshGradeRow(stdId); return true; }
+      setGradeValue(stdId, k, next);
+      saveGrades();
+      refreshGradeRow(stdId);
+      updateGradeCounters();
+      return true;
+    }
+
+    function markGradeFail(stdId, k) {
+      setGradeValue(stdId, k, 0);
+      saveGrades();
+      refreshGradeRow(stdId);
+      updateGradeCounters();
+    }
+
+    function clearGrade(stdId, k) {
+      setGradeValue(stdId, k, null);
+      saveGrades();
+      refreshGradeRow(stdId);
+      updateGradeCounters();
+    }
+
+    // Place le curseur sur la case de points suivante (ou précédente) encodable dans la même colonne
+    function focusNextGradeInput(stdId, k, dir) {
+      let i = gradeRows.findIndex(r => r.id === stdId);
+      if (i < 0) return;
+      for (i += dir; i >= 0 && i < gradeRows.length; i += dir) {
+        const inp = gradeRows[i].inputs[k];
+        if (inp && !inp.disabled) { inp.focus(); return; }
+      }
+    }
+
+    // Couleurs : réussite = vert, ajournement / refus / abandon = saumon, grisé = non applicable
+    const GRADE_COLORS = {
+      success: "bg-[#86efac] text-[#14532d]",
+      fail: "bg-[#fdba9c] text-[#7c2d12]",
+      locked: "bg-slate-200 text-slate-400"
+    };
+
+    function paintGradeSession(stdId, k, state, c, g) {
+      const val = g['p' + k] === undefined ? null : g['p' + k];
+      const failLabel = k === 1 ? 'Ajournement' : 'Refus';
+      const sep = " border-l-4 border-l-slate-500";   // trait épais avant chaque session
+      const locked = state.startsWith('locked');
+      let color = "";
+
+      c.tdD.innerHTML = '';
+      c.tdP.title = c.tdD.title = c.tdC.title = '';
+
+      if (state === 'abandon') {
+        color = GRADE_COLORS.fail;
+        c.input.value = '0';
+        c.input.disabled = true;
+        c.tdD.textContent = 'Abandon';
+        c.tdD.title = "Étudiant en abandon (colonne Abandon)";
+      } else if (locked) {
+        color = GRADE_COLORS.locked;
+        c.input.value = '';
+        c.input.disabled = true;
+        c.tdD.textContent = '—';
+        const why = state === 'locked-success'
+          ? "Réussi en 1ʳᵉ session : 2ᵉ session non applicable"
+          : "À encoder seulement après un ajournement en 1ʳᵉ session";
+        c.tdP.title = c.tdD.title = c.tdC.title = why;
+      } else if (state === 'none') {
+        c.input.value = '';
+        c.input.disabled = false;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = k === 1 ? 'Ajourné' : 'Refus';
+        b.title = "Moins de 50 : pas de points, l'étudiant est " + (k === 1 ? 'ajourné' : 'refusé');
+        b.className = "px-2 py-0.5 text-[11px] font-semibold text-slate-600 bg-white border border-slate-300 rounded hover:bg-orange-100 hover:border-orange-400 hover:text-orange-800 transition";
+        b.onclick = () => markGradeFail(stdId, k);
+        c.tdD.appendChild(b);
+      } else if (state === 'success') {
+        color = GRADE_COLORS.success;
+        c.input.value = String(val);
+        c.input.disabled = false;
+        c.tdD.textContent = 'Réussite';
+      } else {   // fail
+        color = GRADE_COLORS.fail;
+        c.input.value = '0';
+        c.input.disabled = false;
+        const s = document.createElement('button');
+        s.type = 'button';
+        s.textContent = failLabel;
+        s.title = "Cliquer pour annuler";
+        s.className = "w-full font-bold hover:underline";
+        s.onclick = () => clearGrade(stdId, k);
+        c.tdD.appendChild(s);
+      }
+
+      c.tdP.className = "p-0 border border-slate-300 align-middle " + color + sep;
+      c.tdD.className = "px-1 py-1 border border-slate-300 text-center font-bold align-middle " + color;
+      c.tdC.className = "p-0 border border-slate-300 align-middle " + (locked ? GRADE_COLORS.locked : '');
+      c.ta.disabled = locked;
+      const wanted = locked ? '' : (g['c' + k] || '');
+      if (c.ta.value !== wanted && document.activeElement !== c.ta) c.ta.value = wanted;
+    }
+
+    function buildGradeRow(std, index) {
+      const tr = document.createElement('tr');
+      tr.className = index % 2 === 0 ? "bg-amber-50/30 hover:bg-yellow-50" : "bg-white hover:bg-yellow-50";
+      const mk = (cls) => { const td = document.createElement('td'); td.className = cls; tr.appendChild(td); return td; };
+
+      mk("py-2 px-1 text-center font-medium border border-slate-300 text-slate-700").innerText = index + 1;
+
+      const tdName = mk("py-1.5 px-3 border border-slate-300 leading-tight");
+      tdName.innerHTML = `
+        <div class="font-bold uppercase text-slate-900 truncate">${escapeHtml(std.nom)}</div>
+        <div class="capitalize text-slate-600 truncate">${escapeHtml(std.prenom)}</div>`;
+
+      const tdRate = mk("py-2 px-1 text-center font-bold border border-slate-300");
+      const tdAb = mk("py-2 px-1 text-center font-bold border border-slate-300 cursor-pointer select-none");
+      tdAb.title = "Cliquer pour changer l'abandon";
+      tdAb.onclick = () => toggleAbandon(std.id);
+
+      const cells = {};
+      const inputs = {};
+      [1, 2].forEach(k => {
+        const tdP = mk("");
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.inputMode = 'decimal';
+        input.maxLength = 5;
+        input.autocomplete = 'off';
+        input.setAttribute('aria-label', `Points ${k === 1 ? '1re' : '2e'} session`);
+        input.className = "w-full h-9 text-center font-bold bg-transparent outline-none focus:bg-white focus:text-slate-900 focus:ring-2 focus:ring-inset focus:ring-blue-500 disabled:cursor-not-allowed";
+        input.onfocus = () => input.select();
+        input.onchange = () => commitGradePoints(std.id, k, input);
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            if (commitGradePoints(std.id, k, input)) focusNextGradeInput(std.id, k, 1);
+          } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            focusNextGradeInput(std.id, k, e.key === 'ArrowUp' ? -1 : 1);
+          }
+        };
+        tdP.appendChild(input);
+
+        const tdD = mk("");
+        const tdC = mk("");
+        const ta = document.createElement('textarea');
+        ta.rows = 2;
+        ta.setAttribute('aria-label', `Commentaire ${k === 1 ? '1re' : '2e'} session`);
+        ta.className = "w-full block text-[11px] leading-tight px-1.5 py-1 bg-transparent resize-none outline-none focus:bg-white focus:ring-2 focus:ring-inset focus:ring-blue-500 disabled:cursor-not-allowed";
+        ta.oninput = () => setGradeComment(std.id, k, ta.value);
+        ta.onblur = flushGradeSave;
+        tdC.appendChild(ta);
+
+        cells[k] = {tdP, input, tdD, tdC, ta};
+        inputs[k] = input;
+      });
+
+      function refresh() {
+        const g = grades[std.id] || {};
+        const st = gradeState(std.id);
+
+        const rate = calculateStudentRate(std.id);
+        tdRate.innerText = fmtRate(rate);
+        tdRate.className = "py-2 px-1 text-center font-bold border border-slate-300 " +
+          (rate === null ? 'text-slate-400' : rate >= 80 ? 'text-emerald-700' : rate >= 50 ? 'text-amber-700' : 'text-rose-700');
+
+        tdAb.innerHTML = abandonedStudents[std.id]
+          ? `<span class="text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-300">OUI</span>`
+          : `<span class="text-emerald-800">NON</span>`;
+
+        paintGradeSession(std.id, 1, st.s1, cells[1], g);
+        paintGradeSession(std.id, 2, st.s2, cells[2], g);
+      }
+
+      return {id: std.id, tr, inputs, refresh};
+    }
+
+    function updateGradeCounters() {
+      const n = {success: 0, second: 0, refus: 0, abandon: 0, none: 0};
+      students.forEach(std => {
+        const st = gradeState(std.id);
+        if (st.s1 === 'abandon') n.abandon++;
+        else if (st.s1 === 'success' || st.s2 === 'success') n.success++;
+        else if (st.s1 === 'none') n.none++;
+        else if (st.s2 === 'fail') n.refus++;
+        else n.second++;
+      });
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      set('cntSuccess', n.success);
+      set('cntSecond', n.second);
+      set('cntRefus', n.refus);
+      set('cntAbandon', n.abandon);
+      set('cntNone', n.none);
+    }
+
+    function renderGradesTable() {
+      const tbody = document.getElementById('gradesTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      gradeRows = [];
+      document.getElementById('gradesCourseName').textContent = currentCourseId && courseTitle ? `— ${courseTitle}` : '';
+
+      if (!currentCourseId) {
+        tbody.innerHTML = `
+          <tr><td colspan="10" class="py-16 px-6 text-center bg-white">
+            <p class="font-bold text-[#0a3a60] text-lg mb-1">Choisissez votre UE dans le menu déroulant</p>
+            <p class="text-xs text-slate-500">Les points s'encodent par UE, pour les étudiants de ce cours.</p>
+          </td></tr>`;
+        updateGradeCounters();
+        return;
+      }
+      if (students.length === 0) {
+        tbody.innerHTML = `
+          <tr><td colspan="10" class="py-12 px-4 text-center bg-white">
+            <p class="font-bold text-slate-700 text-sm mb-1">Aucun étudiant dans ce cours</p>
+            <p class="text-xs text-slate-500">Ajoutez ou importez vos étudiants (boutons en haut), puis revenez encoder les points.</p>
+          </td></tr>`;
+        updateGradeCounters();
+        return;
+      }
+
+      students.forEach((std, i) => {
+        const row = buildGradeRow(std, i);
+        tbody.appendChild(row.tr);
+        gradeRows.push(row);
+        row.refresh();
+      });
+      updateGradeCounters();
+    }
+
+    // Bascule entre la page des pointages et la page d'encodage des points
+    function showView(view) {
+      flushGradeSave();
+      currentView = view;
+      const pts = view === 'points';
+      document.getElementById('viewPointages').classList.toggle('hidden', pts);
+      document.getElementById('viewPoints').classList.toggle('hidden', !pts);
+      document.querySelectorAll('.pointage-only').forEach(el => el.classList.toggle('hidden', pts));
+      document.querySelectorAll('.points-only').forEach(el => el.classList.toggle('hidden', !pts));
+      document.getElementById('gradesViewBtn').innerHTML = pts
+        ? '<span>←</span> Retour aux pointages'
+        : '<span>🎓</span> Encodage des points';
+      renderTable();
+    }
+
+    function toggleGradesView() {
+      if (currentView === 'points') { showView('pointages'); return; }
+      if (!ensureCourseSelected()) return;
+      showView('points');
+    }
+
+    window.addEventListener('beforeunload', flushGradeSave);
+
+    // -------------------------------------------------------------
     // EXPORT COMPLET EXCEL : PRÉSENCES + FICHIER DONNÉES
     // -------------------------------------------------------------
     const EXPORT_TITLE = "CESNa - Liste de présences";
+    const PERIOD_MINUTES = 50;   // 1 période = 50 minutes (la pause n'est pas une période : 17:00-22:15 = 6 p)
+
+    function timeToMin(t) {
+      const m = String(t || '').match(/(\d{1,2}):(\d{2})/);
+      return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+    }
+
+    // Nombre de périodes d'une séance (null si les heures sont illisibles)
+    function sessionPeriods(sess) {
+      const a = timeToMin(sess.start), b = timeToMin(sess.end);
+      if (a === null || b === null || b <= a) return null;
+      return Math.floor((b - a) / PERIOD_MINUTES);
+    }
 
     function fmtShortDate(d) {
       const m = String(d || '').match(/(\d{1,2})\/(\d{1,2})/);
@@ -2354,6 +2796,7 @@
 
     function buildAttendanceWorkbook(ExcelJS, ctx, logoDataUrl) {
       const {students, sessions, attendanceData, abandonedStudents, adminMetadata: meta, courseTitle, rate, avgText} = ctx;
+      const isGiven = ctx.isGiven || (() => true);   // séance déjà donnée ?
       const wb = new ExcelJS.Workbook();
       wb.creator = "CESNa";
       wb.created = new Date();
@@ -2429,8 +2872,26 @@
       }
       ws.getRow(HEAD).height = 20;
 
+      // Heures de chaque séance + nombre de périodes (contrôle des heures données par les profs)
+      const SUB = 'FFE2E2E2';
+      const subFont = {bold: true, size: 9};
+      const timeRows = [
+        [HEAD + 1, "Heure de début", sess => sess.start || ''],
+        [HEAD + 2, "Heure de fin", sess => sess.end || ''],
+        [HEAD + 3, `Périodes (1 p = ${PERIOD_MINUTES} min)`, sess => { const n = sessionPeriods(sess); return n === null ? '' : n; }]
+      ];
+      timeRows.forEach(([r, label, getVal]) => {
+        block(r, 1, r, 2, label, {fill: fill(SUB), font: subFont, alignment: {vertical: 'middle', horizontal: 'left', indent: 1}});
+        for (let i = 0; i < N; i++) {
+          const sess = sessions[i];
+          block(r, FIRST + i, r, FIRST + i, sess ? getVal(sess) : '', {fill: fill(SUB), font: {size: 9, bold: r === HEAD + 3}, alignment: center});
+        }
+        ws.getRow(r).height = 15;
+      });
+      const BODY = HEAD + 4;   // première ligne d'étudiant
+
       students.forEach((std, idx) => {
-        const r = HEAD + 1 + idx;
+        const r = BODY + idx;
         const zebra = idx % 2 === 1 ? fill(LGRAY) : null;
         const name = `${(std.nom || '').toUpperCase()} ${std.prenom || ''}`.trim() + (abandonedStudents[std.id] ? ' [Abandon]' : '');
         block(r, 1, r, 1, idx + 1, {fill: zebra, alignment: center});
@@ -2448,7 +2909,7 @@
         ws.getRow(r).height = 17;
       });
 
-      const NB = HEAD + 1 + students.length;
+      const NB = BODY + students.length;
       block(NB, 1, NB, 2, "Nb de présents", {fill: fill(DGRAY), font: bold, alignment: {vertical: 'middle', horizontal: 'center'}});
       for (let i = 0; i < N; i++) {
         const sess = sessions[i];
@@ -2473,11 +2934,26 @@
       for (let i = 0; i < N; i++) block(SIG, FIRST + i, SIG, FIRST + i, '', {});
       ws.getRow(SIG).height = 62;
 
-      const LEG = SIG + 2;
+      // Total des périodes déjà données (séances passées) par rapport au volume prévu
+      let givenP = 0, plannedP = 0, givenS = 0;
+      sessions.forEach(sess => {
+        const n = sessionPeriods(sess);
+        if (n === null) return;
+        plannedP += n;
+        if (isGiven(sess)) { givenP += n; givenS++; }
+      });
+      const SUM = SIG + 2;
+      block(SUM, 1, SUM, LAST,
+        `Périodes données à ce jour : ${givenP} p (${givenS} séance${givenS > 1 ? 's' : ''})  ·  Périodes encodées au total : ${plannedP} p` +
+        (meta.periods ? `  ·  Volume prévu pour l'UE : ${meta.periods}` : ''),
+        {font: {bold: true, size: 10}, alignment: {vertical: 'middle', horizontal: 'left', indent: 1}, border: false});
+      ws.getRow(SUM).height = 20;
+
+      const LEG = SIG + 4;
       block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)",
         {font: {italic: true, size: 8}, alignment: {vertical: 'middle', horizontal: 'left'}, border: false});
 
-      ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD, showGridLines: false}];
+      ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD + 3, showGridLines: false}];
       ws.pageSetup = {
         paperSize: 9,
         orientation: 'landscape',
@@ -2486,7 +2962,7 @@
         fitToHeight: 0,
         horizontalCentered: true,
         margins: {left: 0.4, right: 0.4, top: 0.5, bottom: 0.6, header: 0.3, footer: 0.3},
-        printTitlesRow: `${HEAD}:${HEAD}`
+        printTitlesRow: `${HEAD}:${HEAD + 3}`
       };
       ws.pageSetup.printArea = `A1:${ws.getColumn(LAST).letter}${LEG}`;
       ws.headerFooter = {oddFooter: `&L&8${EXPORT_TITLE}&C&8Page &P / &N&R&8Imprimé le &D`};
@@ -2513,6 +2989,8 @@
         ["Nombre d'étudiants inscrits", students.length],
         ["Nombre d'abandons déclarés", Object.values(abandonedStudents).filter(Boolean).length],
         ["Nombre de séances", sessions.length],
+        ["Périodes données à ce jour", `${givenP} p (séances passées)`],
+        ["Périodes encodées au total", `${plannedP} p (toutes les séances)`],
         ["Moyenne générale de présence", avgText || ""],
         ["Date d'exportation", new Date().toLocaleString('fr-BE')]
       ];
@@ -2536,11 +3014,12 @@
 
       wd.addRow([]);
       const h2 = wd.addRow(["Séances"]); h2.font = {bold: true, size: 11};
-      const hq = wd.addRow(["Date", "Début", "Fin"]);
+      const hq = wd.addRow(["Date", "Début", "Fin", "Périodes"]);
       hq.eachCell(c => { c.font = bold; c.fill = fill(GRAY); c.border = border; });
       sessions.forEach(sess => {
-        const row = wd.addRow([sess.date, sess.start, sess.end]);
-        row.eachCell({includeEmpty: true}, (c, n) => { if (n <= 3) c.border = border; });
+        const np = sessionPeriods(sess);
+        const row = wd.addRow([sess.date, sess.start, sess.end, np === null ? '' : np]);
+        row.eachCell({includeEmpty: true}, (c, n) => { if (n <= 4) c.border = border; });
       });
 
       wd.pageSetup = {paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: {left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3}};
@@ -2591,7 +3070,12 @@
         const wb = buildAttendanceWorkbook(ExcelJS, {
           students, sessions, attendanceData, abandonedStudents, adminMetadata, courseTitle,
           rate: calculateStudentRate,
-          avgText: document.getElementById('statAveragePresence').innerText
+          avgText: document.getElementById('statAveragePresence').innerText,
+          // une séance est « donnée » si sa date est passée (ou si elle a déjà été pointée aujourd'hui)
+          isGiven: (sess) => isSessionRealised(sess, students.some(st => {
+            const r = attendanceData[`${st.id}_${sess.id}`];
+            return r && r.status && r.status !== '?';
+          }))
         }, logo);
 
         const buffer = await wb.xlsx.writeBuffer();
