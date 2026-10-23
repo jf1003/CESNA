@@ -15,6 +15,7 @@
   <!-- Firebase (Firestore) pour la synchronisation entre navigateurs -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
   <style>
     /* Styles institutionnels et hachures pour le statut R (Retard) */
@@ -129,12 +130,15 @@
               <span>•</span>
               <button onclick="createNewCourse()" class="text-slate-600 hover:text-slate-900 font-medium">+ Nouveau
                 registre</button>
+              <span class="admin-only hidden">•</span>
+              <button id="coursesBtn" onclick="openCoursesModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">⚙ Gérer les cours</button>
+              <span class="admin-only hidden">•</span>
+              <button id="teachersBtn" onclick="openTeachersModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">👥 Gérer les enseignants</button>
               <span>•</span>
-              <button id="coursesBtn" onclick="openCoursesModal()" class="text-slate-600 hover:text-slate-900 font-medium">⚙ Gérer les cours</button>
-              <span id="adminBadge" class="hidden inline-flex items-center gap-1.5">
-                <span>•</span>
-                <span class="text-amber-700 font-semibold">🔓 Mode admin <span id="adminBadgeTime"></span></span>
-                <button onclick="lockAdmin()" class="text-slate-600 hover:text-slate-900 underline">Verrouiller</button>
+              <span id="userChip" class="inline-flex items-center gap-1.5">
+                <span id="userChipLabel" class="text-slate-700 font-semibold"></span>
+                <button onclick="changeMyPassword()" class="text-slate-600 hover:text-slate-900 underline">Changer mon mot de passe</button>
+                <button onclick="logout()" class="text-slate-600 hover:text-slate-900 underline">Se déconnecter</button>
               </span>
             </div>
           </div>
@@ -538,23 +542,117 @@
     </div>
   </div>
 
-  <!-- ================= MODALE : VALIDATION ADMINISTRATEUR (CODE) ================= -->
-  <div id="adminCodeModal"
-    class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-xs overflow-hidden">
-      <div class="px-3 py-2 bg-[#0a3a60] text-white font-bold text-sm flex items-center justify-between select-none">
-        <span>🔒 Validation administrateur</span>
-        <button onclick="closeAdminModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
+  <!-- ================= ÉCRAN DE CONNEXION ================= -->
+  <div id="loginOverlay" class="fixed inset-0 z-[100] bg-slate-100 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-sm overflow-hidden">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold text-sm select-none">CESNa - Registre des présences</div>
+      <div class="p-5 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Enseignant</label>
+          <select id="loginTeacher" class="w-full text-sm p-2 border border-slate-300 rounded focus:border-blue-600 outline-none">
+            <option value="">-- Choisissez votre nom --</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Mot de passe</label>
+          <input type="password" id="loginPassword" autocomplete="current-password"
+            class="w-full text-sm p-2 border border-slate-300 rounded focus:border-blue-600 outline-none"
+            onkeydown="if (event.key === 'Enter') submitLogin()">
+        </div>
+        <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <input type="checkbox" id="loginRemember"> Rester connecté sur cet ordinateur
+        </label>
+        <p id="loginMsg" class="text-xs font-semibold text-rose-700 leading-snug hidden"></p>
+        <button id="loginBtn" onclick="submitLogin()"
+          class="w-full py-2 text-sm font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow disabled:opacity-50">Se connecter</button>
+        <button onclick="forgotPassword()" class="w-full text-xs text-blue-700 hover:underline font-semibold">Mot de passe oublié / première connexion</button>
+        <p class="text-[11px] text-slate-500 leading-snug">
+          Première connexion : choisissez votre nom puis cliquez sur « Mot de passe oublié / première connexion ».
+          Un mail est envoyé à votre adresse officielle @cesna.be pour choisir votre mot de passe.
+        </p>
       </div>
-      <div class="p-4 space-y-3">
-        <p id="adminModalMsg" class="text-xs text-slate-700 leading-snug"></p>
-        <input type="password" id="adminCodeInput" autocomplete="off" placeholder="Code administrateur"
-          class="w-full text-center tracking-widest text-sm p-2 border border-slate-300 rounded focus:border-blue-600 outline-none"
-          onkeydown="if (event.key === 'Enter') submitAdminCode(); else if (event.key === 'Escape') closeAdminModal();">
-        <p id="adminModalError" class="text-xs font-semibold text-rose-700 hidden"></p>
-        <div class="flex justify-end gap-2">
-          <button onclick="closeAdminModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
-          <button onclick="submitAdminCode()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Valider</button>
+    </div>
+  </div>
+
+  <!-- ================= MODALE : GÉRER LES ENSEIGNANTS ET ADMINISTRATEURS (CRUD) ================= -->
+  <div id="teachersModal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
+        <span>Gérer les enseignants et les administrateurs</span>
+        <button onclick="closeTeachersModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+
+      <div class="overflow-y-auto p-4 space-y-4">
+        <p id="teachersMsg" class="text-xs font-semibold text-rose-700 leading-snug hidden"></p>
+
+        <!-- Liste -->
+        <div class="border border-slate-300 rounded overflow-hidden">
+          <div class="max-h-64 overflow-y-auto">
+            <table class="w-full text-xs">
+              <thead class="bg-slate-200 text-slate-700 sticky top-0">
+                <tr>
+                  <th class="text-left px-2 py-1.5">Nom</th>
+                  <th class="text-left px-2 py-1.5">Adresse e-mail</th>
+                  <th class="text-left px-2 py-1.5">Rôle</th>
+                  <th class="text-left px-2 py-1.5">Cours</th>
+                  <th class="text-left px-2 py-1.5">Accès</th>
+                  <th class="px-2 py-1.5 w-36"></th>
+                </tr>
+              </thead>
+              <tbody id="teachersListBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Formulaire ajout / modification -->
+        <div class="border border-slate-300 rounded bg-slate-50 p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h3 id="teacherFormTitle" class="text-xs font-bold text-slate-800 uppercase tracking-wide">Nouvel enseignant</h3>
+            <button onclick="resetTeacherForm()" class="text-[11px] text-blue-700 hover:underline font-semibold">+ Nouveau (vider le formulaire)</button>
+          </div>
+          <input type="hidden" id="tmEditEmail">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Nom *</label>
+              <input type="text" id="tmNom" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Prénom</label>
+              <input type="text" id="tmPrenom" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div class="lg:col-span-2">
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Adresse e-mail officielle * (ex : nom.prenom@cesna.be)</label>
+              <input type="text" id="tmEmail" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600 read-only:bg-slate-100 read-only:text-slate-500">
+            </div>
+            <div>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Rôle</label>
+              <select id="tmRole" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600" onchange="onTeacherRoleChange()">
+                <option value="teacher">Enseignant</option>
+                <option value="admin">Administrateur</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <label class="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer pb-1">
+                <input type="checkbox" id="tmActif" checked> Accès autorisé
+              </label>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <label class="text-slate-600 font-semibold text-[11px]">Cours donnés par cet enseignant</label>
+              <input type="text" id="tmCourseFilter" placeholder="Filtrer les cours…" oninput="renderTeacherCourseChecks()"
+                class="text-xs bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600 w-56">
+            </div>
+            <p id="tmAdminNote" class="text-[11px] text-amber-700 font-semibold mb-1 hidden">Un administrateur voit tous les cours, quelle que soit cette sélection.</p>
+            <div id="tmCourses" class="max-h-48 overflow-y-auto bg-white border border-slate-300 rounded p-2 text-xs"></div>
+          </div>
+
+          <div class="pt-3 flex justify-end gap-2">
+            <button onclick="closeTeachersModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Fermer</button>
+            <button id="teacherSaveBtn" onclick="saveTeacherForm()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow disabled:opacity-50">Enregistrer</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1047,9 +1145,12 @@
     };
     const REMOTE_COLLECTION = "registres";
     let db = null;
+    let fbAuth = null;
     try {
       firebase.initializeApp(firebaseConfig);
       db = firebase.firestore();
+      fbAuth = firebase.auth();
+      fbAuth.languageCode = 'fr';   // mails et pages de choix du mot de passe en français
     } catch (e) {
       console.warn("Firebase indisponible, mode local uniquement :", e);
     }
@@ -1103,7 +1204,7 @@
 
     function pushRemote(courseId, payload) {
       if (!db) return;
-      db.collection(REMOTE_COLLECTION).doc(courseId).set({
+      return db.collection(REMOTE_COLLECTION).doc(courseId).set({
         data: JSON.stringify(payload),
         savedAt: payload.savedAt || "",
         codeUE: (payload.adminMetadata && payload.adminMetadata.codeUE) || "",
@@ -1220,12 +1321,487 @@
     }
 
     // -------------------------------------------------------------
+    // CONNEXION (Firebase Authentication) : enseignants et administrateurs
+    // - "enseignants/{email}" : profil complet (rôle, cours, accès), lisible par l'admin et par l'intéressé
+    // - "annuaire/{email}"    : nom + prénom seulement, lisible avant connexion (liste déroulante de l'écran de login)
+    // -------------------------------------------------------------
+    const SUPER_ADMIN_EMAIL = "smeers.jeanfrancois@cesna.be";   // administrateur principal : toujours admin, non supprimable
+    const TEACHERS_COLLECTION = "enseignants";
+    const DIRECTORY_COLLECTION = "annuaire";
+    let sessionUser = null;     // { email, nom, prenom, role, actif, courseIds }
+    let loginMessage = null;    // message à montrer sur l'écran de connexion après un refus
+    let appStarted = false;
+    let secondaryApp = null;
+
+    function normEmail(e) {
+      return String(e || '').trim().toLowerCase();
+    }
+
+    function teacherLabel(t) {
+      return `${String(t.nom || '').toUpperCase()} ${t.prenom || ''}`.trim() || t.email || '';
+    }
+
+    function isLoggedAdmin() {
+      return !!sessionUser && sessionUser.role === 'admin';
+    }
+
+    function canAccessCourse(courseId) {
+      if (!sessionUser) return false;
+      if (sessionUser.role === 'admin') return true;
+      return Array.isArray(sessionUser.courseIds) && sessionUser.courseIds.includes(courseId);
+    }
+
+    function setLoginMsg(text, ok) {
+      const el = document.getElementById('loginMsg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('hidden', !text);
+      el.classList.toggle('text-rose-700', !ok);
+      el.classList.toggle('text-emerald-700', !!ok);
+    }
+
+    function showLogin() {
+      document.getElementById('loginOverlay').classList.remove('hidden');
+      document.getElementById('loginPassword').value = '';
+      if (loginMessage) {
+        setLoginMsg(loginMessage.text, loginMessage.ok);
+        loginMessage = null;
+      }
+    }
+
+    function hideLogin() {
+      document.getElementById('loginOverlay').classList.add('hidden');
+    }
+
+    function authErrorText(e) {
+      const c = e && e.code;
+      if (c === 'auth/invalid-credential' || c === 'auth/wrong-password' || c === 'auth/user-not-found' || c === 'auth/invalid-login-credentials') {
+        return "Mot de passe incorrect. Si c'est votre première connexion (ou si vous l'avez oublié), cliquez sur « Mot de passe oublié / première connexion ».";
+      }
+      if (c === 'auth/too-many-requests') return "Trop d'essais. Patientez quelques minutes, ou utilisez « Mot de passe oublié ».";
+      if (c === 'auth/network-request-failed') return "Pas de connexion internet.";
+      if (c === 'auth/operation-not-allowed') return "La connexion par e-mail / mot de passe n'est pas activée dans Firebase (Authentication > Sign-in method).";
+      if (c === 'auth/user-disabled') return "Ce compte est désactivé.";
+      if (c === 'permission-denied') return "Accès refusé par Firestore (règles à mettre à jour ?).";
+      return "Erreur : " + ((e && (e.code || e.message)) || e);
+    }
+
+    // Liste déroulante de l'écran de connexion
+    async function loadLoginDirectory() {
+      const sel = document.getElementById('loginTeacher');
+      const list = [];
+      try {
+        const snap = await db.collection(DIRECTORY_COLLECTION).get();
+        snap.forEach(d => {
+          const x = d.data();
+          if (x.actif !== false) list.push({email: d.id, nom: x.nom, prenom: x.prenom});
+        });
+      } catch (e) {
+        console.warn("Annuaire illisible :", e);
+        setLoginMsg("Impossible de charger la liste des enseignants (connexion internet ou règles Firestore).", false);
+      }
+      if (!list.some(t => t.email === SUPER_ADMIN_EMAIL)) {
+        list.push({email: SUPER_ADMIN_EMAIL, nom: 'SMEERS', prenom: 'Jean-François'});
+      }
+      list.sort((a, b) => teacherLabel(a).localeCompare(teacherLabel(b), 'fr'));
+      const keep = sel.value;
+      sel.innerHTML = '<option value="">-- Choisissez votre nom --</option>';
+      list.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.email;
+        opt.textContent = teacherLabel(t);
+        sel.appendChild(opt);
+      });
+      sel.value = keep;
+    }
+
+    function initLogin() {
+      if (!fbAuth || !db) {
+        setLoginMsg("Firebase est indisponible : impossible de se connecter. Vérifiez votre connexion internet puis rechargez la page.", false);
+        return;
+      }
+      loadLoginDirectory();
+      fbAuth.onAuthStateChanged(handleAuthChange);
+    }
+
+    async function handleAuthChange(user) {
+      if (!user) {
+        sessionUser = null;
+        showLogin();
+        return;
+      }
+      const email = normEmail(user.email);
+
+      // Compte créé mais mot de passe jamais choisi via le mail : adresse non confirmée
+      if (!user.emailVerified && email !== SUPER_ADMIN_EMAIL) {
+        try { await user.sendEmailVerification(); } catch (e) { /* ignoré */ }
+        loginMessage = {ok: false, text: "Votre adresse n'est pas encore confirmée. Utilisez « Mot de passe oublié / première connexion » pour choisir votre mot de passe (un mail de confirmation vient aussi de vous être envoyé)."};
+        await fbAuth.signOut();
+        return;
+      }
+
+      try {
+        let profile = null;
+        const snap = await db.collection(TEACHERS_COLLECTION).doc(email).get();
+        if (snap.exists) profile = snap.data();
+
+        if (email === SUPER_ADMIN_EMAIL) {
+          profile = Object.assign({nom: 'SMEERS', prenom: 'Jean-François', courseIds: []}, profile || {}, {email: email, role: 'admin', actif: true});
+          if (!snap.exists) await saveTeacherDocs(profile);   // crée son profil au premier passage
+        }
+
+        if (!profile || profile.actif === false) {
+          loginMessage = {ok: false, text: "Votre accès n'est pas (ou plus) autorisé. Contactez l'administrateur."};
+          await fbAuth.signOut();
+          return;
+        }
+        profile.email = email;
+        profile.courseIds = Array.isArray(profile.courseIds) ? profile.courseIds : [];
+        enterApp(profile);
+      } catch (e) {
+        console.warn("Profil illisible :", e);
+        loginMessage = {ok: false, text: authErrorText(e)};
+        await fbAuth.signOut();
+      }
+    }
+
+    function enterApp(profile) {
+      sessionUser = profile;
+      hideLogin();
+      setLoginMsg('');
+      document.getElementById('userChipLabel').textContent = `👤 ${teacherLabel(profile)}${profile.role === 'admin' ? ' (admin)' : ''}`;
+      document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', profile.role !== 'admin'));
+      if (!appStarted) {
+        appStarted = true;
+        startCoursesSync();
+      }
+      buildCourseSelector();
+      renderTable();
+    }
+
+    async function submitLogin() {
+      const email = normEmail(document.getElementById('loginTeacher').value);
+      const pwd = document.getElementById('loginPassword').value;
+      if (!fbAuth) { setLoginMsg("Firebase est indisponible : impossible de se connecter.", false); return; }
+      if (!email) { setLoginMsg("Choisissez votre nom dans la liste.", false); return; }
+      if (!pwd) { setLoginMsg("Entrez votre mot de passe.", false); return; }
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true;
+      setLoginMsg('Connexion…', true);
+      try {
+        const remember = document.getElementById('loginRemember').checked;
+        await fbAuth.setPersistence(remember ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
+        await fbAuth.signInWithEmailAndPassword(email, pwd);
+        // la suite (profil, droits) est gérée par handleAuthChange
+      } catch (e) {
+        setLoginMsg(authErrorText(e), false);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Crée le compte (mot de passe aléatoire inconnu) s'il n'existe pas encore, sans toucher à la session en cours
+    function randomPassword() {
+      const a = new Uint32Array(6);
+      crypto.getRandomValues(a);
+      return Array.from(a, n => n.toString(36)).join('') + 'Aa1!';
+    }
+
+    async function ensureAuthAccount(email) {
+      if (!secondaryApp) secondaryApp = firebase.initializeApp(firebaseConfig, 'compte-secondaire');
+      const a2 = secondaryApp.auth();
+      try {
+        await a2.createUserWithEmailAndPassword(email, randomPassword());
+      } catch (e) {
+        if (!e || e.code !== 'auth/email-already-in-use') throw e;
+      } finally {
+        try { await a2.signOut(); } catch (e) { /* ignoré */ }
+      }
+    }
+
+    // Mail « choisissez votre mot de passe » (première connexion ou mot de passe oublié)
+    async function sendPasswordMail(email) {
+      await ensureAuthAccount(email);
+      await fbAuth.sendPasswordResetEmail(email);
+    }
+
+    async function forgotPassword() {
+      const email = normEmail(document.getElementById('loginTeacher').value);
+      if (!fbAuth) { setLoginMsg("Firebase est indisponible.", false); return; }
+      if (!email) { setLoginMsg("Choisissez d'abord votre nom dans la liste.", false); return; }
+      setLoginMsg('Envoi du mail…', true);
+      try {
+        await sendPasswordMail(email);
+        setLoginMsg(`Un mail vient d'être envoyé à ${email}. Ouvrez-le, cliquez sur le lien et choisissez votre mot de passe, puis revenez ici pour vous connecter. (Pensez à regarder les courriers indésirables.)`, true);
+      } catch (e) {
+        setLoginMsg(authErrorText(e), false);
+      }
+    }
+
+    // Envoie à l'utilisateur connecté un mail pour choisir un nouveau mot de passe
+    async function changeMyPassword() {
+      if (!sessionUser) return;
+      if (!confirm(`Envoyer un mail à ${sessionUser.email} pour choisir un nouveau mot de passe ?`)) return;
+      try {
+        await fbAuth.sendPasswordResetEmail(sessionUser.email);
+        alert(`Mail envoyé à ${sessionUser.email}. Cliquez sur le lien qu'il contient pour choisir votre nouveau mot de passe.`);
+      } catch (e) {
+        alert(authErrorText(e));
+      }
+    }
+
+    async function logout() {
+      try { flushGradeSave(); } catch (e) { /* ignoré */ }
+      // une sauvegarde en ligne en attente est envoyée avant de couper la session
+      if (remoteSaveTimer && currentCourseId) {
+        clearTimeout(remoteSaveTimer);
+        remoteSaveTimer = null;
+        try { await pushRemote(currentCourseId, buildPayload()); } catch (e) { /* ignoré */ }
+      }
+      try { await fbAuth.signOut(); } catch (e) { /* ignoré */ }
+      location.reload();   // repart d'une page vide : rien de l'utilisateur précédent ne reste en mémoire
+    }
+
+    // -------------------------------------------------------------
+    // GESTION DES ENSEIGNANTS ET ADMINISTRATEURS (réservé aux admins)
+    // -------------------------------------------------------------
+    let teachersList = [];
+    let tmSelected = new Set();   // ids des cours cochés dans le formulaire
+
+    function setTeachersMsg(text, ok) {
+      const el = document.getElementById('teachersMsg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('hidden', !text);
+      el.classList.toggle('text-rose-700', !ok);
+      el.classList.toggle('text-emerald-700', !!ok);
+    }
+
+    async function saveTeacherDocs(t) {
+      const email = normEmail(t.email);
+      const actif = t.actif !== false;
+      const batch = db.batch();
+      batch.set(db.collection(TEACHERS_COLLECTION).doc(email), {
+        nom: t.nom || '', prenom: t.prenom || '', email: email,
+        role: t.role === 'admin' ? 'admin' : 'teacher', actif: actif,
+        courseIds: Array.isArray(t.courseIds) ? t.courseIds : []
+      });
+      batch.set(db.collection(DIRECTORY_COLLECTION).doc(email), {nom: t.nom || '', prenom: t.prenom || '', actif: actif});
+      await batch.commit();
+    }
+
+    async function openTeachersModal() {
+      if (!isLoggedAdmin()) return;
+      document.getElementById('teachersModal').classList.remove('hidden');
+      resetTeacherForm();
+      await loadTeachers();
+    }
+
+    function closeTeachersModal() {
+      document.getElementById('teachersModal').classList.add('hidden');
+    }
+
+    async function loadTeachers() {
+      try {
+        const snap = await db.collection(TEACHERS_COLLECTION).get();
+        teachersList = snap.docs.map(d => Object.assign({}, d.data(), {email: d.id}));
+        teachersList.sort((a, b) => teacherLabel(a).localeCompare(teacherLabel(b), 'fr'));
+        setTeachersMsg('');
+      } catch (e) {
+        setTeachersMsg("Impossible de charger la liste : " + authErrorText(e), false);
+      }
+      renderTeachersList();
+    }
+
+    function renderTeachersList() {
+      const tbody = document.getElementById('teachersListBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      if (teachersList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-2 py-4 text-center text-slate-400">Aucun enseignant pour le moment.</td></tr>';
+        return;
+      }
+      teachersList.forEach(t => {
+        const q = encodeURIComponent(t.email);
+        const isAdmin = t.role === 'admin';
+        const ids = Array.isArray(t.courseIds) ? t.courseIds : [];
+        const names = ids.map(id => { const c = courses.find(x => x.id === id); return c ? `${c.codeUE} - ${c.titre || c.intituleUE}` : null; }).filter(Boolean);
+        const coursesCell = isAdmin
+          ? '<span class="text-slate-500">Tous (admin)</span>'
+          : `<span title="${escapeHtml(names.join('\n'))}">${names.length} cours</span>`;
+        const locked = t.email === sessionUser.email || t.email === SUPER_ADMIN_EMAIL;
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-yellow-50";
+        tr.innerHTML = `
+          <td class="px-2 py-1 font-semibold">${escapeHtml(teacherLabel(t))}</td>
+          <td class="px-2 py-1 font-mono text-[11px]">${escapeHtml(t.email)}</td>
+          <td class="px-2 py-1">${isAdmin ? '<span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">Admin</span>' : 'Enseignant'}</td>
+          <td class="px-2 py-1">${coursesCell}</td>
+          <td class="px-2 py-1">${t.actif === false ? '<span class="text-rose-700 font-bold">⛔ Bloqué</span>' : '<span class="text-emerald-700 font-bold">✔ Actif</span>'}</td>
+          <td class="px-2 py-1 text-right whitespace-nowrap">
+            <button class="px-1.5 py-0.5 text-blue-700 hover:bg-blue-100 rounded font-semibold" onclick="editTeacher(decodeURIComponent('${q}'))">Modifier</button>
+            <button class="px-1.5 py-0.5 text-slate-700 hover:bg-slate-200 rounded" onclick="resendTeacherInvite(decodeURIComponent('${q}'))" title="Renvoyer le mail de création / réinitialisation du mot de passe">✉</button>
+            ${locked ? '' : `<button class="px-1.5 py-0.5 text-rose-700 hover:bg-rose-100 rounded font-semibold" onclick="deleteTeacher(decodeURIComponent('${q}'))" title="Supprimer">🗑</button>`}
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderTeacherCourseChecks() {
+      const box = document.getElementById('tmCourses');
+      if (!box) return;
+      const filter = document.getElementById('tmCourseFilter').value.trim().toLowerCase();
+      box.innerHTML = '';
+      const groups = {};
+      const order = [];
+      sortedCourses().forEach(c => {
+        const label = (c.bloc && c.bloc !== c.section) ? `${c.section} · ${c.bloc}` : (c.section || c.bloc || 'Autres');
+        if (!groups[label]) { groups[label] = []; order.push(label); }
+        groups[label].push(c);
+      });
+      order.forEach(label => {
+        const rows = groups[label].filter(c => !filter || `${c.codeUE} - ${c.titre || c.intituleUE}`.toLowerCase().includes(filter));
+        if (rows.length === 0) return;
+        const div = document.createElement('div');
+        div.innerHTML = `<div class="font-bold text-[11px] text-slate-600 mt-1">${escapeHtml(label)}</div>`;
+        rows.forEach(c => {
+          const row = document.createElement('label');
+          row.className = 'flex items-start gap-1.5 py-0.5 cursor-pointer hover:bg-yellow-50';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.className = 'mt-0.5';
+          cb.checked = tmSelected.has(c.id);
+          cb.onchange = () => { if (cb.checked) tmSelected.add(c.id); else tmSelected.delete(c.id); };
+          const span = document.createElement('span');
+          span.textContent = `${c.codeUE} - ${c.titre || c.intituleUE}`;
+          row.appendChild(cb);
+          row.appendChild(span);
+          div.appendChild(row);
+        });
+        box.appendChild(div);
+      });
+      if (!box.children.length) box.innerHTML = '<p class="text-slate-400">Aucun cours.</p>';
+    }
+
+    function onTeacherRoleChange() {
+      document.getElementById('tmAdminNote').classList.toggle('hidden', document.getElementById('tmRole').value !== 'admin');
+    }
+
+    function resetTeacherForm() {
+      document.getElementById('tmEditEmail').value = '';
+      ['tmNom', 'tmPrenom', 'tmEmail', 'tmCourseFilter'].forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('tmEmail').readOnly = false;
+      document.getElementById('tmRole').value = 'teacher';
+      document.getElementById('tmRole').disabled = false;
+      document.getElementById('tmActif').checked = true;
+      document.getElementById('tmActif').disabled = false;
+      document.getElementById('teacherFormTitle').textContent = 'Nouvel enseignant';
+      tmSelected = new Set();
+      onTeacherRoleChange();
+      renderTeacherCourseChecks();
+    }
+
+    function editTeacher(email) {
+      const t = teachersList.find(x => x.email === email);
+      if (!t) return;
+      document.getElementById('tmEditEmail').value = t.email;
+      document.getElementById('tmNom').value = t.nom || '';
+      document.getElementById('tmPrenom').value = t.prenom || '';
+      document.getElementById('tmEmail').value = t.email;
+      document.getElementById('tmEmail').readOnly = true;   // l'adresse sert d'identifiant : non modifiable
+      document.getElementById('tmRole').value = t.role === 'admin' ? 'admin' : 'teacher';
+      document.getElementById('tmActif').checked = t.actif !== false;
+      const locked = t.email === sessionUser.email || t.email === SUPER_ADMIN_EMAIL;   // on ne peut pas se retirer ses propres droits
+      document.getElementById('tmRole').disabled = locked;
+      document.getElementById('tmActif').disabled = locked;
+      document.getElementById('tmCourseFilter').value = '';
+      document.getElementById('teacherFormTitle').textContent = `Modifier : ${teacherLabel(t)}`;
+      tmSelected = new Set(Array.isArray(t.courseIds) ? t.courseIds : []);
+      onTeacherRoleChange();
+      renderTeacherCourseChecks();
+      document.getElementById('tmNom').focus();
+    }
+
+    async function saveTeacherForm() {
+      const nom = document.getElementById('tmNom').value.trim();
+      const prenom = document.getElementById('tmPrenom').value.trim();
+      const email = normEmail(document.getElementById('tmEmail').value);
+      const editEmail = document.getElementById('tmEditEmail').value;
+      if (!nom || !email) { alert("Le nom et l'adresse e-mail sont obligatoires."); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { alert("Adresse e-mail invalide."); return; }
+      if (!editEmail && teachersList.some(t => t.email === email)) { alert("Cette adresse existe déjà dans la liste."); return; }
+      if (!editEmail && !email.endsWith('@cesna.be') && !confirm(`L'adresse ${email} n'est pas en @cesna.be. Continuer quand même ?`)) return;
+
+      let role = document.getElementById('tmRole').value;
+      let actif = document.getElementById('tmActif').checked;
+      if (editEmail && (editEmail === sessionUser.email || editEmail === SUPER_ADMIN_EMAIL)) { role = 'admin'; actif = true; }
+      const courseIds = [...tmSelected].filter(id => courses.some(c => c.id === id));
+      const isNew = !editEmail;
+
+      const btn = document.getElementById('teacherSaveBtn');
+      btn.disabled = true;
+      try {
+        await saveTeacherDocs({nom, prenom, email, role, actif, courseIds});
+        if (editEmail === sessionUser.email) {
+          sessionUser.nom = nom; sessionUser.prenom = prenom;
+          document.getElementById('userChipLabel').textContent = `👤 ${teacherLabel(sessionUser)} (admin)`;
+        }
+        let msg = isNew ? "Enseignant créé." : "Modifications enregistrées.";
+        if (isNew && actif) {
+          try {
+            await sendPasswordMail(email);
+            msg = `Enseignant créé. Un mail d'invitation (choix du mot de passe) a été envoyé à ${email}.`;
+          } catch (e) {
+            msg = `Enseignant créé, mais le mail n'a pas pu partir (${authErrorText(e)}). Utilisez le bouton ✉ pour réessayer.`;
+          }
+        }
+        await loadTeachers();
+        resetTeacherForm();
+        setTeachersMsg(msg, true);
+      } catch (e) {
+        setTeachersMsg("Enregistrement impossible : " + authErrorText(e), false);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function resendTeacherInvite(email) {
+      if (!confirm(`Envoyer à ${email} un mail pour (re)choisir son mot de passe ?`)) return;
+      try {
+        await sendPasswordMail(email);
+        setTeachersMsg(`Mail envoyé à ${email}.`, true);
+      } catch (e) {
+        setTeachersMsg("Envoi impossible : " + authErrorText(e), false);
+      }
+    }
+
+    async function deleteTeacher(email) {
+      if (email === sessionUser.email) { alert("Vous ne pouvez pas supprimer votre propre compte."); return; }
+      if (email === SUPER_ADMIN_EMAIL) { alert("L'administrateur principal ne peut pas être supprimé."); return; }
+      const t = teachersList.find(x => x.email === email);
+      if (!t) return;
+      if (!confirm(`Supprimer « ${teacherLabel(t)} » (${email}) ?\n\nIl disparaît de la liste de connexion et n'a plus accès à aucun cours. Les registres de présences ne sont pas effacés.`)) return;
+      try {
+        const batch = db.batch();
+        batch.delete(db.collection(TEACHERS_COLLECTION).doc(email));
+        batch.delete(db.collection(DIRECTORY_COLLECTION).doc(email));
+        await batch.commit();
+        const wasEditing = document.getElementById('tmEditEmail').value === email;
+        await loadTeachers();
+        if (wasEditing) resetTeacherForm();
+        setTeachersMsg(`« ${teacherLabel(t)} » a été supprimé.`, true);
+      } catch (e) {
+        setTeachersMsg("Suppression impossible : " + authErrorText(e), false);
+      }
+    }
+
+    // -------------------------------------------------------------
     // INITIALISATION & SAUVEGARDE AUTOMATIQUE
     // -------------------------------------------------------------
     window.addEventListener('DOMContentLoaded', () => {
       courses = loadCoursesLocal();
       buildCourseSelector();
-      startCoursesSync();
+      initLogin();
       migrateLegacyData();
       resetInMemoryData();
       updateCourseUI();
@@ -1311,7 +1887,7 @@
       select.innerHTML = '<option value="">-- Sélectionner un cours dans la liste --</option>';
       const groups = {};
       const order = [];
-      sortedCourses().forEach(c => {
+      sortedCourses().filter(c => canAccessCourse(c.id)).forEach(c => {
         const label = (c.bloc && c.bloc !== c.section) ? `${c.section} · ${c.bloc}` : (c.section || c.bloc || 'Autres');
         if (!groups[label]) { groups[label] = []; order.push(label); }
         groups[label].push(c);
@@ -1359,7 +1935,7 @@
         });
 
         if (!hasMeta) {
-          if (!snap.metadata.fromCache) seedCoursesRemote();
+          if (!snap.metadata.fromCache && isLoggedAdmin()) seedCoursesRemote();
           return;
         }
         courses = list;
@@ -1539,6 +2115,11 @@
 
     function onSelectOfficialCourse(courseId) {
       flushGradeSave();   // un commentaire en cours de frappe est enregistré avant de changer d'UE
+      if (courseId && !canAccessCourse(courseId)) {
+        alert("Vous n'avez pas accès à ce cours.");
+        document.getElementById('courseSelector').value = currentCourseId || "";
+        return;
+      }
       if (!courseId) {
         stopRemoteSync();
         currentCourseId = null;
@@ -1755,6 +2336,10 @@
           const fileCode = parsed.adminMetadata && parsed.adminMetadata.codeUE;
           const matchCourse = courses.find(c => c.codeUE === fileCode);
           if (matchCourse) {
+            if (!canAccessCourse(matchCourse.id)) {
+              alert("Vous n'avez pas accès à ce cours.");
+              return;
+            }
             currentCourseId = matchCourse.id;
           } else if (!currentCourseId) {
             alert("Ce fichier ne correspond à aucune UE de la liste. Choisissez d'abord une UE dans le menu déroulant, puis rouvrez le fichier.");
@@ -2103,168 +2688,23 @@
     }
 
     // -------------------------------------------------------------
-    // VALIDATION ADMINISTRATEUR : T, D et CM ne se pointent qu'avec le code admin
-    // Le code n'est jamais écrit en clair dans cette page : seul son hash salé (SHA-256) est conservé.
-    // Pour changer de code : ouvrir la console du navigateur (F12), taper  adminHash("NOUVEAU CODE")
-    // puis copier le résultat dans ADMIN_CODE_HASH ci-dessous.
+    // VALIDATION ADMINISTRATEUR : T, D et CM ne peuvent être posés ou modifiés que par un administrateur connecté
     // -------------------------------------------------------------
     const ADMIN_STATUSES = ['T', 'D', 'CM'];
-    const ADMIN_CODE_SALT = "cbf631085cc712d9e239b5d9dee09fd4";
-    const ADMIN_CODE_HASH = "5f94d85486dd20519d7a13e55031dbbbaa854be882ab3b981ec4a6d5fb0c0177";
-    const ADMIN_HASH_ROUNDS = 10000;     // le hash est recalculé 10 000 fois (ralentit les essais en série)
-    const ADMIN_UNLOCK_MINUTES = 10;     // après un bon code, le mode admin reste actif X minutes (0 = code demandé à chaque fois)
-    const ADMIN_MAX_FAILS = 5;           // après 5 mauvais codes : blocage 60 secondes
-    let adminUnlockedUntil = 0;
-    let adminFailCount = 0;
-    let adminBlockedUntil = 0;
-    let adminPending = null;             // action à exécuter une fois le code validé
-
-    // SHA-256 en JavaScript pur (fonctionne aussi si la page est servie en http, sans crypto.subtle)
-    const SHA256_K = [
-      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-    ];
-
-    function sha256Hex(str) {
-      const bytes = new TextEncoder().encode(str);
-      const len = bytes.length;
-      const buf = new Uint8Array(((len + 9 + 63) >> 6) << 6);
-      buf.set(bytes);
-      buf[len] = 0x80;
-      const dv = new DataView(buf.buffer);
-      dv.setUint32(buf.length - 8, Math.floor((len * 8) / 4294967296));
-      dv.setUint32(buf.length - 4, (len * 8) >>> 0);
-
-      let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a,
-          h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
-      const w = new Uint32Array(64);
-      const rotr = (x, n) => (x >>> n) | (x << (32 - n));
-
-      for (let off = 0; off < buf.length; off += 64) {
-        for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
-        for (let i = 16; i < 64; i++) {
-          const s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
-          const s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
-          w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
-        }
-        let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
-        for (let i = 0; i < 64; i++) {
-          const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
-          const ch = (e & f) ^ (~e & g);
-          const t1 = (h + S1 + ch + SHA256_K[i] + w[i]) >>> 0;
-          const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
-          const maj = (a & b) ^ (a & c) ^ (b & c);
-          const t2 = (S0 + maj) >>> 0;
-          h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
-        }
-        h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0; h3 = (h3 + d) >>> 0;
-        h4 = (h4 + e) >>> 0; h5 = (h5 + f) >>> 0; h6 = (h6 + g) >>> 0; h7 = (h7 + h) >>> 0;
-      }
-      return [h0, h1, h2, h3, h4, h5, h6, h7].map(x => x.toString(16).padStart(8, '0')).join('');
-    }
-
-    // Hash salé du code (majuscules / espaces autour ignorés)
-    function adminHash(code) {
-      const norm = String(code || '').trim().toUpperCase();
-      let h = sha256Hex(ADMIN_CODE_SALT + ':' + norm);
-      for (let i = 0; i < ADMIN_HASH_ROUNDS; i++) h = sha256Hex(h + ADMIN_CODE_SALT + norm);
-      return h;
-    }
-
-    function adminCodeMatches(code) {
-      const a = adminHash(code), b = ADMIN_CODE_HASH;
-      if (a.length !== b.length) return false;
-      let diff = 0;
-      for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-      return diff === 0;
-    }
 
     function isAdminStatus(status) {
       return ADMIN_STATUSES.includes(status);
     }
 
     function adminUnlocked() {
-      return Date.now() < adminUnlockedUntil;
+      return isLoggedAdmin();
     }
 
-    function refreshAdminBadge() {
-      const badge = document.getElementById('adminBadge');
-      if (!badge) return;
-      const on = adminUnlocked();
-      badge.classList.toggle('hidden', !on);
-      if (on) {
-        const min = Math.max(1, Math.ceil((adminUnlockedUntil - Date.now()) / 60000));
-        document.getElementById('adminBadgeTime').textContent = `(${min} min)`;
-      }
-    }
-
-    function lockAdmin() {
-      adminUnlockedUntil = 0;
-      refreshAdminBadge();
-    }
-
-    // Exécute `action` tout de suite si le mode admin est actif, sinon demande le code
+    // Exécute `action` si l'utilisateur connecté est administrateur, sinon explique le refus
     function requireAdmin(message, action) {
       if (adminUnlocked()) { action(); return; }
-      adminPending = action;
-      document.getElementById('adminModalMsg').textContent = message;
-      document.getElementById('adminModalError').classList.add('hidden');
-      const input = document.getElementById('adminCodeInput');
-      input.value = '';
-      document.getElementById('adminCodeModal').classList.remove('hidden');
-      setTimeout(() => input.focus(), 30);
+      alert(message + "\n\n(Connectez-vous avec un compte administrateur pour le faire.)");
     }
-
-    function closeAdminModal() {
-      adminPending = null;
-      document.getElementById('adminCodeInput').value = '';
-      document.getElementById('adminCodeModal').classList.add('hidden');
-    }
-
-    function adminError(msg) {
-      const el = document.getElementById('adminModalError');
-      el.textContent = msg;
-      el.classList.remove('hidden');
-    }
-
-    function submitAdminCode() {
-      const input = document.getElementById('adminCodeInput');
-      const now = Date.now();
-      if (now < adminBlockedUntil) {
-        adminError(`Trop d'essais. Réessayez dans ${Math.ceil((adminBlockedUntil - now) / 1000)} s.`);
-        return;
-      }
-      if (!input.value.trim()) { adminError("Entrez le code administrateur."); return; }
-
-      if (!adminCodeMatches(input.value)) {
-        adminFailCount++;
-        input.value = '';
-        input.focus();
-        if (adminFailCount >= ADMIN_MAX_FAILS) {
-          adminFailCount = 0;
-          adminBlockedUntil = now + 60000;
-          adminError("Code incorrect. Trop d'essais : bloqué 60 secondes.");
-        } else {
-          adminError("Code incorrect.");
-        }
-        return;
-      }
-
-      adminFailCount = 0;
-      if (ADMIN_UNLOCK_MINUTES > 0) adminUnlockedUntil = Date.now() + ADMIN_UNLOCK_MINUTES * 60000;
-      const action = adminPending;
-      closeAdminModal();
-      refreshAdminBadge();
-      if (action) action();
-    }
-
-    setInterval(refreshAdminBadge, 15000);
 
     function fillEntireSession(sessionId, defaultStatus) {
       // Les pointages T, D et CM (validés par l'admin) ne sont jamais écrasés par un « tous présents »
