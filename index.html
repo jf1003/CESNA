@@ -256,6 +256,11 @@
           <span class="pointage-only">•</span>
           <span class="pointage-only font-semibold text-slate-700">Moyenne présence : <span id="statAveragePresence"
               class="font-bold text-blue-900">0 %</span></span>
+           <span class="pointage-only font-semibold text-slate-700">Moyenne présence : <span id="statAveragePresence"
+              class="font-bold text-blue-900">0 %</span></span>
+          <span class="pointage-only">•</span>
+          <span class="pointage-only font-semibold text-slate-700">Périodes données : <span id="statPeriods"
+              class="font-bold text-blue-900">0 p</span></span>
         </div>
 
         <!-- Badges légende -->
@@ -2667,7 +2672,7 @@
       updateGlobalStats();
     }
 
-    function updateGlobalStats() {
+       function updateGlobalStats() {
       document.getElementById('statStudentCount').innerText = students.length;
       document.getElementById('statSessionCount').innerText = sessions.length;
 
@@ -2678,6 +2683,21 @@
         if (r !== null) { totalRate += r; counted++; }
       });
       document.getElementById('statAveragePresence').innerText = counted === 0 ? "–" : `${Math.round(totalRate / counted)} %`;
+
+      // Périodes données (séances passées ou déjà pointées) / total des séances encodées
+      let givenP = 0, totalP = 0;
+      sessions.forEach(sess => {
+        const n = sessionPeriods(sess);
+        if (n === null) return;
+        totalP += n;
+        const encoded = students.some(st => {
+          const r = attendanceData[`${st.id}_${sess.id}`];
+          return r && r.status && r.status !== '?';
+        });
+        if (isSessionRealised(sess, encoded)) givenP += n;
+      });
+      const pEl = document.getElementById('statPeriods');
+      if (pEl) pEl.innerText = `${givenP} p / ${totalP} p`;
     }
 
     function toggleAbandon(studentId) {
