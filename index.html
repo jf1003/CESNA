@@ -2685,11 +2685,10 @@
       document.getElementById('statAveragePresence').innerText = counted === 0 ? "–" : `${Math.round(totalRate / counted)} %`;
 
       // Périodes données (séances passées ou déjà pointées) / total des séances encodées
-      let givenP = 0, totalP = 0;
+        let givenP = 0;
       sessions.forEach(sess => {
         const n = sessionPeriods(sess);
         if (n === null) return;
-        totalP += n;
         const encoded = students.some(st => {
           const r = attendanceData[`${st.id}_${sess.id}`];
           return r && r.status && r.status !== '?';
@@ -2697,7 +2696,7 @@
         if (isSessionRealised(sess, encoded)) givenP += n;
       });
       const pEl = document.getElementById('statPeriods');
-      if (pEl) pEl.innerText = `${givenP} p / ${totalP} p`;
+      if (pEl) pEl.innerText = `${givenP} p`;
     }
 
     function toggleAbandon(studentId) {
