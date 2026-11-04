@@ -3091,30 +3091,6 @@
   renderTable();
 }
 
-      indicateSaving();
-      if (editId) {
-        // Modification
-        const idx = students.findIndex(s => s.id === editId);
-        if (idx !== -1) {
-          students[idx].matricule = matricule;
-          students[idx].nom = nom;
-          students[idx].prenom = prenom;
-        }
-      } else {
-        // Ajout
-        students.push({
-          id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          matricule: matricule,
-          nom: nom,
-          prenom: prenom
-        });
-      }
-
-      saveToStorage();
-      closeAddStudentModal();
-      renderTable();
-    
-
     function deleteStudent(studentId) {
       const std = students.find(s => s.id === studentId);
       if (!std) return;
