@@ -904,6 +904,7 @@
 
   <!-- ================= JAVASCRIPT & MOTEUR DE PERSISTANCE ================= -->
   <script>
+    let currentView = 'pointages';      // 'pointages' | 'points' (déclaré en tête pour éviter la zone morte temporelle)
     // -------------------------------------------------------------
     // LISTE OFFICIELLE DES COURS CESNa AVEC DONNÉES ADMINISTRATIVES
     // -------------------------------------------------------------
@@ -3288,7 +3289,6 @@
     const PASS_MARK = 50;               // note minimale (en %)
     const MAX_AA = 20;                  // nombre maximum d'AA par cours
     const ABANDON_LABEL = "Refus";      // libellé affiché pour un étudiant en abandon
-    let currentView = 'pointages';      // 'pointages' | 'points'
     let gradeRows = [];                 // lignes affichées : { id, refresh, inputs }
     let gradeSaveTimer = null;
     let gradeNoticeTimer = null;
@@ -3397,8 +3397,8 @@
       if (row) row.refresh();
     }
 
-    // Clic sur une case AA : vide -> acquis -> non acquis -> vide
- // Clic sur une case AA : vide -> acquis -> non acquis -> dispensé (admin) -> vide
+    // Clic sur une case AA : vide -> acquis -> non acquis -> vide (enseignant)
+    // Admin : vide -> acquis -> non acquis -> dispensé -> vide
     function cycleAA(stdId, k, i) {
       const n = currentNbAA();
       if (!n) return;
@@ -3419,14 +3419,8 @@
       } else if (cur === 'v') {
         applyNextVal('n');
       } else if (cur === 'n') {
-        // Le passage à 'd' (dispensé) requiert les droits administrateur
-        if (isLoggedAdmin()) {
-          applyNextVal('d');
-        } else {
-          requireAdmin("L'encodage du statut « D » (Dispensé) est réservé aux administrateurs.", () => {
-            applyNextVal('d');
-          });
-        }
+        // Admin : n -> d (dispensé). Enseignant : le D lui est interdit, on revient simplement à vide.
+        applyNextVal(isLoggedAdmin() ? 'd' : null);
       } else if (cur === 'd') {
         // La modification ou suppression d'un statut 'd' existant requiert également l'admin
         if (isLoggedAdmin()) {
