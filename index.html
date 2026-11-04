@@ -3015,6 +3015,13 @@
       closeAddSessionModal();
       renderTable();
     }
+    function sortStudents() {
+  students.sort((a, b) => {
+    const compNom = String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' });
+    if (compNom !== 0) return compNom;
+    return String(a.prenom || '').localeCompare(String(b.prenom || ''), 'fr', { sensitivity: 'base' });
+  });
+}
 
     // -------------------------------------------------------------
     // CRUD ÉTUDIANTS (Ajouter, Modifier, Supprimer)
@@ -3047,15 +3054,42 @@
     }
 
     function confirmAddStudent() {
-      const editId = document.getElementById('editStudentId').value;
-      const matricule = document.getElementById('newStudentMatricule').value.trim();
-      const nom = document.getElementById('newStudentNom').value.trim();
-      const prenom = document.getElementById('newStudentPrenom').value.trim();
+  const editId = document.getElementById('editStudentId').value;
+  const matricule = document.getElementById('newStudentMatricule').value.trim();
+  const nom = document.getElementById('newStudentNom').value.trim();
+  const prenom = document.getElementById('newStudentPrenom').value.trim();
 
-      if (!nom) {
-        alert("Veuillez indiquer au minimum le nom de l'étudiant.");
-        return;
-      }
+  if (!nom) {
+    alert("Veuillez indiquer au minimum le nom de l'étudiant.");
+    return;
+  }
+
+  indicateSaving();
+  if (editId) {
+    // Modification
+    const idx = students.findIndex(s => s.id === editId);
+    if (idx !== -1) {
+      students[idx].matricule = matricule;
+      students[idx].nom = nom;
+      students[idx].prenom = prenom;
+    }
+  } else {
+    // Ajout
+    students.push({
+      id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      matricule: matricule,
+      nom: nom,
+      prenom: prenom
+    });
+  }
+
+  // Tri automatique par ordre alphabétique
+  sortStudents();
+
+  saveToStorage();
+  closeAddStudentModal();
+  renderTable();
+}
 
       indicateSaving();
       if (editId) {
@@ -3386,6 +3420,7 @@
     }
 
     // Clic sur une case AA : vide -> acquis -> non acquis -> vide
+ // Clic sur une case AA : vide -> acquis -> non acquis -> dispensé (admin) -> vide
     function cycleAA(stdId, k, i) {
       const n = currentNbAA();
       if (!n) return;
@@ -3393,10 +3428,37 @@
       const ss = k === 1 ? st.s1 : st.s2;
       if (ss.state !== 'open' || (ss.fixed && ss.fixed[i])) return;
       const cur = ss.cells[i];
-      setAA(stdId, k, i, cur === null ? 'v' : cur === 'v' ? 'n' : cur === 'n' ? 'd' : null);
-      saveGrades();
-      refreshGradeRow(stdId);
-      updateGradeCounters();
+
+      const applyNextVal = (nextVal) => {
+        setAA(stdId, k, i, nextVal);
+        saveGrades();
+        refreshGradeRow(stdId);
+        updateGradeCounters();
+      };
+
+      if (cur === null) {
+        applyNextVal('v');
+      } else if (cur === 'v') {
+        applyNextVal('n');
+      } else if (cur === 'n') {
+        // Le passage à 'd' (dispensé) requiert les droits administrateur
+        if (isLoggedAdmin()) {
+          applyNextVal('d');
+        } else {
+          requireAdmin("L'encodage du statut « D » (Dispensé) est réservé aux administrateurs.", () => {
+            applyNextVal('d');
+          });
+        }
+      } else if (cur === 'd') {
+        // La modification ou suppression d'un statut 'd' existant requiert également l'admin
+        if (isLoggedAdmin()) {
+          applyNextVal(null);
+        } else {
+          requireAdmin("Ce statut « D » a été validé par un administrateur : seul un administrateur peut le modifier.", () => {
+            applyNextVal(null);
+          });
+        }
+      }
     }
 
     // Clic sur « AA n » dans l'en-tête : marque l'AA acquis pour toutes les cases encore vides
