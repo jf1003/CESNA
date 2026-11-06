@@ -345,7 +345,7 @@
         <div id="gradesNotice" class="hidden text-xs font-semibold px-3 py-1.5 rounded bg-rose-100 text-rose-800 border border-rose-300 max-w-md"></div>
       </div>
 
-      <div id="dossierDrop" class="shrink-0 mb-2 flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
+      <div id="dossierDrop" class="admin-only hidden shrink-0 mb-2 flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
         <span class="text-lg">📄</span>
         <div class="text-xs text-slate-700 flex-1 min-w-[260px]">
           <strong>Glissez-déposez ici le dossier pédagogique de l'UE (PDF)</strong> : les acquis d'apprentissage sont lus et deviennent les colonnes AA.
@@ -1342,7 +1342,7 @@
     //  Pour revenir au mot de passe pour tout le monde : remplacer "name" par "password" ci-dessous.
     //  Dépannage : ajouter ?login=password à l'adresse de la page force le mode mot de passe (utile à l'administrateur).
     // ================================================================
-    const LOGIN_MODE_DEFAULT = "name";
+    const LOGIN_MODE_DEFAULT = "password";
     const LOGIN_MODE = (new URLSearchParams(location.search).get('login') === 'password') ? 'password' : LOGIN_MODE_DEFAULT;
     const NAME_LOGIN_KEY = "CESNA_NAME_LOGIN";   // e-mail choisi (connexion par le nom)
     let adminNeedsPassword = false;               // un compte admin a été choisi : le mot de passe devient obligatoire
@@ -3687,6 +3687,11 @@
       table.style.width = '';
 
       const message = (title, text, btn) => {
+        if (!isLoggedAdmin() && !n && currentCourseId) {
+          title = "Les acquis d'apprentissage de ce cours ne sont pas encore encodés";
+          text = "Contactez un administrateur : il doit les renseigner avant que vous puissiez encoder les points.";
+          btn = '';
+        }
         tbody.innerHTML = `
           <tr><td class="py-14 px-6 text-center bg-white border border-slate-300">
             <p class="font-bold text-[#0a3a60] text-lg mb-1">${title}</p>
@@ -3840,6 +3845,7 @@
     // Lit un PDF déposé (ou choisi) et propose les AA trouvés dans la fenêtre de validation
     async function handleDossierFile(file) {
       if (!file) return;
+      if (!isLoggedAdmin()) { showGradeNotice("Seul un administrateur peut modifier les acquis d'apprentissage."); return; }
       if (!ensureCourseSelected()) return;
       if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') {
         showGradeNotice("Déposez le dossier pédagogique au format PDF.");
@@ -3863,6 +3869,7 @@
     }
 
     function openAAModal(items, msg) {
+      if (!isLoggedAdmin()) return;
       if (!ensureCourseSelected()) return;
       const list = (items && items.length) ? items : currentAALabels();
       document.getElementById('aaModalText').value = list.join('\n');
