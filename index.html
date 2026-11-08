@@ -509,7 +509,9 @@
             <button onclick="refreshLocPayloads(true)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100">↻ Actualiser</button>
             <span id="lgSummary" class="ml-auto text-slate-600"></span>
           </div>
-          <div id="lgBody"></div>
+          <div id="lgBody" ondragover="locDragOver(event)" ondrop="locDrop(event)"></div>
+          <style>#lgBody tr.loc-drop td { background: #bae6fd !important; }</style>
+          <div id="lgMoveDlg" class="hidden fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"><div id="lgMoveBody" class="bg-white rounded-lg shadow-2xl p-4 w-full max-w-md text-xs"></div></div>
           <div id="lgDetail" class="mt-2 p-2 border border-slate-200 rounded bg-slate-50 min-h-[2.5rem]"></div>
           <div id="lgConflicts"></div>
         </div>
@@ -5010,7 +5012,7 @@
             roomId, courseId: c.id, code: c.codeUE, title: c.titre || c.intituleUE, teacher: c.enseignant,
             sessId: sess.id, date: new Date(dd.year, dd.month - 1, dd.day),
             start: toMin(sess.start, 0), end: toMin(sess.end, 1440), startTxt: sess.start || '', endTxt: sess.end || '',
-            students: (p.students || []).length, periods: sessionPeriods(sess) || 0, conflict: []
+            students: (p.students || []).length, periods: sessionPeriods(sess) || 0, dayparts: dayPartsOf(toMin(sess.start, 0), toMin(sess.end, 1440)), conflict: []
           });
         });
       });
@@ -5028,6 +5030,22 @@
         e.over = !!(r && e.students > r.capacite);
       });
       return {entries, noRoom};
+    }
+
+    // Moment de la journée : matin (avant 12h30), après-midi (12h30-17h), soir (dès 17h)
+    const DAYPART_LABEL = {M: 'matin', A: 'après-midi', S: 'soir'};
+    function dayPartsOf(a, b) {
+      const out = [];
+      if (a < 750 && b > 0) out.push('M');
+      if (a < 1020 && b > 750) out.push('A');
+      if (b > 1020) out.push('S');
+      return out.length ? out : ['M'];
+    }
+    function dayPartsText(entries, long) {
+      const set = new Set();
+      entries.forEach(e => e.dayparts.forEach(x => set.add(x)));
+      const arr = ['M', 'A', 'S'].filter(x => set.has(x));
+      return long ? arr.map(x => DAYPART_LABEL[x]).join(' + ') : arr.join('+');
     }
 
     function courseColor(id) {
@@ -5183,7 +5201,7 @@
           lastImp = r.implantation;
           body += `<tr><td class="sticky left-0 bg-slate-300 font-bold px-2 py-1 text-slate-800 z-10" colspan="${nWeeks + 1}">📍 ${escapeHtml(lastImp)}</td></tr>`;
         }
-        body += `<tr class="hover:bg-yellow-50"><td class="sticky left-0 z-10 bg-white px-2 py-1 border-b border-r border-slate-300 whitespace-nowrap"><span class="font-bold">${escapeHtml(String(r.numero))}</span> <span class="text-slate-500">· ét. ${escapeHtml(String(r.etage || '–'))} · ${r.capacite} pl. · ${occ.entries.filter(e => e.roomId === r.id && academicYearOf(e.date) === Y).reduce((a, e) => a + e.periods, 0)} p</span>${r.tbi ? ' <span class="px-1 rounded bg-sky-100 text-sky-800 font-bold text-[9px]">TBI</span>' : ''}</td>`;
+        body += `<tr data-room="${r.id}" class="hover:bg-yellow-50"><td class="sticky left-0 z-10 bg-white px-2 py-1 border-b border-r border-slate-300 whitespace-nowrap"><span class="font-bold">${escapeHtml(String(r.numero))}</span> <span class="text-slate-500">· ét. ${escapeHtml(String(r.etage || '–'))} · ${r.capacite} pl. · ${occ.entries.filter(e => e.roomId === r.id && academicYearOf(e.date) === Y).reduce((a, e) => a + e.periods, 0)} p</span>${r.tbi ? ' <span class="px-1 rounded bg-sky-100 text-sky-800 font-bold text-[9px]">TBI</span>' : ''}</td>`;
         for (let i = 0; i < nWeeks; i++) {
           const list = cells[r.id + '|' + i] || [];
           if (!list.length) { body += `<td class="border-b border-r border-slate-200 ${i === curWeek ? 'bg-amber-50' : ''}"></td>`; continue; }
@@ -5192,10 +5210,11 @@
           const ids = Object.keys(byCourse);
           const bad = list.some(e => e.conflict.length);
           const over = list.some(e => e.over);
-          const tip = list.sort((a, b) => a.date - b.date || a.start - b.start).map(e => `${fmtDM(e.date)} ${e.startTxt}-${e.endTxt} (${e.periods} p) · ${e.code} ${e.title}${e.conflict.length ? ' ⚠ CONFLIT' : ''}${e.over ? ' ⚠ capacité' : ''}`).join('\n');
+          const tip = list.sort((a, b) => a.date - b.date || a.start - b.start).map(e => `${fmtDM(e.date)} ${e.startTxt}-${e.endTxt} (${dayPartsText([e], true)}, ${e.periods} p) · ${e.code} ${e.title}${e.conflict.length ? ' ⚠ CONFLIT' : ''}${e.over ? ' ⚠ capacité' : ''}`).join('\n');
+          const dragAttr = id => `draggable="true" ondragstart="locDragStart(event, '${id}', '${r.id}', ${i})" ondragend="locDragEnd()"`;
           const inner = ids.length === 1
-            ? `<div class="h-6 flex items-center justify-center text-[9px] font-bold text-white overflow-hidden" style="background:${courseColor(ids[0])}">${escapeHtml(String(byCourse[ids[0]][0].code).replace(/[-\s]/g, '').slice(0, 6))}</div>`
-            : ids.map(id => `<div class="h-3 text-[8px] leading-3 text-white font-bold overflow-hidden text-center" style="background:${courseColor(id)}">${escapeHtml(String(byCourse[id][0].code).replace(/[-\s]/g, '').slice(0, 6))}</div>`).join('');
+            ? `<div ${dragAttr(ids[0])} class="h-8 flex flex-col items-center justify-center text-white overflow-hidden cursor-grab" style="background:${courseColor(ids[0])}"><span class="text-[9px] font-bold leading-3">${escapeHtml(String(byCourse[ids[0]][0].code).replace(/[-\s]/g, '').slice(0, 6))}</span><span class="text-[8px] leading-3 opacity-90">${dayPartsText(byCourse[ids[0]])}</span></div>`
+            : ids.map(id => `<div ${dragAttr(id)} class="h-3 text-[8px] leading-3 text-white font-bold overflow-hidden text-center cursor-grab" style="background:${courseColor(id)}">${escapeHtml(String(byCourse[id][0].code).replace(/[-\s]/g, '').slice(0, 5))} ${dayPartsText(byCourse[id])}</div>`).join('');
           body += `<td class="border-b border-r border-slate-200 p-0 cursor-pointer ${bad ? 'outline outline-2 outline-red-600 -outline-offset-2' : over ? 'outline outline-2 outline-amber-500 -outline-offset-2' : ''}" title="${escapeHtml(tip)}" onclick="locCellClick('${r.id}', ${i})">${inner}</td>`;
         }
         body += '</tr>';
@@ -5213,7 +5232,7 @@
       if (overs.length) sum.push(`<span class="text-amber-700 font-semibold">⚠ ${new Set(overs.map(e => e.courseId + e.roomId)).size} UE avec capacité dépassée</span>`);
       document.getElementById('lgSummary').innerHTML = sum.join(' · ');
       box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[56vh]"><table class="text-[10px] border-separate border-spacing-0">${head}${body}</table></div>`;
-      document.getElementById('lgDetail').innerHTML = '<span class="text-slate-400">Cliquez sur une case pour voir le détail des séances de la semaine. Contour rouge = conflit, orange = capacité dépassée.</span>';
+      document.getElementById('lgDetail').innerHTML = '<span class="text-slate-400">Cliquez sur une case pour le détail des séances. M = matin, A = après-midi, S = soir. Contour rouge = conflit, orange = capacité dépassée. Glissez une UE sur une autre ligne pour la changer de local.</span>';
 
       // détail des conflits
       const seen = new Set(), lines = [];
@@ -5232,9 +5251,82 @@
       document.getElementById('lgDetail').innerHTML = `<div class="font-bold text-[#0a3a60] mb-1">${r ? escapeHtml(roomLong(r)) : ''} <span class="font-semibold text-slate-600">— ${list.length} séance(s), ${list.reduce((a, e) => a + e.periods, 0)} périodes cette semaine</span></div>` +
         list.slice().sort((a, b) => a.date - b.date || a.start - b.start).map(e =>
           `<div class="flex items-center gap-2 py-0.5"><span class="inline-block w-3 h-3 rounded" style="background:${courseColor(e.courseId)}"></span>
-           <span class="font-semibold">${fmtDM(e.date)} ${escapeHtml(e.startTxt)}-${escapeHtml(e.endTxt)} (${e.periods} p)</span>
+           <span class="font-semibold">${fmtDM(e.date)} ${escapeHtml(e.startTxt)}-${escapeHtml(e.endTxt)} (${dayPartsText([e], true)}, ${e.periods} p)</span>
            <span>${escapeHtml(e.code)} - ${escapeHtml(e.title)}</span><span class="text-slate-500">(${escapeHtml(e.teacher || '')}, ${e.students} étud.)</span>
            ${e.conflict.length ? '<span class="px-1 rounded bg-red-100 text-red-700 font-bold">⚠ conflit</span>' : ''}${e.over ? '<span class="px-1 rounded bg-amber-100 text-amber-800 font-bold">⚠ capacité</span>' : ''}</div>`).join('');
+    }
+
+
+    // ----- glisser-déposer d'une UE vers un autre local -----
+    let locDrag = null, locMoveCtx = null;
+    function locDragStart(ev, courseId, roomId, wi) {
+      locDrag = {courseId, roomId, wi};
+      try { ev.dataTransfer.setData('text/plain', courseId); ev.dataTransfer.effectAllowed = 'move'; } catch (e) { /* ignoré */ }
+    }
+    function locDragEnd() {
+      locDrag = null;
+      document.querySelectorAll('#lgBody tr.loc-drop').forEach(tr => tr.classList.remove('loc-drop'));
+    }
+    function locDragOver(ev) {
+      if (!locDrag) return;
+      const tr = ev.target.closest && ev.target.closest('tr[data-room]');
+      if (!tr) return;
+      ev.preventDefault();
+      document.querySelectorAll('#lgBody tr.loc-drop').forEach(x => { if (x !== tr) x.classList.remove('loc-drop'); });
+      tr.classList.add('loc-drop');
+    }
+    function locDrop(ev) {
+      if (!locDrag) return;
+      const tr = ev.target.closest && ev.target.closest('tr[data-room]');
+      ev.preventDefault();
+      const d = locDrag;
+      locDragEnd();
+      if (!tr || tr.dataset.room === d.roomId) return;
+      askLocMove(d, tr.dataset.room);
+    }
+    function patchMoveWeek(c, d, target) {
+      const ls = Object.assign({}, c.localSessions || {});
+      const room = locaux.find(r => r.id === target);
+      (window.__locCells[d.roomId + '|' + d.wi] || []).filter(e => e.courseId === c.id).forEach(e => {
+        if (target === c.localId) delete ls[e.sessId];
+        else ls[e.sessId] = {id: room.id, label: roomShort(room), num: room.numero};
+      });
+      return {localSessions: ls};
+    }
+    function patchMoveAll(c, target) {
+      const room = locaux.find(r => r.id === target);
+      return {localId: room.id, localLabel: roomShort(room), localSessions: {}};
+    }
+    function moveWarnHtml(c, patch, onlySess) {
+      const occ = computeOccupancy(locPayloads, {id: c.id, patch});
+      const mine = occ.entries.filter(e => e.courseId === c.id && (!onlySess || onlySess.includes(e.sessId)));
+      const nC = mine.filter(e => e.conflict.length).length;
+      const cap = mine.some(e => e.over);
+      if (!nC && !cap) return '<span class="text-emerald-700">✔ aucun conflit</span>';
+      return (nC ? `<span class="text-red-700 font-bold">⚠ ${nC} séance(s) en conflit</span> ` : '') + (cap ? '<span class="text-amber-700 font-bold">⚠ capacité dépassée</span>' : '');
+    }
+    function askLocMove(d, target) {
+      const c = courses.find(x => x.id === d.courseId), room = locaux.find(r => r.id === target);
+      if (!c || !room) return;
+      const nWeek = (window.__locCells[d.roomId + '|' + d.wi] || []).filter(e => e.courseId === c.id).length;
+      locMoveCtx = {d, target};
+      document.getElementById('lgMoveBody').innerHTML = `
+        <div class="font-bold text-[#0a3a60] mb-2">Déplacer ${escapeHtml(c.codeUE)} vers ${escapeHtml(roomLong(room))}</div>
+        <button onclick="doLocMove('week')" class="block w-full text-left border border-slate-300 rounded px-3 py-2 mb-2 hover:bg-sky-50"><span class="font-bold">Cette semaine seulement</span> <span class="text-slate-500">(${nWeek} séance(s))</span><br>${moveWarnHtml(c, patchMoveWeek(c, d, target), (window.__locCells[d.roomId + '|' + d.wi] || []).filter(e => e.courseId === c.id).map(e => e.sessId))}</button>
+        <button onclick="doLocMove('all')" class="block w-full text-left border border-slate-300 rounded px-3 py-2 mb-2 hover:bg-sky-50"><span class="font-bold">Toute l'UE</span> <span class="text-slate-500">(toutes les séances, ce local devient le local par défaut)</span><br>${moveWarnHtml(c, patchMoveAll(c, target))}</button>
+        <button onclick="closeLocMove()" class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-100">Annuler</button>`;
+      document.getElementById('lgMoveDlg').classList.remove('hidden');
+    }
+    function closeLocMove() { document.getElementById('lgMoveDlg').classList.add('hidden'); locMoveCtx = null; }
+    function doLocMove(mode) {
+      if (!locMoveCtx) return;
+      const {d, target} = locMoveCtx;
+      const c = courses.find(x => x.id === d.courseId);
+      if (!c) return closeLocMove();
+      const patch = mode === 'all' ? patchMoveAll(c, target) : patchMoveWeek(c, d, target);
+      closeLocMove();
+      upsertCourse(Object.assign({}, c, patch));
+      renderLocAgenda();
     }
 
     function escapeHtml(str) {
