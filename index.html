@@ -50,6 +50,54 @@
     #attendanceTable th, #attendanceTable td, #gradesTable th, #gradesTable td { border-width: 0 1px 1px 0; }
     #gradesTable th.border-l-\[6px\], #gradesTable td.border-l-\[6px\] { border-left-width: 6px; }
 
+    /* ===== Colonnes N° et Nom figées (on voit toujours quel étudiant on pointe en défilant vers la droite) ===== */
+    :root { --w1: 40px; }
+    #attendanceTable tbody td:nth-child(1):not(:only-child), #gradesTable tbody td:nth-child(1):not(:only-child),
+    #headerRowDates > th:nth-child(1), #headerRowHours > th:nth-child(1), #gradesHead > tr:first-child > th:nth-child(1) {
+      position: sticky; left: 0; z-index: 3;
+    }
+    #attendanceTable tbody td:nth-child(2):not(:only-child), #gradesTable tbody td:nth-child(2):not(:only-child),
+    #headerRowDates > th:nth-child(2), #gradesHead > tr:first-child > th:nth-child(2) {
+      position: sticky; left: var(--w1); z-index: 3; box-shadow: 2px 0 0 rgba(15, 23, 42, .12);
+    }
+    #attendanceTable tbody td:nth-child(1):not(:only-child), #gradesTable tbody td:nth-child(1):not(:only-child),
+    #attendanceTable tbody td:nth-child(2):not(:only-child), #gradesTable tbody td:nth-child(2):not(:only-child) { z-index: 2; }
+    /* fonds opaques pour les cellules figées (sinon les colonnes qui défilent transparaissent) */
+    #attendanceTable tbody tr:nth-child(odd) > td:nth-child(-n+2):not(:only-child), #gradesTable tbody tr:nth-child(odd) > td:nth-child(-n+2):not(:only-child) { background-color: #fffdf3; }
+    #attendanceTable tbody tr:nth-child(even) > td:nth-child(-n+2):not(:only-child), #gradesTable tbody tr:nth-child(even) > td:nth-child(-n+2):not(:only-child) { background-color: #ffffff; }
+    #attendanceTable tbody tr:hover > td:nth-child(-n+2):not(:only-child), #gradesTable tbody tr:hover > td:nth-child(-n+2):not(:only-child) { background-color: #fefce8; }
+    #viewPointages { -webkit-overflow-scrolling: touch; }
+
+    /* ===== Téléphone ===== */
+    @media (max-width: 767px) {
+      :root { --w1: 28px; }
+      header#appHeader { max-height: 75vh; overflow-y: auto; }
+      header#appHeader .app-logo { display: none; }
+      header#appHeader .min-w-\[340px\] { min-width: 0; flex-basis: 100%; }
+      header#appHeader.mob-collapsed #subBar,
+      header#appHeader.mob-collapsed #quickActions,
+      header#appHeader.mob-collapsed #legendRow,
+      header#appHeader.mob-collapsed #courseDataPanel { display: none; }
+      #courseSelector { max-width: none; width: auto; flex: 1 1 0; min-width: 0; }
+      #courseTitleInput { width: 100%; flex-basis: 100%; }
+      /* colonnes de gauche plus étroites */
+      #headerRowDates > th:nth-child(1) { width: 28px !important; min-width: 28px !important; max-width: 28px !important; }
+      #headerRowDates > th:nth-child(2) { width: 120px !important; min-width: 120px !important; max-width: 120px !important; padding-left: 6px; padding-right: 4px; }
+      #headerRowDates > th:nth-child(3) { width: 44px !important; min-width: 44px !important; max-width: 44px !important; }
+      #headerRowDates > th:nth-child(4) { width: 52px !important; min-width: 52px !important; max-width: 52px !important; }
+      #attendanceTable tbody td:nth-child(2), #gradesTable tbody td:nth-child(2) { padding-left: 6px; padding-right: 4px; }
+      #attendanceTable tbody td:nth-child(2) .flex.items-center.gap-0\.5 { display: none; }
+      /* l'onglet des points défile en entier (texte + grille) pour garder de la place */
+      #viewPoints > div { overflow: auto; }
+      #viewPoints > div > .overflow-auto { overflow: visible; flex: none; }
+      #viewPoints > div > .shrink-0 { position: sticky; left: 0; width: calc(100vw - 24px); max-width: calc(100vw - 24px); }
+      #viewPoints p.max-w-4xl { display: none; }
+    }
+    @media (max-height: 520px) {
+      #pointageModal .h-20 { height: 3.25rem; }
+      #pointageModal > div { max-height: 96vh; overflow-y: auto; }
+    }
+
     /* Empêche la sélection intempestive lors de clics rapides */
     .no-select {
       user-select: none;
@@ -61,7 +109,7 @@
 <body class="bg-slate-100 text-slate-800 h-screen overflow-hidden flex flex-col font-sans">
 
   <!-- ================= BARRE SUPÉRIEURE & EN-TÊTE ================= -->
-  <header class="bg-white border-b border-slate-300 shadow-sm shrink-0 relative z-40">
+  <header id="appHeader" class="bg-white border-b border-slate-300 shadow-sm shrink-0 relative z-40">
     <div class="max-w-[1900px] mx-auto px-4 py-2">
       <div class="flex flex-wrap items-center justify-between gap-3">
 
@@ -69,7 +117,7 @@
         <div class="flex items-center gap-3 min-w-[340px] flex-1">
           <!-- Logo CESNa vectoriel SVG -->
           <div
-            class="w-12 h-12 flex-shrink-0 flex items-center justify-center bg-white rounded shadow-sm border border-slate-200 p-0.5">
+            class="app-logo w-12 h-12 flex-shrink-0 flex items-center justify-center bg-white rounded shadow-sm border border-slate-200 p-0.5">
             <svg viewBox="0 0 450 450" class="w-full h-full" xmlns="http://www.w3.org/2000/svg">
               <path d="M 30,225 C 90,80 360,80 420,225 C 360,370 90,370 30,225 Z" fill="#003366" />
               <ellipse cx="225" cy="225" rx="105" ry="105" fill="#ffffff" />
@@ -102,7 +150,8 @@
 
           <!-- Sélection et intitulé de cours -->
           <div class="flex-1">
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <button id="mobMenuBtn" onclick="toggleMobileMenu()" class="md:hidden px-2 py-1 bg-slate-700 text-white rounded text-xs font-bold" aria-label="Afficher / masquer le menu">☰ Menu</button>
               <!-- Menu déroulant des cours officiels -->
               <select id="courseSelector"
                 class="bg-slate-50 border border-slate-300 text-slate-800 text-xs font-semibold rounded px-2 py-1 outline-none hover:border-blue-500 focus:border-blue-700 max-w-[280px]"
@@ -115,10 +164,11 @@
               <input type="text" id="courseTitleInput" placeholder="Intitulé du cours (ex: Programmation Web)"
                 class="font-bold text-slate-800 text-sm border-b-2 border-transparent hover:border-slate-300 focus:border-blue-700 bg-transparent px-1 py-0.5 outline-none transition flex-1"
                 oninput="onCourseTitleChange(this.value)" />
+              <span id="courseLocalBadge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800 whitespace-nowrap"></span>
             </div>
 
             <!-- Sous-barre : État, Infos cours & Nouveau registre -->
-            <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
+            <div id="subBar" class="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
               <span id="saveStatusBadge" class="inline-flex items-center gap-1 text-emerald-700 font-medium">
                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Sauvegardé
               </span>
@@ -134,6 +184,8 @@
               <button id="coursesBtn" onclick="openCoursesModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">⚙ Gérer les cours</button>
               <span class="admin-only hidden">•</span>
               <button id="teachersBtn" onclick="openTeachersModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">👥 Gérer les enseignants</button>
+              <span class="admin-only hidden">•</span>
+              <button id="locauxBtn" onclick="openLocauxModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">🏫 Locaux</button>
               <span>•</span>
               <span id="userChip" class="inline-flex items-center gap-1.5">
                 <span id="userChipLabel" class="text-slate-700 font-semibold"></span>
@@ -145,7 +197,7 @@
         </div>
 
         <!-- Boutons d'action rapides -->
-        <div class="flex flex-wrap items-center gap-1.5">
+        <div id="quickActions" class="flex flex-wrap items-center gap-1.5">
           <button onclick="openAddSessionModal()"
             class="pointage-only px-2.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
             <span>+</span> Séance(s)
@@ -246,7 +298,7 @@
       </div>
 
       <!-- Légende et statistiques rapides -->
-      <div class="mt-2 pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs gap-2">
+      <div id="legendRow" class="mt-2 pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs gap-2">
         <div class="flex items-center gap-3">
           <span class="font-semibold text-slate-700">Étudiants : <span id="statStudentCount"
               class="font-bold text-blue-900">0</span></span>
@@ -313,7 +365,8 @@
 
             <!-- LIGNE 2 D'EN-TÊTE : Horaires de chaque séance -->
             <tr id="headerRowHours" class="header-secondary text-white">
-              <th class="border border-slate-400 bg-slate-900/40" colspan="4"></th>
+              <th class="border border-slate-400 bg-slate-900/40" colspan="2"></th>
+              <th class="border border-slate-400 bg-slate-900/40" colspan="2"></th>
               <!-- Les horaires des séances s'insèrent ici dynamiquement -->
             </tr>
           </thead>
@@ -373,6 +426,97 @@
   </main>
 
   <!-- ================= VALIDATION DES ACQUIS D'APPRENTISSAGE (dossier pédagogique) ================= -->
+  <!-- ================= FICHE ÉTUDIANT (administrateurs) ================= -->
+  <div id="studentCardModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="bg-[#0a3a60] text-white px-4 py-2 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div id="studentCardTitle" class="font-bold text-sm uppercase truncate"></div>
+          <div id="studentCardSub" class="text-[11px] text-slate-300"></div>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="refreshStudentCard()" class="px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-[11px] font-semibold" title="Relire les registres">↻ Actualiser</button>
+          <button onclick="closeStudentCard()" class="text-slate-300 hover:text-white font-bold">✕</button>
+        </div>
+      </div>
+      <div id="studentCardBody" class="p-4 overflow-auto"></div>
+    </div>
+  </div>
+
+  <!-- ===== Gestion des locaux (admins) ===== -->
+  <div id="locauxModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-2 md:p-4">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden">
+      <div class="bg-[#0a3a60] text-white px-4 py-2 flex flex-wrap items-center gap-2">
+        <h2 class="font-bold text-sm mr-auto">🏫 Gestion des locaux</h2>
+        <button id="locTab_rooms" onclick="showLocTab('rooms')" class="px-3 py-1 rounded text-xs font-bold">Locaux</button>
+        <button id="locTab_assign" onclick="showLocTab('assign')" class="px-3 py-1 rounded text-xs font-bold">Attribution par UE</button>
+        <button id="locTab_agenda" onclick="showLocTab('agenda')" class="px-3 py-1 rounded text-xs font-bold">Agenda d'occupation</button>
+        <button onclick="closeLocauxModal()" class="ml-2 text-white/80 hover:text-white text-lg leading-none" title="Fermer">✕</button>
+      </div>
+      <div id="locMsg" class="hidden bg-amber-100 text-amber-900 text-xs font-semibold px-4 py-1.5"></div>
+      <div class="p-4 overflow-auto text-xs">
+        <!-- Onglet locaux -->
+        <div id="locPane_rooms">
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+              <div class="flex items-center gap-2 mb-2">
+                <label class="font-semibold text-slate-600">Implantation</label>
+                <select id="locFilterImp" onchange="renderLocauxList()" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs">
+                  <option value="">Toutes</option><option>Jambes</option><option>Masson</option>
+                </select>
+              </div>
+              <div class="border border-slate-300 rounded overflow-auto max-h-[60vh]">
+                <table class="w-full text-xs">
+                  <thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>
+                    <th class="text-left px-2 py-1.5">Implantation</th><th class="text-left px-2 py-1.5">Étage</th><th class="text-left px-2 py-1.5">Local</th>
+                    <th class="text-right px-2 py-1.5">Capacité</th><th class="px-2 py-1.5">TBI</th><th class="px-2 py-1.5">UE</th><th class="px-2 py-1.5 w-28"></th>
+                  </tr></thead>
+                  <tbody id="locauxListBody" class="divide-y divide-slate-200"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="border border-slate-300 rounded p-3 bg-slate-50 self-start">
+              <input type="hidden" id="lrEditId">
+              <h3 id="roomFormTitle" class="font-bold text-[#0a3a60] mb-2">Nouveau local</h3>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Implantation *</label>
+              <select id="lrImplantation" class="w-full bg-white border border-slate-300 rounded px-2 py-1 mb-2"><option>Jambes</option><option>Masson</option></select>
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Étage</label>
+              <input type="text" id="lrEtage" placeholder="Ex: 0, 1, 2" class="w-full bg-white border border-slate-300 rounded px-2 py-1 mb-2">
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Numéro du local *</label>
+              <input type="text" id="lrNumero" placeholder="Ex: 105" class="w-full bg-white border border-slate-300 rounded px-2 py-1 mb-2">
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Capacité maximale (étudiants) *</label>
+              <input type="number" min="1" max="999" id="lrCapacite" placeholder="Ex: 24" class="w-full bg-white border border-slate-300 rounded px-2 py-1 mb-2">
+              <label class="flex items-center gap-2 mb-3 font-semibold text-slate-700"><input type="checkbox" id="lrTbi"> TBI présent dans le local</label>
+              <div class="flex gap-2">
+                <button onclick="saveRoomForm()" class="px-3 py-1.5 font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded">Enregistrer</button>
+                <button onclick="resetRoomForm()" class="px-3 py-1.5 border border-slate-300 rounded hover:bg-slate-100">Nouveau</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Onglet attribution -->
+        <div id="locPane_assign" class="hidden">
+          <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Unité d'enseignement</label>
+          <select id="laCourse" onchange="loadLocAssign()" class="w-full max-w-2xl bg-white border border-slate-300 rounded px-2 py-1.5 text-xs mb-3"></select>
+          <div id="laBody"></div>
+        </div>
+        <!-- Onglet agenda -->
+        <div id="locPane_agenda" class="hidden">
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <select id="lgYear" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"></select>
+            <select id="lgImp" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"><option value="">Toutes les implantations</option><option>Jambes</option><option>Masson</option></select>
+            <select id="lgEtage" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"><option value="">Tous les étages</option></select>
+            <button onclick="refreshLocPayloads(true)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100">↻ Actualiser</button>
+            <span id="lgSummary" class="ml-auto text-slate-600"></span>
+          </div>
+          <div id="lgBody"></div>
+          <div id="lgDetail" class="mt-2 p-2 border border-slate-200 rounded bg-slate-50 min-h-[2.5rem]"></div>
+          <div id="lgConflicts"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="aaModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-2xl overflow-hidden">
       <div class="bg-[#0a3a60] text-white px-4 py-2 font-bold text-sm">Acquis d'apprentissage de l'UE</div>
@@ -760,11 +904,11 @@
       <div class="p-4 space-y-4">
 
         <!-- Fichier Excel / Données -->
-        <div
+        <div id="excelDropZone"
           class="border-2 border-dashed border-emerald-400 bg-emerald-50/50 rounded-lg p-3 text-center hover:border-emerald-600 transition">
           <label class="cursor-pointer block">
-            <span class="text-xs font-bold text-emerald-900 block mb-1">Sélectionner le fichier Excel (donnees.xls /
-              .xlsx)</span>
+            <span class="text-xs font-bold text-emerald-900 block mb-1">Glissez-déposez ici le fichier Excel (donnees.xls /
+              .xlsx) ou sélectionnez-le</span>
             <span
               class="inline-block px-3 py-1 bg-emerald-700 text-white rounded text-xs font-semibold hover:bg-emerald-800">Parcourir
               les fichiers</span>
@@ -825,6 +969,7 @@
                   <th class="text-left px-2 py-1.5">Intitulé</th>
                   <th class="text-left px-2 py-1.5">Bloc</th>
                   <th class="text-left px-2 py-1.5">AA</th>
+                  <th class="text-left px-2 py-1.5 admin-only">Local</th>
                   <th class="text-left px-2 py-1.5">Début</th>
                   <th class="text-left px-2 py-1.5">Fin</th>
                   <th class="px-2 py-1.5 w-24"></th>
@@ -872,6 +1017,10 @@
             <div>
               <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Nombre d'AA (acquis d'apprentissage)</label>
               <input type="number" min="1" max="25" id="cmNbAA" placeholder="Ex: 3" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+            </div>
+            <div class="admin-only">
+              <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Local (par défaut)</label>
+              <select id="cmLocal" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600"><option value="">— aucun local —</option></select>
             </div>
             <div>
               <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Début de l'UE</label>
@@ -1927,7 +2076,7 @@
     const COURSES_COLLECTION = "catalogue_ue";
     const DEFAULT_COURSE_FIELDS = {
       section: "", bloc: "", codeUE: "", intituleUE: "", titre: "", enseignant: "À définir", periodes: "",
-      nbAA: "", aaLabels: [], dateDebut: "", date110: "", date510: "", dateFin: ""
+      nbAA: "", aaLabels: [], localId: "", localLabel: "", localSessions: {}, dateDebut: "", date110: "", date510: "", dateFin: ""
     };
     let courses = [];
 
@@ -2020,6 +2169,7 @@
 
     function onCoursesChanged() {
       buildCourseSelector();
+      refreshLocalBadge();
       renderCoursesList();
       if (currentCourseId) {
         const c = courses.find(x => x.id === currentCourseId);
@@ -2078,6 +2228,7 @@
     }
 
     function openCoursesModal() {
+      fillLocalSelect();
       renderCoursesList();
       resetCourseForm();
       document.getElementById('coursesModal').classList.remove('hidden');
@@ -2099,6 +2250,7 @@
           <td class="px-2 py-1 font-semibold">${escapeHtml(c.titre || c.intituleUE)}</td>
           <td class="px-2 py-1 text-slate-600">${escapeHtml(c.bloc)}</td>
           <td class="px-2 py-1">${c.nbAA ? escapeHtml(String(c.nbAA)) : '<span class="text-amber-600 font-semibold">à renseigner</span>'}</td>
+          <td class="px-2 py-1 admin-only">${c.localLabel ? escapeHtml(c.localLabel) : '<span class="text-slate-300">–</span>'}</td>
           <td class="px-2 py-1">${escapeHtml(fmtIsoToFr(c.dateDebut)) || '<span class="text-slate-300">–</span>'}</td>
           <td class="px-2 py-1">${escapeHtml(fmtIsoToFr(c.dateFin)) || '<span class="text-slate-300">–</span>'}</td>
           <td class="px-2 py-1 text-right whitespace-nowrap">
@@ -2124,7 +2276,7 @@
 
     const COURSE_FORM_FIELDS = {
       cmTitre: 'titre', cmCodeUE: 'codeUE', cmSection: 'section', cmBloc: 'bloc',
-      cmEnseignant: 'enseignant', cmPeriodes: 'periodes', cmNbAA: 'nbAA',
+      cmEnseignant: 'enseignant', cmPeriodes: 'periodes', cmNbAA: 'nbAA', cmLocal: 'localId',
       cmDateDebut: 'dateDebut', cmDate110: 'date110', cmDate510: 'date510', cmDateFin: 'dateFin'
     };
 
@@ -2168,6 +2320,8 @@
       const prev = courses.find(c => c.id === editId);
       const keptLabels = prev && Array.isArray(prev.aaLabels) ? prev.aaLabels.slice(0, nbAA || MAX_AA) : [];
       if (!nbAA && keptLabels.length) nbAA = keptLabels.length;
+      let roomIdKept = (document.getElementById('cmLocal') || {}).value || '';
+      if (!roomIdKept && prev && prev.localId && !locaux.length) roomIdKept = prev.localId; // liste des locaux non chargée
       const id = editId || ('c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
       const section = v('cmSection') || 'Autres';
       upsertCourse({
@@ -2181,6 +2335,9 @@
         periodes: v('cmPeriodes'),
         nbAA,
         aaLabels: keptLabels,
+        localId: roomIdKept,
+        localLabel: roomIdKept ? ((locaux.find(r => r.id === roomIdKept) || {}).implantation ? roomShort(locaux.find(r => r.id === roomIdKept)) : ((prev && prev.localLabel) || '')) : '',
+        localSessions: (prev && prev.localSessions) || {},
         dateDebut: v('cmDateDebut'),
         date110: v('cmDate110'),
         date510: v('cmDate510'),
@@ -2282,6 +2439,7 @@
       }
       const sel = document.getElementById('courseSelector');
       if (sel) sel.value = currentCourseId || "";
+      refreshLocalBadge();
     }
 
     function ensureCourseSelected() {
@@ -2621,7 +2779,7 @@
       const hoursRow = document.getElementById('headerRowHours');
 
       while (datesRow.children.length > 4) datesRow.removeChild(datesRow.lastChild);
-      while (hoursRow.children.length > 1) hoursRow.removeChild(hoursRow.lastChild);
+      while (hoursRow.children.length > 2) hoursRow.removeChild(hoursRow.lastChild);
 
       sessions.forEach((sess) => {
         const thDate = document.createElement('th');
@@ -2640,6 +2798,14 @@
         delBtn.className = 'block mx-auto mt-0.5 text-[11px] leading-none opacity-60 hover:opacity-100 hover:scale-125 transition';
         delBtn.onclick = (e) => { e.stopPropagation(); deleteSession(sess.id); };
         thHours.appendChild(delBtn);
+        const locExc = sessionLocalException(sess.id);
+        if (locExc) {
+          const lb = document.createElement('div');
+          lb.className = 'text-[9px] font-bold text-amber-300 leading-none mt-0.5';
+          lb.textContent = '📍' + locExc.num;
+          lb.title = 'Local de cette séance : ' + locExc.label;
+          thHours.insertBefore(lb, delBtn);
+        }
         hoursRow.appendChild(thHours);
       });
 
@@ -2695,7 +2861,7 @@
         tdName.innerHTML = `
           <div class="flex items-center justify-between gap-1">
             <div class="min-w-0 flex-1">
-              <div class="font-bold uppercase text-slate-900 truncate">${escapeHtml(std.nom)}</div>
+              <div class="font-bold uppercase text-slate-900 truncate${studentNameClass()}" ${studentNameAttrs(std)}>${escapeHtml(std.nom)}</div>
               <div class="capitalize text-slate-600 truncate flex items-center gap-1.5">
                 <span>${escapeHtml(std.prenom)}</span>
                 ${std.matricule ? `<span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(std.matricule)})</span>` : ''}
@@ -3131,6 +3297,59 @@
       document.getElementById('importModal').classList.add('hidden');
     }
 
+    // Ajoute un étudiant, ou complète celui qui existe déjà (même matricule, ou même nom + prénom) : relancer
+    // l'import avec une liste à jour ne crée donc pas de doublons. Retour : 'added' | 'updated' | 'same'
+    function addOrUpdateStudent(nom, prenom, matricule) {
+      const cand = {nom, prenom, matricule};
+      const ex = students.find(s => sameStudent(s, cand));
+      if (!ex) {
+        students.push({
+          id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          matricule: matricule,
+          nom: nom,
+          prenom: prenom
+        });
+        return 'added';
+      }
+      if (matricule && !String(ex.matricule || '').trim()) { ex.matricule = matricule; return 'updated'; }
+      return 'same';
+    }
+
+    // Glisser-déposer d'un fichier Excel : dans la fenêtre d'import, ou directement sur le registre de présences
+    function isSpreadsheetFile(f) {
+      return !!f && /\.(xlsx|xls|csv)$/i.test(f.name || '');
+    }
+    function initExcelDrop() {
+      const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+      const zone = document.getElementById('excelDropZone');
+      if (zone) {
+        zone.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); zone.classList.add('bg-emerald-100'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('bg-emerald-100'));
+        zone.addEventListener('drop', e => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          zone.classList.remove('bg-emerald-100');
+          const f = e.dataTransfer.files && e.dataTransfer.files[0];
+          if (!isSpreadsheetFile(f)) { alert("Déposez un fichier Excel (.xlsx, .xls) ou .csv."); return; }
+          handleExcelFile({target: {files: [f], value: ''}});
+        });
+      }
+      const reg = document.getElementById('viewPointages');
+      if (reg) {
+        reg.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+        reg.addEventListener('drop', e => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          const f = e.dataTransfer.files && e.dataTransfer.files[0];
+          if (!isSpreadsheetFile(f)) return;
+          if (!ensureCourseSelected()) return;
+          if (!confirm(`Importer « ${f.name} » dans ce cours ?\n(les étudiants déjà présents ne sont pas dupliqués)`)) return;
+          handleExcelFile({target: {files: [f], value: ''}});
+        });
+      }
+    }
+    initExcelDrop();
+
     function handleExcelFile(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -3145,6 +3364,8 @@
 
           let extractedMetaCount = 0;
           let addedStudentsCount = 0;
+          let updatedStudentsCount = 0;
+          let sameStudentsCount = 0;
 
           rows.slice(0, 15).forEach(row => {
             const rowText = row.map(c => String(c).trim()).join(" ");
@@ -3205,13 +3426,10 @@
             const matricule = colIdxMatricule !== -1 ? String(row[colIdxMatricule] || '').trim() : '';
 
             if (nom && !nom.toLowerCase().includes('total') && !nom.toLowerCase().includes('nom')) {
-              students.push({
-                id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                matricule: matricule,
-                nom: nom,
-                prenom: prenom
-              });
-              addedStudentsCount++;
+              const res = addOrUpdateStudent(nom, prenom, matricule);
+              if (res === 'added') addedStudentsCount++;
+              else if (res === 'updated') updatedStudentsCount++;
+              else sameStudentsCount++;
             }
           }
 
@@ -3221,7 +3439,10 @@
           saveToStorage();
           closeImportModal();
           renderTable();
-          alert(`Importation réussie !\n• ${addedStudentsCount} étudiant(s) ajoutés\n• Informations administratives du cours mises à jour.`);
+          alert(`Importation réussie !\n• ${addedStudentsCount} étudiant(s) ajouté(s)` +
+            (updatedStudentsCount ? `\n• ${updatedStudentsCount} étudiant(s) complété(s) (matricule)` : '') +
+            (sameStudentsCount ? `\n• ${sameStudentsCount} déjà présent(s) (ignorés)` : '') +
+            `\n• Informations administratives du cours mises à jour.`);
         } catch (err) {
           console.error(err);
           alert("Erreur lors de la lecture du fichier Excel.");
@@ -3257,13 +3478,7 @@
         }
 
         if (nom) {
-          students.push({
-            id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            matricule: mat,
-            nom: nom,
-            prenom: prenom
-          });
-          added++;
+          if (addOrUpdateStudent(nom, prenom, mat) === 'added') added++;
         }
       });
 
@@ -3517,7 +3732,7 @@
 
       const tdName = mk("py-1.5 px-3 border border-slate-300 leading-tight");
       tdName.innerHTML = `
-        <div class="font-bold uppercase text-slate-900 truncate">${escapeHtml(std.nom)}</div>
+        <div class="font-bold uppercase text-slate-900 truncate${studentNameClass()}" ${studentNameAttrs(std)}>${escapeHtml(std.nom)}</div>
         <div class="capitalize text-slate-600 truncate">${escapeHtml(std.prenom)}</div>`;
 
       const tdRate = mk("py-2 px-1 text-center font-bold border border-slate-300");
@@ -3716,7 +3931,7 @@
       }
 
       // Largeurs de colonnes + en-têtes (dépendent du nombre d'AA)
-      const widths = [40, 220, 64, 80];
+      const widths = isMobileView() ? [28, 120, 44, 52] : [40, 220, 64, 80];
       for (let k = 0; k < 2; k++) { for (let i = 0; i < n; i++) widths.push(46); widths.push(70, 110); }
       cols.innerHTML = widths.map(w => `<col style="width:${w}px">`).join('');
       table.style.width = widths.reduce((a, b) => a + b, 0) + 'px';
@@ -4278,6 +4493,747 @@
         console.error(err);
         alert("Erreur lors de la génération du fichier Excel : " + err.message);
       }
+    }
+
+    // -------------------------------------------------------------
+    // FICHE ÉTUDIANT (administrateurs) : taux de présence et points dans tous les cours
+    // - lue en direct dans les registres de tous les cours : aucune saisie supplémentaire, toujours à jour
+    // - un étudiant est reconnu d'un cours à l'autre par son matricule, ou à défaut par son nom + prénom
+    // -------------------------------------------------------------
+    let ficheCache = {at: 0, payloads: null};
+    let ficheTargetId = null;
+
+    function canOpenStudentCard() {
+      return typeof isLoggedAdmin === 'function' && isLoggedAdmin();
+    }
+
+    // attributs du nom d'étudiant dans les tableaux : cliquable seulement pour un administrateur
+    function studentNameAttrs(std) {
+      return canOpenStudentCard()
+        ? `onclick="openStudentCard('${std.id}')" title="Voir la fiche de l'étudiant (présences et points de tous ses cours)"`
+        : '';
+    }
+    function studentNameClass() {
+      return canOpenStudentCard() ? ' cursor-pointer hover:text-blue-700 hover:underline' : '';
+    }
+
+    function normKey(s) {
+      return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    }
+    function matKey(std) { return normKey(std && std.matricule).replace(/ /g, ''); }
+    // nom + prénom : mots triés (insensible à l'ordre, aux accents, aux majuscules et au découpage nom / prénom)
+    function nameKey(std) {
+      return normKey(`${std.nom || ''} ${std.prenom || ''}`).split(' ').filter(Boolean).sort().join(' ');
+    }
+    function sameStudent(a, b) {
+      const ma = matKey(a), mb = matKey(b);
+      if (ma && mb) return ma === mb;
+      const na = nameKey(a);
+      return !!na && na === nameKey(b);
+    }
+
+    // Tous les registres : en ligne (Firestore) sinon copie locale ; le cours ouvert vient de la mémoire
+    async function fetchAllPayloads(force) {
+      if (!force && ficheCache.payloads && Date.now() - ficheCache.at < 20000) return ficheCache.payloads;
+      const out = {};
+      let online = false;
+      if (db) {
+        try {
+          const snap = await db.collection(REMOTE_COLLECTION).get();
+          snap.forEach(d => {
+            try {
+              const x = d.data();
+              out[d.id] = typeof x.data === 'string' ? JSON.parse(x.data) : x.data;
+            } catch (e) { /* registre illisible : ignoré */ }
+          });
+          online = true;
+        } catch (e) {
+          console.warn("Lecture des registres impossible :", e);
+        }
+      }
+      courses.forEach(c => {
+        if (out[c.id]) return;
+        try {
+          const raw = localStorage.getItem(storageKeyFor(c.id));
+          if (raw) out[c.id] = JSON.parse(raw);
+        } catch (e) { /* ignoré */ }
+      });
+      if (currentCourseId) out[currentCourseId] = JSON.parse(JSON.stringify(buildPayload()));
+      ficheCache = {at: Date.now(), payloads: out, online};
+      return out;
+    }
+
+    // Exécute fn avec les données d'un autre registre (mêmes fonctions de calcul que pour l'écran), puis restaure tout
+    function withPayload(p, fn) {
+      const bak = {students, sessions, attendanceData, abandonedStudents, aaGrades};
+      try {
+        students = p.students || [];
+        sessions = p.sessions || [];
+        attendanceData = p.attendanceData || {};
+        abandonedStudents = p.abandonedStudents || {};
+        aaGrades = p.aaGrades || {};
+        return fn();
+      } finally {
+        students = bak.students;
+        sessions = bak.sessions;
+        attendanceData = bak.attendanceData;
+        abandonedStudents = bak.abandonedStudents;
+        aaGrades = bak.aaGrades;
+      }
+    }
+
+    function studentResultInCourse(p, course, target) {
+      return withPayload(p, () => {
+        const std = students.find(s => sameStudent(s, target));
+        if (!std) return null;
+        let done = 0, absences = 0;
+        sessions.forEach(sess => {
+          const r = attendanceData[`${std.id}_${sess.id}`];
+          const st = r ? r.status : '?';
+          if (!isSessionRealised(sess, st !== '?')) return;
+          done++;
+          if (st === 'A') absences++;
+        });
+        const nRaw = course ? parseInt(course.nbAA, 10) : NaN;
+        const n = (nRaw >= 1 && nRaw <= MAX_AA) ? nRaw : 0;
+        return {
+          std, done, absences, n,
+          rate: calculateStudentRate(std.id),
+          abandoned: !!abandonedStudents[std.id],
+          aa: n ? computeAA(std.id, n) : null,
+          byName: !(matKey(std) && matKey(target))
+        };
+      });
+    }
+
+    function ficheChip(v, k, fixed) {
+      const base = "inline-flex items-center justify-center w-5 h-5 rounded text-[11px] font-bold mr-0.5";
+      if (v === 'v') return `<span class="${base} bg-[#3f8a24] text-white${fixed ? ' opacity-70' : ''}" title="Acquis">✓</span>`;
+      if (v === 'd') return `<span class="${base} bg-[#bae6fd] text-[#075985]${fixed ? ' opacity-70' : ''}" title="Dispensé">D</span>`;
+      if (v === 'n') return `<span class="${base} ${k === 2 ? 'bg-red-600 text-white' : 'bg-[#ffc000] text-[#5c3d00]'}" title="Non acquis">✕</span>`;
+      if (v === 'x') return `<span class="${base} bg-red-600 text-white" title="Abandon">✕</span>`;
+      return `<span class="${base} bg-slate-100 text-slate-400 border border-slate-200">·</span>`;
+    }
+
+    function ficheSession(sd, k, n) {
+      if (!sd) return '<span class="text-slate-400">AA non renseignés</span>';
+      if (sd.state === 'locked-success') return '<span class="text-slate-400">non nécessaire (réussi en 1ʳᵉ session)</span>';
+      if (sd.state === 'locked-pending') return '<span class="text-slate-400">–</span>';
+      const chips = sd.cells.map((v, i) => ficheChip(v, k, sd.fixed && sd.fixed[i])).join('');
+      const labels = k === 1
+        ? {reussite: ['Réussite', 'text-emerald-700'], ajourne: ['Ajourné', 'text-amber-700'], refus: ['Refus', 'text-red-700'], pending: ['en cours', 'text-slate-400']}
+        : {acquis: ['Acquis', 'text-emerald-700'], refus: ['Refus', 'text-red-700'], pending: ['en cours', 'text-slate-400']};
+      const l = labels[sd.result] || ['–', 'text-slate-400'];
+      const note = sd.note !== null && sd.note !== undefined ? `<span class="font-bold text-slate-800 mx-1">${sd.note}</span>` : '';
+      return `<div class="whitespace-nowrap">${chips}</div><div class="mt-0.5">${note}<span class="font-bold ${l[1]}">${l[0]}</span></div>`;
+    }
+
+    function closeStudentCard() {
+      document.getElementById('studentCardModal').classList.add('hidden');
+    }
+
+    function refreshStudentCard() {
+      if (ficheTargetId) openStudentCard(ficheTargetId, true);
+    }
+
+    async function openStudentCard(studentId, force) {
+      if (!canOpenStudentCard()) return;
+      const target = students.find(s => s.id === studentId);
+      if (!target) return;
+      ficheTargetId = studentId;
+      const body = document.getElementById('studentCardBody');
+      document.getElementById('studentCardTitle').textContent = `${String(target.nom || '').toUpperCase()} ${target.prenom || ''}`.trim();
+      document.getElementById('studentCardSub').textContent = target.matricule ? `Matricule : ${target.matricule}` : "Pas de matricule : reconnu dans les autres cours par son nom et prénom";
+      body.innerHTML = '<p class="py-8 text-center text-slate-500">Lecture des registres de tous les cours…</p>';
+      document.getElementById('studentCardModal').classList.remove('hidden');
+
+      const payloads = await fetchAllPayloads(!!force);
+      if (ficheTargetId !== studentId) return;
+      const order = {};
+      sortedCourses().forEach((c, i) => { order[c.id] = i; });
+      const ids = Object.keys(payloads).sort((a, b) => (order[a] ?? 9999) - (order[b] ?? 9999));
+
+      const rows = [];
+      ids.forEach(id => {
+        const c = courses.find(x => x.id === id) || null;
+        const res = studentResultInCourse(payloads[id], c, target);
+        if (res) rows.push({id, c, p: payloads[id], res});
+      });
+
+      if (!rows.length) {
+        body.innerHTML = '<p class="py-8 text-center text-slate-500">Aucun registre ne contient cet étudiant.</p>';
+        return;
+      }
+      const rates = rows.map(r => r.res.rate).filter(r => r !== null);
+      const avg = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : null;
+      const rateCls = r => r === null ? 'text-slate-400' : r >= 80 ? 'text-emerald-700' : r >= 50 ? 'text-amber-600' : 'text-red-700';
+
+      let html = `<div class="mb-2 text-xs text-slate-600">${rows.length} cours · taux de présence moyen : <strong class="${rateCls(avg)}">${fmtRate(avg)}</strong>
+        ${ficheCache.online === false ? '<span class="ml-2 text-amber-700 font-semibold">(hors ligne : copies locales, peut être incomplet)</span>' : ''}</div>
+        <table class="w-full text-xs border-collapse"><thead><tr class="bg-[#0a3a60] text-white text-left">
+          <th class="px-2 py-1.5">UE</th><th class="px-2 py-1.5 text-center">Présence</th>
+          <th class="px-2 py-1.5">1ʳᵉ session</th><th class="px-2 py-1.5">2ᵉ session</th></tr></thead><tbody>`;
+      rows.forEach((r, i) => {
+        const title = r.c ? `${r.c.codeUE || ''} - ${r.c.titre || r.c.intituleUE || ''}` : (r.p.courseTitle || r.id);
+        const res = r.res;
+        const det = res.done ? `${res.absences} abs. / ${res.done} séance${res.done > 1 ? 's' : ''}` : 'aucune séance réalisée';
+        html += `<tr class="${i % 2 ? 'bg-white' : 'bg-amber-50/40'} align-top border-b border-slate-200">
+          <td class="px-2 py-1.5"><div class="font-bold text-slate-800">${escapeHtml(title)}</div>
+            ${res.abandoned ? '<span class="px-1 rounded bg-red-100 text-red-700 font-bold text-[10px]">ABANDON</span>' : ''}
+            ${res.byName ? '<span class="text-[10px] text-slate-400" title="Reconnu par nom et prénom (matricule absent d\'un des registres)">≈ par nom</span>' : ''}</td>
+          <td class="px-2 py-1.5 text-center"><div class="font-bold text-sm ${rateCls(res.rate)}">${fmtRate(res.rate)}</div><div class="text-[10px] text-slate-500">${det}</div></td>
+          <td class="px-2 py-1.5">${ficheSession(res.aa && res.aa.s1, 1, res.n)}</td>
+          <td class="px-2 py-1.5">${ficheSession(res.aa && res.aa.s2, 2, res.n)}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      body.innerHTML = html;
+    }
+
+    // -------------------------------------------------------------
+    // TÉLÉPHONE : menu replié par défaut, largeurs de colonnes adaptées
+    // -------------------------------------------------------------
+    function isMobileView() {
+      return window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+    }
+    function toggleMobileMenu() {
+      const h = document.getElementById('appHeader');
+      h.classList.toggle('mob-collapsed');
+      document.getElementById('mobMenuBtn').textContent = h.classList.contains('mob-collapsed') ? '☰ Menu' : '✕ Fermer';
+    }
+    (function initMobileLayout() {
+      const h = document.getElementById('appHeader');
+      if (!h || !window.matchMedia) return;
+      const mq = window.matchMedia('(max-width: 767px)');
+      if (mq.matches) h.classList.add('mob-collapsed');
+      const onChange = () => { try { renderTable(); } catch (e) { /* ignoré */ } };
+      if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
+    })();
+
+    // -------------------------------------------------------------
+    // GESTION DES LOCAUX (administrateurs) : locaux par implantation, attribution aux UE, agenda d'occupation
+    //  - collection Firestore « locaux » (réservée aux admins) : { implantation, etage, numero, capacite, tbi }
+    //  - le local d'une UE est recopié dans la fiche du cours (localId, localLabel, localSessions) : les profs
+    //    le lisent donc sans accéder à la liste des locaux. Exceptions par séance : localSessions[idSéance].
+    // -------------------------------------------------------------
+    const LOCAUX_LS_KEY = "CESNA_LOCAUX_V1";
+    const LOCAUX_COLLECTION = "locaux";
+    const IMPLANTATIONS = ["Jambes", "Masson"];
+    let locaux = [];
+    let locauxSyncStarted = false;
+    let locPayloads = {};
+    let locAssignCourseId = '';
+
+    function loadLocauxLocal() {
+      try {
+        const a = JSON.parse(localStorage.getItem(LOCAUX_LS_KEY) || '[]');
+        return Array.isArray(a) ? a.filter(r => r && r.id && r.numero) : [];
+      } catch (e) { return []; }
+    }
+    function saveLocauxLocal() {
+      try { localStorage.setItem(LOCAUX_LS_KEY, JSON.stringify(locaux)); } catch (e) { /* ignoré */ }
+    }
+    function setLocMsg(text) {
+      const el = document.getElementById('locMsg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('hidden', !text);
+    }
+    function ensureLocauxSync() {
+      if (locauxSyncStarted) return;
+      locauxSyncStarted = true;
+      locaux = loadLocauxLocal();
+      if (!db || !isLoggedAdmin()) return;
+      db.collection(LOCAUX_COLLECTION).onSnapshot(snap => {
+        const list = [];
+        snap.forEach(d => {
+          const r = Object.assign({}, d.data(), {id: d.id});
+          if (r.numero) list.push(r);
+        });
+        locaux = list;
+        saveLocauxLocal();
+        setLocMsg('');
+        onLocauxChanged();
+      }, err => {
+        console.warn("Erreur Firestore (locaux) :", err);
+        setLocMsg(err && err.code === 'permission-denied'
+          ? "Liste des locaux non synchronisée : ajoutez la collection « locaux » dans les règles Firestore."
+          : "Liste des locaux non synchronisée (hors ligne ?).");
+      });
+    }
+
+    function roomShort(r) { return `${r.implantation} · local ${r.numero}`; }
+    function roomLong(r) {
+      const et = String(r.etage || '').trim();
+      return `${r.implantation} · ${et !== '' ? 'étage ' + et + ' · ' : ''}local ${r.numero} · ${r.capacite} places${r.tbi ? ' · TBI' : ''}`;
+    }
+    function sortedLocaux() {
+      return locaux.slice().sort((a, b) =>
+        (IMPLANTATIONS.indexOf(a.implantation) - IMPLANTATIONS.indexOf(b.implantation)) ||
+        String(a.etage || '').localeCompare(String(b.etage || ''), 'fr', {numeric: true}) ||
+        String(a.numero).localeCompare(String(b.numero), 'fr', {numeric: true}));
+    }
+    function roomUsage(roomId) {
+      return courses.filter(c => c.localId === roomId || Object.values(c.localSessions || {}).some(x => x && x.id === roomId)).length;
+    }
+
+    // Options de liste déroulante des locaux, regroupées par implantation
+    function roomOptionsHtml(selectedId, emptyLabel) {
+      let html = `<option value="">${escapeHtml(emptyLabel)}</option>`;
+      IMPLANTATIONS.forEach(imp => {
+        const rooms = sortedLocaux().filter(r => r.implantation === imp);
+        if (!rooms.length) return;
+        html += `<optgroup label="${escapeHtml(imp)}">` + rooms.map(r => {
+          const et = String(r.etage || '').trim();
+          return `<option value="${r.id}"${r.id === selectedId ? ' selected' : ''}>${escapeHtml((et !== '' ? 'Ét. ' + et + ' · ' : '') + 'local ' + r.numero + ' (' + r.capacite + ' pl.' + (r.tbi ? ', TBI' : '') + ')')}</option>`;
+        }).join('') + '</optgroup>';
+      });
+      if (selectedId && !locaux.some(r => r.id === selectedId)) {
+        html += `<option value="${escapeHtml(selectedId)}" selected>(local introuvable)</option>`;
+      }
+      return html;
+    }
+
+    // Liste « Local » du formulaire de cours
+    function fillLocalSelect() {
+      const sel = document.getElementById('cmLocal');
+      if (!sel) return;
+      ensureLocauxSync();
+      sel.innerHTML = roomOptionsHtml('', '— aucun local —');
+    }
+
+    // Badge « 📍 local » dans l'en-tête (visible aussi pour les profs : lu dans la fiche du cours)
+    function refreshLocalBadge() {
+      const b = document.getElementById('courseLocalBadge');
+      if (!b) return;
+      const c = currentCourseId ? courses.find(x => x.id === currentCourseId) : null;
+      const txt = c && c.localLabel ? c.localLabel : '';
+      b.textContent = txt ? '📍 ' + txt : '';
+      b.classList.toggle('hidden', !txt);
+      const r = c && isLoggedAdmin() ? locaux.find(x => x.id === c.localId) : null;
+      b.title = r ? roomLong(r) : '';
+    }
+
+    // Local d'exception d'une séance (null si la séance suit le local de l'UE)
+    function sessionLocalException(sessId) {
+      const c = currentCourseId ? courses.find(x => x.id === currentCourseId) : null;
+      const x = c && c.localSessions ? c.localSessions[sessId] : null;
+      return x && x.id && x.id !== c.localId ? x : null;
+    }
+
+    // ----- fenêtre -----
+    async function openLocauxModal() {
+      if (!isLoggedAdmin()) return;
+      ensureLocauxSync();
+      document.getElementById('locauxModal').classList.remove('hidden');
+      resetRoomForm();
+      renderLocauxList();
+      renderLocAssignSelect();
+      showLocTab('rooms');
+      await refreshLocPayloads(false);
+    }
+    function closeLocauxModal() {
+      document.getElementById('locauxModal').classList.add('hidden');
+    }
+    function showLocTab(tab) {
+      ['rooms', 'assign', 'agenda'].forEach(t => {
+        document.getElementById('locPane_' + t).classList.toggle('hidden', t !== tab);
+        const b = document.getElementById('locTab_' + t);
+        b.classList.toggle('bg-white', t === tab);
+        b.classList.toggle('text-[#0a3a60]', t === tab);
+        b.classList.toggle('bg-white/10', t !== tab);
+        b.classList.toggle('text-white', t !== tab);
+      });
+      if (tab === 'agenda') renderLocAgenda();
+      if (tab === 'assign') loadLocAssign();
+    }
+    async function refreshLocPayloads(force) {
+      try { locPayloads = await fetchAllPayloads(!!force); } catch (e) { locPayloads = {}; }
+      const pane = ['rooms', 'assign', 'agenda'].find(t => !document.getElementById('locPane_' + t).classList.contains('hidden'));
+      if (pane === 'agenda') renderLocAgenda();
+      if (pane === 'assign') loadLocAssign();
+    }
+    function onLocauxChanged() {
+      renderLocauxList();
+      fillLocalSelect();
+      refreshLocalBadge();
+      const m = document.getElementById('locauxModal');
+      if (m && !m.classList.contains('hidden')) {
+        renderLocAssignSelect();
+        const pane = ['rooms', 'assign', 'agenda'].find(t => !document.getElementById('locPane_' + t).classList.contains('hidden'));
+        if (pane === 'agenda') renderLocAgenda();
+      }
+    }
+
+    // ----- onglet « Locaux » : liste + formulaire -----
+    function renderLocauxList() {
+      const tbody = document.getElementById('locauxListBody');
+      if (!tbody) return;
+      const filt = (document.getElementById('locFilterImp') || {}).value || '';
+      const rows = sortedLocaux().filter(r => !filt || r.implantation === filt);
+      tbody.innerHTML = rows.length ? '' : '<tr><td colspan="7" class="px-2 py-6 text-center text-slate-400">Aucun local. Ajoutez-en avec le formulaire.</td></tr>';
+      rows.forEach(r => {
+        const used = roomUsage(r.id);
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-yellow-50';
+        tr.innerHTML = `
+          <td class="px-2 py-1 font-semibold">${escapeHtml(r.implantation)}</td>
+          <td class="px-2 py-1">${escapeHtml(String(r.etage || '–'))}</td>
+          <td class="px-2 py-1 font-bold">${escapeHtml(String(r.numero))}</td>
+          <td class="px-2 py-1 text-right">${r.capacite}</td>
+          <td class="px-2 py-1 text-center">${r.tbi ? '<span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-bold">TBI</span>' : '<span class="text-slate-300">–</span>'}</td>
+          <td class="px-2 py-1 text-center">${used || '<span class="text-slate-300">0</span>'}</td>
+          <td class="px-2 py-1 text-right whitespace-nowrap">
+            <button class="px-1.5 py-0.5 text-blue-700 hover:bg-blue-100 rounded font-semibold" onclick="editRoom('${r.id}')">Modifier</button>
+            <button class="px-1.5 py-0.5 text-rose-700 hover:bg-rose-100 rounded font-semibold" onclick="deleteRoom('${r.id}')" title="Supprimer">🗑</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    function resetRoomForm() {
+      ['lrEditId', 'lrEtage', 'lrNumero', 'lrCapacite'].forEach(id => { document.getElementById(id).value = ''; });
+      document.getElementById('lrImplantation').value = IMPLANTATIONS[0];
+      document.getElementById('lrTbi').checked = false;
+      document.getElementById('roomFormTitle').textContent = 'Nouveau local';
+    }
+    function editRoom(id) {
+      const r = locaux.find(x => x.id === id);
+      if (!r) return;
+      document.getElementById('lrEditId').value = r.id;
+      document.getElementById('lrImplantation').value = r.implantation;
+      document.getElementById('lrEtage').value = r.etage || '';
+      document.getElementById('lrNumero').value = r.numero;
+      document.getElementById('lrCapacite').value = r.capacite;
+      document.getElementById('lrTbi').checked = !!r.tbi;
+      document.getElementById('roomFormTitle').textContent = `Modifier : ${roomShort(r)}`;
+    }
+    function saveRoomForm() {
+      const v = id => document.getElementById(id).value.trim();
+      const implantation = v('lrImplantation'), etage = v('lrEtage'), numero = v('lrNumero');
+      const capacite = parseInt(v('lrCapacite'), 10);
+      const editId = v('lrEditId');
+      if (!IMPLANTATIONS.includes(implantation) || !numero) { alert("L'implantation et le numéro du local sont obligatoires."); return; }
+      if (!(capacite >= 1 && capacite <= 999)) { alert("Indiquez la capacité maximale en nombre d'étudiants (1 à 999)."); return; }
+      if (locaux.some(r => r.id !== editId && r.implantation === implantation && String(r.numero).toLowerCase() === numero.toLowerCase())) {
+        alert(`Le local ${numero} existe déjà à ${implantation}.`); return;
+      }
+      const room = {id: editId || ('l_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
+        implantation, etage, numero, capacite, tbi: document.getElementById('lrTbi').checked};
+      const i = locaux.findIndex(r => r.id === room.id);
+      if (i >= 0) locaux[i] = room; else locaux.push(room);
+      saveLocauxLocal();
+      if (db) {
+        const {id, ...data} = room;
+        db.collection(LOCAUX_COLLECTION).doc(id).set(data).catch(err => {
+          console.warn("Échec d'écriture du local :", err);
+          setLocMsg(err && err.code === 'permission-denied'
+            ? "Local non synchronisé : ajoutez la collection « locaux » dans les règles Firestore."
+            : "Local non synchronisé (hors ligne ?).");
+        });
+      }
+      propagateRoomChange(room);
+      resetRoomForm();
+      onLocauxChanged();
+    }
+    // le nom du local est recopié dans les cours : on le met à jour si le local change
+    function propagateRoomChange(room) {
+      courses.slice().forEach(c => {
+        let changed = false;
+        const upd = Object.assign({}, c);
+        if (c.localId === room.id && c.localLabel !== roomShort(room)) { upd.localLabel = roomShort(room); changed = true; }
+        if (c.localSessions) {
+          const ls = Object.assign({}, c.localSessions);
+          Object.keys(ls).forEach(k => {
+            if (ls[k] && ls[k].id === room.id && (ls[k].label !== roomShort(room) || ls[k].num !== room.numero)) {
+              ls[k] = {id: room.id, label: roomShort(room), num: room.numero}; changed = true;
+            }
+          });
+          upd.localSessions = ls;
+        }
+        if (changed) upsertCourse(upd);
+      });
+    }
+    function deleteRoom(id) {
+      const r = locaux.find(x => x.id === id);
+      if (!r) return;
+      const used = roomUsage(id);
+      if (!confirm(`Supprimer le local « ${roomShort(r)} » ?` + (used ? `\n\nIl est attribué à ${used} cours : leur local sera retiré.` : ''))) return;
+      courses.slice().forEach(c => {
+        const hasSess = Object.values(c.localSessions || {}).some(x => x && x.id === id);
+        if (c.localId !== id && !hasSess) return;
+        const upd = Object.assign({}, c);
+        if (c.localId === id) { upd.localId = ''; upd.localLabel = ''; }
+        const ls = {};
+        Object.keys(c.localSessions || {}).forEach(k => { if (c.localSessions[k].id !== id) ls[k] = c.localSessions[k]; });
+        upd.localSessions = ls;
+        upsertCourse(upd);
+      });
+      locaux = locaux.filter(x => x.id !== id);
+      saveLocauxLocal();
+      if (db) db.collection(LOCAUX_COLLECTION).doc(id).delete().catch(err => console.warn("Suppression du local impossible :", err));
+      resetRoomForm();
+      onLocauxChanged();
+    }
+
+    // ----- calcul de l'occupation (toutes les séances de tous les cours) -----
+    function toMin(str, dflt) {
+      const m = String(str || '').match(/(\d{1,2})\s*[:hH]\s*(\d{2})?/);
+      return m ? parseInt(m[1], 10) * 60 + parseInt(m[2] || '0', 10) : dflt;
+    }
+    function parseDateInPayload(p, str) {
+      const bak = adminMetadata;
+      try { adminMetadata = p.adminMetadata || {}; return parseSessionDate(str); } finally { adminMetadata = bak; }
+    }
+    function dateKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+    function fmtDM(d) { return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; }
+    function mondayOf(d) {
+      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+      return x;
+    }
+    function academicYearOf(d) { return d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1; }
+
+    // override : {id, patch} pour simuler l'attribution en cours d'édition d'un cours
+    function computeOccupancy(payloads, override) {
+      const entries = [];
+      let noRoom = 0;
+      courses.forEach(c0 => {
+        const p = payloads[c0.id];
+        if (!p || !Array.isArray(p.sessions)) return;
+        const c = (override && override.id === c0.id) ? Object.assign({}, c0, override.patch) : c0;
+        p.sessions.forEach(sess => {
+          const dd = parseDateInPayload(p, sess.date);
+          if (!dd) return;
+          const exc = c.localSessions && c.localSessions[sess.id];
+          const roomId = (exc && exc.id) || c.localId;
+          if (!roomId) { noRoom++; return; }
+          entries.push({
+            roomId, courseId: c.id, code: c.codeUE, title: c.titre || c.intituleUE, teacher: c.enseignant,
+            sessId: sess.id, date: new Date(dd.year, dd.month - 1, dd.day),
+            start: toMin(sess.start, 0), end: toMin(sess.end, 1440), startTxt: sess.start || '', endTxt: sess.end || '',
+            students: (p.students || []).length, conflict: []
+          });
+        });
+      });
+      const byKey = {};
+      entries.forEach(e => { const k = e.roomId + '|' + dateKey(e.date); (byKey[k] = byKey[k] || []).push(e); });
+      Object.values(byKey).forEach(list => {
+        for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+          const a = list[i], b = list[j];
+          if (a.courseId === b.courseId) continue;
+          if (a.start < b.end && b.start < a.end) { a.conflict.push(b); b.conflict.push(a); }
+        }
+      });
+      entries.forEach(e => {
+        const r = locaux.find(x => x.id === e.roomId);
+        e.over = !!(r && e.students > r.capacite);
+      });
+      return {entries, noRoom};
+    }
+
+    function courseColor(id) {
+      let h = 0;
+      for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
+      return `hsl(${h}, 55%, 42%)`;
+    }
+
+    // ----- onglet « Attribution par UE » -----
+    function renderLocAssignSelect() {
+      const sel = document.getElementById('laCourse');
+      if (!sel) return;
+      const keep = locAssignCourseId || sel.value;
+      sel.innerHTML = '<option value="">— choisissez une UE —</option>' + sortedCourses().map(c =>
+        `<option value="${c.id}">${escapeHtml(c.codeUE + ' - ' + (c.titre || c.intituleUE))}${c.localLabel ? escapeHtml('  →  ' + c.localLabel) : ''}</option>`).join('');
+      sel.value = keep || '';
+    }
+    function sessionsOfPayload(p) {
+      return (p && Array.isArray(p.sessions) ? p.sessions : []).map(s => ({s, d: parseDateInPayload(p, s.date)}))
+        .sort((a, b) => {
+          const ka = a.d ? new Date(a.d.year, a.d.month - 1, a.d.day).getTime() : 0, kb = b.d ? new Date(b.d.year, b.d.month - 1, b.d.day).getTime() : 0;
+          return ka - kb || String(a.s.start || '').localeCompare(String(b.s.start || ''));
+        }).map(x => x.s);
+    }
+    function loadLocAssign() {
+      locAssignCourseId = document.getElementById('laCourse').value;
+      const box = document.getElementById('laBody');
+      const c = courses.find(x => x.id === locAssignCourseId);
+      if (!c) { box.innerHTML = '<p class="text-xs text-slate-500 py-6 text-center">Choisissez une UE pour définir son local.</p>'; return; }
+      const p = locPayloads[c.id];
+      const sess = sessionsOfPayload(p);
+      const exc = c.localSessions || {};
+      let html = `<div class="grid md:grid-cols-3 gap-3 items-end mb-3">
+        <div class="md:col-span-2">
+          <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Local de l'UE (par défaut pour toutes les séances)</label>
+          <select id="laDefault" onchange="checkLocAssign()" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs">${roomOptionsHtml(c.localId || '', '— aucun local —')}</select>
+        </div>
+        <div class="text-xs text-slate-600">${p ? `<strong>${(p.students || []).length}</strong> étudiant(s) dans le registre` : '<span class="text-slate-400">registre non chargé</span>'}</div>
+      </div>
+      <div id="laWarn" class="mb-3 space-y-1"></div>`;
+      if (!sess.length) {
+        html += `<p class="text-xs text-slate-500 border border-dashed border-slate-300 rounded p-3">Aucune séance n'est encore encodée pour cette UE. Le local par défaut s'appliquera automatiquement dès que les séances seront créées.</p>`;
+      } else {
+        html += `<p class="text-[11px] text-slate-500 mb-1">Exception : choisissez un autre local pour une séance précise (sinon elle suit le local de l'UE).</p>
+        <div class="border border-slate-300 rounded overflow-auto max-h-[48vh]"><table class="w-full text-xs">
+          <thead class="bg-slate-200 text-slate-700 sticky top-0"><tr><th class="text-left px-2 py-1.5">Date</th><th class="text-left px-2 py-1.5">Horaire</th><th class="text-left px-2 py-1.5">Local de la séance</th></tr></thead><tbody class="divide-y divide-slate-200">`;
+        sess.forEach((s, i) => {
+          const sel = exc[s.id] && exc[s.id].id ? exc[s.id].id : '';
+          html += `<tr class="${i % 2 ? 'bg-white' : 'bg-amber-50/40'}"><td class="px-2 py-1 font-semibold">${escapeHtml(s.date)}</td><td class="px-2 py-1">${escapeHtml((s.start || '') + ' - ' + (s.end || ''))}</td>
+            <td class="px-2 py-1"><select data-sess="${escapeHtml(s.id)}" onchange="checkLocAssign()" class="la-sess w-full max-w-md bg-white border border-slate-300 rounded px-2 py-1 text-xs">${roomOptionsHtml(sel, '↳ local de l\'UE')}</select></td></tr>`;
+        });
+        html += '</tbody></table></div>';
+      }
+      html += `<div class="flex justify-end gap-2 mt-3"><button onclick="saveLocAssign()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Enregistrer le local</button></div>`;
+      box.innerHTML = html;
+      checkLocAssign();
+    }
+    function readLocAssignForm() {
+      const localId = document.getElementById('laDefault').value;
+      const room = locaux.find(r => r.id === localId);
+      const patch = {localId, localLabel: room ? roomShort(room) : (localId ? '' : ''), localSessions: {}};
+      document.querySelectorAll('#laBody .la-sess').forEach(sel => {
+        const r = locaux.find(x => x.id === sel.value);
+        if (r && r.id !== localId) patch.localSessions[sel.dataset.sess] = {id: r.id, label: roomShort(r), num: r.numero};
+      });
+      return patch;
+    }
+    // Avertissements (sans blocage) : local occupé au même moment, local trop petit
+    function checkLocAssign() {
+      const c = courses.find(x => x.id === locAssignCourseId);
+      const warn = document.getElementById('laWarn');
+      if (!c || !warn) return;
+      const patch = readLocAssignForm();
+      const occ = computeOccupancy(locPayloads, {id: c.id, patch});
+      const mine = occ.entries.filter(e => e.courseId === c.id);
+      const msgs = [];
+      mine.filter(e => e.conflict.length).forEach(e => {
+        const others = [...new Set(e.conflict.map(o => o.code))].join(', ');
+        msgs.push(`⚠ ${fmtDM(e.date)} ${e.startTxt}-${e.endTxt} : local déjà occupé par ${others}.`);
+      });
+      const seenCap = new Set();
+      mine.filter(e => e.over).forEach(e => {
+        if (seenCap.has(e.roomId)) return; seenCap.add(e.roomId);
+        const r = locaux.find(x => x.id === e.roomId);
+        msgs.push(`⚠ Capacité dépassée : ${e.students} étudiants pour ${r.capacite} places (${roomShort(r)}).`);
+      });
+      warn.innerHTML = msgs.length
+        ? msgs.slice(0, 12).map(m => `<div class="text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded px-2 py-1">${escapeHtml(m)}</div>`).join('') + (msgs.length > 12 ? `<div class="text-[11px] text-slate-500">… et ${msgs.length - 12} autre(s)</div>` : '')
+        : (patch.localId ? '<div class="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">✔ Aucun conflit d\'horaire ni de capacité détecté.</div>' : '');
+    }
+    function saveLocAssign() {
+      const c = courses.find(x => x.id === locAssignCourseId);
+      if (!c) return;
+      upsertCourse(Object.assign({}, c, readLocAssignForm()));
+      renderLocAssignSelect();
+      loadLocAssign();
+    }
+
+    // ----- onglet « Agenda d'occupation » -----
+    function renderLocAgenda() {
+      const box = document.getElementById('lgBody');
+      if (!box) return;
+      const occ = computeOccupancy(locPayloads, null);
+      const ySel = document.getElementById('lgYear');
+      const today = new Date();
+      const years = [...new Set(occ.entries.map(e => academicYearOf(e.date)).concat([academicYearOf(today)]))].sort();
+      const wantY = parseInt(ySel.value, 10) || academicYearOf(today);
+      ySel.innerHTML = years.map(y => `<option value="${y}"${y === wantY ? ' selected' : ''}>${y}-${y + 1}</option>`).join('');
+      const Y = years.includes(wantY) ? wantY : years[years.length - 1];
+      ySel.value = Y;
+
+      const impF = document.getElementById('lgImp').value;
+      const etF = document.getElementById('lgEtage').value;
+      const etages = [...new Set(sortedLocaux().filter(r => !impF || r.implantation === impF).map(r => String(r.etage || '')))];
+      const etSel = document.getElementById('lgEtage');
+      etSel.innerHTML = '<option value="">Tous les étages</option>' + etages.map(e => `<option value="${escapeHtml(e)}"${e === etF ? ' selected' : ''}>${e === '' ? '(sans étage)' : 'Étage ' + escapeHtml(e)}</option>`).join('');
+      const etFinal = etages.includes(etF) ? etF : '';
+
+      const rooms = sortedLocaux().filter(r => (!impF || r.implantation === impF) && (!etFinal || String(r.etage || '') === etFinal));
+      if (!rooms.length) { box.innerHTML = '<p class="text-xs text-slate-500 py-8 text-center">Aucun local à afficher. Créez d\'abord vos locaux (onglet « Locaux »).</p>'; return; }
+
+      const start = mondayOf(new Date(Y, 8, 1));
+      const end = new Date(Y + 1, 7, 31);
+      const nWeeks = Math.round((mondayOf(end) - start) / (7 * 86400000)) + 1;
+      const weekIdx = d => Math.round((mondayOf(d) - start) / (7 * 86400000));
+      const cells = {};
+      occ.entries.forEach(e => {
+        const wi = weekIdx(e.date);
+        if (wi < 0 || wi >= nWeeks) return;
+        const k = e.roomId + '|' + wi;
+        (cells[k] = cells[k] || []).push(e);
+      });
+      window.__locCells = cells;
+
+      const weeks = Array.from({length: nWeeks}, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i * 7); return d; });
+      const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+      let monthRow = '';
+      for (let i = 0; i < nWeeks;) {
+        const ref = new Date(weeks[i]); ref.setDate(ref.getDate() + 3);
+        let j = i;
+        while (j < nWeeks) { const r2 = new Date(weeks[j]); r2.setDate(r2.getDate() + 3); if (r2.getMonth() !== ref.getMonth()) break; j++; }
+        monthRow += `<th colspan="${j - i}" class="px-1 py-1 text-center font-bold border-r border-slate-500 bg-[#0a3a60] text-white">${MONTHS[ref.getMonth()]}</th>`;
+        i = j;
+      }
+      const curWeek = weekIdx(today);
+      let head = `<thead class="sticky top-0 z-20"><tr><th rowspan="2" class="sticky left-0 z-30 bg-[#0a3a60] text-white text-left px-2 py-1 min-w-[170px] border-r border-slate-500">Local</th>${monthRow}</tr><tr>` +
+        weeks.map((d, i) => `<th class="px-0 py-0.5 text-[9px] font-normal text-center ${i === curWeek ? 'bg-amber-400 text-slate-900 font-bold' : 'bg-[#082d4a] text-white'} border-r border-slate-600 min-w-[38px]">${fmtDM(d)}</th>`).join('') + '</tr></thead>';
+
+      let body = '<tbody>';
+      let lastImp = '';
+      rooms.forEach(r => {
+        if (r.implantation !== lastImp) {
+          lastImp = r.implantation;
+          body += `<tr><td class="sticky left-0 bg-slate-300 font-bold px-2 py-1 text-slate-800 z-10" colspan="${nWeeks + 1}">📍 ${escapeHtml(lastImp)}</td></tr>`;
+        }
+        body += `<tr class="hover:bg-yellow-50"><td class="sticky left-0 z-10 bg-white px-2 py-1 border-b border-r border-slate-300 whitespace-nowrap"><span class="font-bold">${escapeHtml(String(r.numero))}</span> <span class="text-slate-500">· ét. ${escapeHtml(String(r.etage || '–'))} · ${r.capacite} pl.</span>${r.tbi ? ' <span class="px-1 rounded bg-sky-100 text-sky-800 font-bold text-[9px]">TBI</span>' : ''}</td>`;
+        for (let i = 0; i < nWeeks; i++) {
+          const list = cells[r.id + '|' + i] || [];
+          if (!list.length) { body += `<td class="border-b border-r border-slate-200 ${i === curWeek ? 'bg-amber-50' : ''}"></td>`; continue; }
+          const byCourse = {};
+          list.forEach(e => { (byCourse[e.courseId] = byCourse[e.courseId] || []).push(e); });
+          const ids = Object.keys(byCourse);
+          const bad = list.some(e => e.conflict.length);
+          const over = list.some(e => e.over);
+          const tip = list.sort((a, b) => a.date - b.date || a.start - b.start).map(e => `${fmtDM(e.date)} ${e.startTxt}-${e.endTxt} · ${e.code} ${e.title}${e.conflict.length ? ' ⚠ CONFLIT' : ''}${e.over ? ' ⚠ capacité' : ''}`).join('\n');
+          const inner = ids.length === 1
+            ? `<div class="h-6 flex items-center justify-center text-[9px] font-bold text-white overflow-hidden" style="background:${courseColor(ids[0])}">${escapeHtml(String(byCourse[ids[0]][0].code).replace(/[-\s]/g, '').slice(0, 6))}</div>`
+            : ids.map(id => `<div class="h-3 text-[8px] leading-3 text-white font-bold overflow-hidden text-center" style="background:${courseColor(id)}">${escapeHtml(String(byCourse[id][0].code).replace(/[-\s]/g, '').slice(0, 6))}</div>`).join('');
+          body += `<td class="border-b border-r border-slate-200 p-0 cursor-pointer ${bad ? 'outline outline-2 outline-red-600 -outline-offset-2' : over ? 'outline outline-2 outline-amber-500 -outline-offset-2' : ''}" title="${escapeHtml(tip)}" onclick="locCellClick('${r.id}', ${i})">${inner}</td>`;
+        }
+        body += '</tr>';
+      });
+      body += '</tbody>';
+
+      const conflicts = occ.entries.filter(e => e.conflict.length);
+      const nConf = Math.floor(conflicts.length / 2) || (conflicts.length ? 1 : 0);
+      const overs = occ.entries.filter(e => e.over);
+      const sum = [];
+      sum.push(`${occ.entries.length} séance(s) planifiée(s)`);
+      if (occ.noRoom) sum.push(`<span class="text-amber-700 font-semibold">${occ.noRoom} séance(s) sans local (non affichées)</span>`);
+      sum.push(nConf ? `<span class="text-red-700 font-bold">⚠ ${nConf} conflit(s) de local</span>` : '<span class="text-emerald-700 font-semibold">aucun conflit</span>');
+      if (overs.length) sum.push(`<span class="text-amber-700 font-semibold">⚠ ${new Set(overs.map(e => e.courseId + e.roomId)).size} UE avec capacité dépassée</span>`);
+      document.getElementById('lgSummary').innerHTML = sum.join(' · ');
+      box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[56vh]"><table class="text-[10px] border-separate border-spacing-0">${head}${body}</table></div>`;
+      document.getElementById('lgDetail').innerHTML = '<span class="text-slate-400">Cliquez sur une case pour voir le détail des séances de la semaine. Contour rouge = conflit, orange = capacité dépassée.</span>';
+
+      // détail des conflits
+      const seen = new Set(), lines = [];
+      conflicts.forEach(e => e.conflict.forEach(o => {
+        const key = [e.roomId, dateKey(e.date), [e.courseId + e.sessId, o.courseId + o.sessId].sort().join('~')].join('|');
+        if (seen.has(key)) return; seen.add(key);
+        const r = locaux.find(x => x.id === e.roomId);
+        lines.push(`${fmtDM(e.date)} · ${r ? roomShort(r) : ''} · ${e.code} (${e.startTxt}-${e.endTxt}) ⟷ ${o.code} (${o.startTxt}-${o.endTxt})`);
+      }));
+      document.getElementById('lgConflicts').innerHTML = lines.length
+        ? `<details class="mt-2 text-xs"><summary class="cursor-pointer font-bold text-red-700">Voir les ${lines.length} conflit(s)</summary><ul class="mt-1 space-y-0.5">${lines.slice(0, 200).map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul></details>` : '';
+    }
+    function locCellClick(roomId, wi) {
+      const list = (window.__locCells || {})[roomId + '|' + wi] || [];
+      const r = locaux.find(x => x.id === roomId);
+      document.getElementById('lgDetail').innerHTML = `<div class="font-bold text-[#0a3a60] mb-1">${r ? escapeHtml(roomLong(r)) : ''}</div>` +
+        list.slice().sort((a, b) => a.date - b.date || a.start - b.start).map(e =>
+          `<div class="flex items-center gap-2 py-0.5"><span class="inline-block w-3 h-3 rounded" style="background:${courseColor(e.courseId)}"></span>
+           <span class="font-semibold">${fmtDM(e.date)} ${escapeHtml(e.startTxt)}-${escapeHtml(e.endTxt)}</span>
+           <span>${escapeHtml(e.code)} - ${escapeHtml(e.title)}</span><span class="text-slate-500">(${escapeHtml(e.teacher || '')}, ${e.students} étud.)</span>
+           ${e.conflict.length ? '<span class="px-1 rounded bg-red-100 text-red-700 font-bold">⚠ conflit</span>' : ''}${e.over ? '<span class="px-1 rounded bg-amber-100 text-amber-800 font-bold">⚠ capacité</span>' : ''}</div>`).join('');
     }
 
     function escapeHtml(str) {
