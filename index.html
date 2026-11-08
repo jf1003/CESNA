@@ -516,7 +516,7 @@
             <span id="lgSummary" class="ml-auto text-slate-600"></span>
           </div>
           <div id="lgBody" ondragover="locDragOver(event)" ondrop="locDrop(event)"></div>
-          <style>#lgBody tr.loc-drop td { background: #bae6fd !important; }</style>
+          <style>#lgBody tr.loc-drop td { background: #bae6fd !important; } #lgBody .loc-drop-slot { background: #7dd3fc !important; outline: 2px dashed #0369a1; outline-offset: -2px; }</style>
           <div id="lgMoveDlg" class="hidden fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4"><div id="lgMoveBody" class="bg-white rounded-lg shadow-2xl p-4 w-full max-w-md text-xs"></div></div>
           <div id="lgDetail" class="mt-2 p-2 border border-slate-200 rounded bg-slate-50 min-h-[2.5rem]"></div>
           <div id="lgConflicts"></div>
@@ -5008,7 +5008,9 @@
         const p = payloads[c0.id];
         if (!p || !Array.isArray(p.sessions)) return;
         const c = (override && override.id === c0.id) ? Object.assign({}, c0, override.patch) : c0;
-        p.sessions.forEach(sess => {
+        const pSess = (override && override.id === c0.id && override.sess)
+          ? p.sessions.map(x => x.id === override.sess.id ? Object.assign({}, x, override.sess) : x) : p.sessions;
+        pSess.forEach(sess => {
           const dd = parseDateInPayload(p, sess.date);
           if (!dd) return;
           const exc = c.localSessions && c.localSessions[sess.id];
@@ -5267,14 +5269,14 @@
           const base = `border-b ${d.getDay() === 1 ? 'border-l-2 border-l-slate-400' : 'border-l border-l-slate-200'} p-0 align-top ${isT ? 'bg-amber-50' : (d.getDay() === 6 ? 'bg-slate-50' : '')}`;
           const slots = ['M', 'A', 'S'].map(sl => {
             const inSlot = list.filter(e => e.dayparts.includes(sl));
-            if (!inSlot.length) return `<div class="h-6 flex items-center px-1 text-[8px] text-slate-300 border-t border-slate-100">${sl}</div>`;
+            if (!inSlot.length) return `<div data-slot="${sl}" class="h-6 flex items-center px-1 text-[8px] text-slate-300 border-t border-slate-100">${sl}</div>`;
             const byC = {};
             inSlot.forEach(e => { (byC[e.courseId] = byC[e.courseId] || []).push(e); });
             const bad = inSlot.some(e => e.conflict.length), over = inSlot.some(e => e.over);
-            return `<div class="h-6 flex border-t border-white ${bad ? 'outline outline-2 outline-red-600 -outline-offset-2' : over ? 'outline outline-2 outline-amber-500 -outline-offset-2' : ''}">` +
-              Object.keys(byC).map(id => `<div draggable="true" ondragstart="locDragStart(event, '${id}', '${r.id}', '${k}')" ondragend="locDragEnd()" class="flex-1 min-w-0 flex items-center px-1 text-white font-bold text-[10px] overflow-hidden whitespace-nowrap cursor-grab" style="background:${courseColor(id)}" title="${escapeHtml(byC[id][0].code + ' - ' + byC[id][0].title + ' (' + byC[id].map(e => e.startTxt + '-' + e.endTxt).join(', ') + ')')}"><span class="text-[8px] opacity-70 mr-1">${sl}</span>${escapeHtml(String(byC[id][0].code).replace(/\s/g, ''))}</div>`).join('') + (bad ? '<span class="text-[10px] px-0.5 bg-red-600 text-white font-bold">⚠</span>' : '') + '</div>';
+            return `<div data-slot="${sl}" class="h-6 flex border-t border-white ${bad ? 'outline outline-2 outline-red-600 -outline-offset-2' : over ? 'outline outline-2 outline-amber-500 -outline-offset-2' : ''}">` +
+              Object.keys(byC).map(id => `<div draggable="true" ondragstart="locDragStart(event, '${id}', '${r.id}', '${k}', '${sl}')" ondragend="locDragEnd()" class="flex-1 min-w-0 flex items-center px-1 text-white font-bold text-[10px] overflow-hidden whitespace-nowrap cursor-grab" style="background:${courseColor(id)}" title="${escapeHtml(byC[id][0].code + ' - ' + byC[id][0].title + ' (' + byC[id].map(e => e.startTxt + '-' + e.endTxt).join(', ') + ')')}"><span class="text-[8px] opacity-70 mr-1">${sl}</span>${escapeHtml(String(byC[id][0].code).replace(/\s/g, ''))}</div>`).join('') + (bad ? '<span class="text-[10px] px-0.5 bg-red-600 text-white font-bold">⚠</span>' : '') + '</div>';
           }).join('');
-          body += `<td class="${base} cursor-pointer" onclick="locDayClick('${r.id}', '${k}')">${slots}</td>`;
+          body += `<td data-day="${k}" class="${base} cursor-pointer" onclick="locDayClick('${r.id}', '${k}')">${slots}</td>`;
         });
         body += '</tr>';
       });
@@ -5292,7 +5294,7 @@
       if (overs.length) sum.push(`<span class="text-amber-700 font-semibold">⚠ ${new Set(overs.map(e => e.courseId + e.roomId)).size} UE avec capacité dépassée</span>`);
       document.getElementById('lgSummary').innerHTML = sum.join(' · ');
       box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="text-[10px] border-separate border-spacing-0">${head}${body}</table></div>`;
-      document.getElementById('lgDetail').innerHTML = '<span class="text-slate-400">Cliquez sur une case pour le détail des séances. M = matin, A = après-midi, S = soir (vue jour : 3 lignes par jour). Contour rouge = conflit, orange = capacité dépassée. Glissez une UE sur une autre ligne pour la changer de local.</span>';
+      document.getElementById('lgDetail').innerHTML = '<span class="text-slate-400">Cliquez sur une case pour le détail des séances. M = matin, A = après-midi, S = soir (vue jour : 3 lignes par jour). Contour rouge = conflit, orange = capacité dépassée. Glissez une UE : sur une autre ligne pour changer de local, sur un autre créneau (M/A/S) ou un autre jour pour déplacer la séance.</span>';
 
       // détail des conflits
       const seen = new Set(), lines = [];
@@ -5325,30 +5327,159 @@
 
     // ----- glisser-déposer d'une UE vers un autre local -----
     let locDrag = null, locMoveCtx = null;
-    function locDragStart(ev, courseId, roomId, wi) {
-      locDrag = {courseId, roomId, wi};
+    function locDragStart(ev, courseId, roomId, wi, slot) {
+      locDrag = {courseId, roomId, wi, slot: slot || ''};
       try { ev.dataTransfer.setData('text/plain', courseId); ev.dataTransfer.effectAllowed = 'move'; } catch (e) { /* ignoré */ }
     }
     function locDragEnd() {
       locDrag = null;
-      document.querySelectorAll('#lgBody tr.loc-drop').forEach(tr => tr.classList.remove('loc-drop'));
+      document.querySelectorAll('#lgBody .loc-drop, #lgBody .loc-drop-slot').forEach(x => x.classList.remove('loc-drop', 'loc-drop-slot'));
     }
     function locDragOver(ev) {
       if (!locDrag) return;
       const tr = ev.target.closest && ev.target.closest('tr[data-room]');
       if (!tr) return;
       ev.preventDefault();
-      document.querySelectorAll('#lgBody tr.loc-drop').forEach(x => { if (x !== tr) x.classList.remove('loc-drop'); });
-      tr.classList.add('loc-drop');
+      document.querySelectorAll('#lgBody .loc-drop, #lgBody .loc-drop-slot').forEach(x => x.classList.remove('loc-drop', 'loc-drop-slot'));
+      const slotEl = locDrag.slot ? ev.target.closest('[data-slot]') : null;
+      if (slotEl) slotEl.classList.add('loc-drop-slot'); else tr.classList.add('loc-drop');
     }
     function locDrop(ev) {
       if (!locDrag) return;
       const tr = ev.target.closest && ev.target.closest('tr[data-room]');
+      const slotEl = locDrag.slot ? ev.target.closest('[data-slot]') : null;
+      const td = ev.target.closest && ev.target.closest('td[data-day]');
       ev.preventDefault();
       const d = locDrag;
       locDragEnd();
-      if (!tr || tr.dataset.room === d.roomId) return;
+      if (!tr) return;
+      if (slotEl && td) {
+        const sameDay = td.dataset.day === d.wi, sameSlot = slotEl.dataset.slot === d.slot;
+        if (sameDay && sameSlot) { if (tr.dataset.room !== d.roomId) askLocMove(d, tr.dataset.room); return; }
+        askLocTimeMove(d, tr.dataset.room, td.dataset.day, slotEl.dataset.slot);
+        return;
+      }
+      if (tr.dataset.room === d.roomId) return;
       askLocMove(d, tr.dataset.room);
+    }
+
+    // ----- déplacement d'une séance dans le temps (autre moment de la journée, autre jour) -----
+    const SLOT_DEFAULT_START = {M: '09:00', A: '13:30', S: '17:30'};
+    function minToHHMM(m) { m = Math.max(0, Math.min(1439, m)); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
+    function sessionDateFmt(oldStr, p, isoDate) {
+      // garde le format d'origine (jj/mm ou jj/mm/aaaa) ; ajoute l'année si elle ne se déduit pas de l'année académique
+      const [y, m, dd] = isoDate.split('-').map(Number);
+      const short = `${String(dd).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+      const hadYear = /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(String(oldStr || ''));
+      if (!hadYear) {
+        const chk = parseDateInPayload(p, short);
+        if (chk && chk.year === y) return short;
+      }
+      return `${short}/${y}`;
+    }
+    function askLocTimeMove(d, targetRoom, targetDay, slot) {
+      const c = courses.find(x => x.id === d.courseId), room = locaux.find(r => r.id === targetRoom);
+      const e = dragEntries(d).filter(x => x.dayparts.includes(d.slot))[0];
+      if (!c || !room || !e) return;
+      const dur = Math.max(50, e.end - e.start);
+      const st0 = SLOT_DEFAULT_START[slot] || '09:00';
+      locMoveCtx = {time: true, d, e, dur};
+      const roomOpts = roomOptionsHtml(targetRoom, '—').replace(/<option value="">[^<]*<\/option>/, '');
+      document.getElementById('lgMoveBody').innerHTML = `
+        <div class="font-bold text-[#0a3a60] mb-1">Déplacer la séance de ${escapeHtml(c.codeUE)}</div>
+        <div class="text-slate-500 mb-2">Actuellement : ${fmtDM(e.date)} ${escapeHtml(e.startTxt)}-${escapeHtml(e.endTxt)} (${dayPartsText([e], true)})</div>
+        <div class="grid grid-cols-3 gap-2 mb-2">
+          <label class="col-span-3 font-semibold text-slate-600">Date<input type="date" id="lmDate" value="${targetDay}" onchange="checkLocTimeMove()" class="mt-0.5 w-full border border-slate-300 rounded px-2 py-1 font-normal"></label>
+          <label class="font-semibold text-slate-600">Début<input type="time" id="lmStart" value="${st0}" oninput="lmStartChanged()" class="mt-0.5 w-full border border-slate-300 rounded px-2 py-1 font-normal"></label>
+          <label class="font-semibold text-slate-600">Fin<input type="time" id="lmEnd" value="${minToHHMM(toMin(st0, 540) + dur)}" oninput="checkLocTimeMove()" class="mt-0.5 w-full border border-slate-300 rounded px-2 py-1 font-normal"></label>
+          <label class="font-semibold text-slate-600">Local<select id="lmRoom" onchange="checkLocTimeMove()" class="mt-0.5 w-full border border-slate-300 rounded px-1 py-1 font-normal">${roomOpts}</select></label>
+        </div>
+        <div class="text-[11px] text-slate-500 mb-2">Seule cette séance est modifiée (date et horaire dans le registre du cours). Les présences déjà encodées sont conservées.</div>
+        <div id="lmWarn" class="mb-2 space-y-1"></div>
+        <div class="flex gap-2"><button onclick="doLocTimeMove()" class="px-3 py-1.5 font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded">Déplacer la séance</button>
+        <button onclick="closeLocMove()" class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-100">Annuler</button></div>`;
+      document.getElementById('lgMoveDlg').classList.remove('hidden');
+      checkLocTimeMove();
+    }
+    function lmStartChanged() {
+      const st = toMin(document.getElementById('lmStart').value, null);
+      if (st !== null && locMoveCtx) document.getElementById('lmEnd').value = minToHHMM(st + locMoveCtx.dur);
+      checkLocTimeMove();
+    }
+    function readLocTimeMove() {
+      const {d, e} = locMoveCtx;
+      const c = courses.find(x => x.id === d.courseId);
+      const p = locPayloads[d.courseId];
+      const iso = document.getElementById('lmDate').value;
+      const start = document.getElementById('lmStart').value, end = document.getElementById('lmEnd').value;
+      const roomId = document.getElementById('lmRoom').value;
+      if (!iso || !start || !end || toMin(end, 0) <= toMin(start, 0)) return null;
+      const old = (p.sessions.find(x => x.id === e.sessId) || {}).date;
+      const ls = Object.assign({}, c.localSessions || {});
+      const room = locaux.find(r => r.id === roomId);
+      if (!room || roomId === c.localId) delete ls[e.sessId];
+      else ls[e.sessId] = {id: room.id, label: roomShort(room), num: room.numero};
+      return {c, p, iso, start, end, date: sessionDateFmt(old, p, iso), patch: {localSessions: ls}};
+    }
+    function checkLocTimeMove() {
+      const warn = document.getElementById('lmWarn');
+      const r = locMoveCtx && locMoveCtx.time ? readLocTimeMove() : null;
+      if (!r) { warn.innerHTML = '<div class="text-xs font-semibold text-red-700">Vérifiez la date et les heures (fin après début).</div>'; return; }
+      const occ = computeOccupancy(locPayloads, {id: r.c.id, patch: r.patch, sess: {id: locMoveCtx.e.sessId, date: r.date, start: r.start, end: r.end}});
+      const me = occ.entries.find(x => x.courseId === r.c.id && x.sessId === locMoveCtx.e.sessId);
+      const msgs = [];
+      if (me && me.conflict.length) msgs.push(`⚠ Local déjà occupé à ce moment par ${[...new Set(me.conflict.map(o => o.code))].join(', ')}.`);
+      if (me && me.over) msgs.push(`⚠ Capacité dépassée : ${me.students} étudiants pour ${(locaux.find(x => x.id === me.roomId) || {}).capacite} places.`);
+      warn.innerHTML = msgs.length ? msgs.map(m => `<div class="text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-300 rounded px-2 py-1">${escapeHtml(m)}</div>`).join('')
+        : '<div class="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">✔ Aucun conflit d\'horaire ni de capacité.</div>';
+    }
+    async function doLocTimeMove() {
+      if (!locMoveCtx || !locMoveCtx.time) return;
+      const r = readLocTimeMove();
+      if (!r) return;
+      const sessId = locMoveCtx.e.sessId, courseId = r.c.id;
+      closeLocMove();
+      await updateSessionInRegistre(courseId, sessId, {date: r.date, start: r.start, end: r.end});
+      const sess = ((locPayloads[courseId] || {}).sessions || []).find(x => x.id === sessId);
+      if (sess) Object.assign(sess, {date: r.date, start: r.start, end: r.end});
+      upsertCourse(Object.assign({}, r.c, r.patch));
+      renderLocAgenda();
+    }
+    // Modifie date / horaire d'une séance dans le registre d'un cours (cours ouvert : via la sauvegarde habituelle)
+    async function updateSessionInRegistre(courseId, sessId, change) {
+      if (courseId === currentCourseId) {
+        const s0 = sessions.find(x => x.id === sessId);
+        if (s0) { Object.assign(s0, change); saveToStorage(); renderTable(); }
+        return;
+      }
+      const apply = payload => {
+        const s0 = (payload.sessions || []).find(x => x.id === sessId);
+        if (!s0) return null;
+        Object.assign(s0, change);
+        payload.savedAt = new Date().toISOString();
+        return payload;
+      };
+      let payload = null;
+      if (db) {
+        const ref = db.collection(REMOTE_COLLECTION).doc(courseId);
+        try {
+          await db.runTransaction(async tx => {
+            const snap = await tx.get(ref);
+            if (!snap.exists) return;
+            const x = snap.data();
+            const pl = apply(typeof x.data === 'string' ? JSON.parse(x.data) : x.data);
+            if (!pl) return;
+            payload = pl;
+            tx.set(ref, {data: JSON.stringify(pl), savedAt: pl.savedAt, codeUE: (pl.adminMetadata && pl.adminMetadata.codeUE) || x.codeUE || "", courseTitle: pl.courseTitle || x.courseTitle || ""});
+          });
+        } catch (err) { console.warn("Déplacement de séance : écriture Firestore impossible", err); alert("La séance n'a pas pu être modifiée en ligne (droits ou connexion)."); }
+      }
+      try {
+        const raw = localStorage.getItem(storageKeyFor(courseId));
+        const lp = payload || (raw ? apply(JSON.parse(raw)) : null);
+        if (lp) localStorage.setItem(storageKeyFor(courseId), JSON.stringify(lp));
+      } catch (e) { /* ignoré */ }
+      ficheCache = {at: 0, payloads: null, online: false};
     }
     function dragEntries(d) {
       const m = typeof d.wi === 'string' ? window.__locDayCells : window.__locCells;
