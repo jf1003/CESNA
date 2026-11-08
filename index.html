@@ -445,7 +445,7 @@
 
   <!-- ===== Gestion des locaux (admins) ===== -->
   <div id="locauxModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-2 md:p-4">
-    <div class="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-[96vw] max-h-[95vh] flex flex-col overflow-hidden">
       <div class="bg-[#0a3a60] text-white px-4 py-2 flex flex-wrap items-center gap-2">
         <h2 class="font-bold text-sm mr-auto">🏫 Gestion des locaux</h2>
         <button id="locTab_rooms" onclick="showLocTab('rooms')" class="px-3 py-1 rounded text-xs font-bold">Locaux</button>
@@ -503,6 +503,12 @@
         <!-- Onglet agenda -->
         <div id="locPane_agenda" class="hidden">
           <div class="flex flex-wrap items-center gap-2 mb-2">
+            <select id="lgMode" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1 font-semibold"><option value="day">Vue par jour (mois)</option><option value="week">Vue par semaine (année)</option></select>
+            <span id="lgMonthBox" class="inline-flex items-center gap-1">
+              <button onclick="lgMonthStep(-1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold" title="Mois précédent">‹</button>
+              <select id="lgMonth" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1 font-semibold"></select>
+              <button onclick="lgMonthStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold" title="Mois suivant">›</button>
+            </span>
             <select id="lgYear" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"></select>
             <select id="lgImp" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"><option value="">Toutes les implantations</option><option>Jambes</option><option>Masson</option></select>
             <select id="lgEtage" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"><option value="">Tous les étages</option></select>
@@ -5167,6 +5173,10 @@
       const rooms = sortedLocaux().filter(r => (!impF || r.implantation === impF) && (!etFinal || String(r.etage || '') === etFinal));
       if (!rooms.length) { box.innerHTML = '<p class="text-xs text-slate-500 py-8 text-center">Aucun local à afficher. Créez d\'abord vos locaux (onglet « Locaux »).</p>'; return; }
 
+      let head = '', body = '';
+      const mode = document.getElementById('lgMode').value;
+      document.getElementById('lgMonthBox').classList.toggle('hidden', mode !== 'day');
+      if (mode === 'week') {
       const start = mondayOf(new Date(Y, 8, 1));
       const end = new Date(Y + 1, 7, 31);
       const nWeeks = Math.round((mondayOf(end) - start) / (7 * 86400000)) + 1;
@@ -5191,15 +5201,15 @@
         i = j;
       }
       const curWeek = weekIdx(today);
-      let head = `<thead class="sticky top-0 z-20"><tr><th rowspan="2" class="sticky left-0 z-30 bg-[#0a3a60] text-white text-left px-2 py-1 min-w-[170px] border-r border-slate-500">Local</th>${monthRow}</tr><tr>` +
+      head = `<thead class="sticky top-0 z-20"><tr><th rowspan="2" class="sticky left-0 z-30 bg-[#0a3a60] text-white text-left px-2 py-1 min-w-[170px] border-r border-slate-500">Local</th>${monthRow}</tr><tr>` +
         weeks.map((d, i) => `<th class="px-0 py-0.5 text-[9px] font-normal text-center ${i === curWeek ? 'bg-amber-400 text-slate-900 font-bold' : 'bg-[#082d4a] text-white'} border-r border-slate-600 min-w-[38px]">${fmtDM(d)}</th>`).join('') + '</tr></thead>';
 
-      let body = '<tbody>';
+      body = '<tbody>';
       let lastImp = '';
       rooms.forEach(r => {
         if (r.implantation !== lastImp) {
           lastImp = r.implantation;
-          body += `<tr><td class="sticky left-0 bg-slate-300 font-bold px-2 py-1 text-slate-800 z-10" colspan="${nWeeks + 1}">📍 ${escapeHtml(lastImp)}</td></tr>`;
+          body += `<tr><td class="bg-slate-300 py-1 z-10" colspan="${nWeeks + 1}"><span class="sticky left-0 inline-block px-2 font-bold text-slate-800">📍 ${escapeHtml(lastImp)}</span></td></tr>`;
         }
         body += `<tr data-room="${r.id}" class="hover:bg-yellow-50"><td class="sticky left-0 z-10 bg-white px-2 py-1 border-b border-r border-slate-300 whitespace-nowrap"><span class="font-bold">${escapeHtml(String(r.numero))}</span> <span class="text-slate-500">· ét. ${escapeHtml(String(r.etage || '–'))} · ${r.capacite} pl. · ${occ.entries.filter(e => e.roomId === r.id && academicYearOf(e.date) === Y).reduce((a, e) => a + e.periods, 0)} p</span>${r.tbi ? ' <span class="px-1 rounded bg-sky-100 text-sky-800 font-bold text-[9px]">TBI</span>' : ''}</td>`;
         for (let i = 0; i < nWeeks; i++) {
@@ -5220,6 +5230,56 @@
         body += '</tr>';
       });
       body += '</tbody>';
+      } else {
+      const MONTHS_L = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+      const mSel = document.getElementById('lgMonth');
+      const monthVals = Array.from({length: 12}, (_, i) => { const m = (8 + i) % 12, yr = i < 4 ? Y : Y + 1; return {v: `${yr}-${m}`, yr, m}; });
+      let wantM = mSel.value;
+      if (!monthVals.some(x => x.v === wantM)) {
+        const cur = `${today.getFullYear()}-${today.getMonth()}`;
+        wantM = monthVals.some(x => x.v === cur) ? cur : monthVals[0].v;
+      }
+      mSel.innerHTML = monthVals.map(x => `<option value="${x.v}"${x.v === wantM ? ' selected' : ''}>${MONTHS_L[x.m]} ${x.yr}</option>`).join('');
+      mSel.value = wantM;
+      const [myr, mmo] = wantM.split('-').map(Number);
+      const days = [];
+      for (let dt = new Date(myr, mmo, 1); dt.getMonth() === mmo; dt.setDate(dt.getDate() + 1)) if (dt.getDay() !== 0) days.push(new Date(dt));
+      const dayCells = {};
+      occ.entries.forEach(e => { if (e.date.getFullYear() === myr && e.date.getMonth() === mmo) { const k = e.roomId + '|' + dateKey(e.date); (dayCells[k] = dayCells[k] || []).push(e); } });
+      window.__locDayCells = dayCells;
+      const WD = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
+      const todayKey = dateKey(today);
+      head = `<thead class="sticky top-0 z-20"><tr><th class="sticky left-0 z-30 bg-[#0a3a60] text-white text-left px-2 py-1 min-w-[190px] border-r border-slate-500">Local · ${MONTHS_L[mmo]} ${myr}</th>` +
+        days.map(d => { const k = dateKey(d), isT = k === todayKey; return `<th class="px-1 py-1 text-center min-w-[84px] ${isT ? 'bg-amber-400 text-slate-900' : (d.getDay() === 6 ? 'bg-[#1d5a8a] text-white' : 'bg-[#0a3a60] text-white')} ${d.getDay() === 1 ? 'border-l-2 border-l-white/70' : 'border-l border-l-slate-600'}"><div class="text-[9px] font-normal uppercase">${WD[d.getDay()]}</div><div class="text-sm font-bold leading-4">${d.getDate()}</div></th>`; }).join('') + '</tr></thead>';
+      body = '<tbody>';
+      let lastImpD = '';
+      rooms.forEach(r => {
+        if (r.implantation !== lastImpD) {
+          lastImpD = r.implantation;
+          body += `<tr><td class="bg-slate-300 py-1 z-10" colspan="${days.length + 1}"><span class="sticky left-0 inline-block px-2 font-bold text-slate-800">📍 ${escapeHtml(lastImpD)}</span></td></tr>`;
+        }
+        const mP = occ.entries.filter(e => e.roomId === r.id && e.date.getFullYear() === myr && e.date.getMonth() === mmo).reduce((a, e) => a + e.periods, 0);
+        body += `<tr data-room="${r.id}"><td class="sticky left-0 z-10 bg-white px-2 py-1 border-b border-r border-slate-300 text-xs"><div><span class="font-bold text-sm">${escapeHtml(String(r.numero))}</span> <span class="text-slate-500">· ét. ${escapeHtml(String(r.etage || '–'))} · ${r.capacite} pl.</span>${r.tbi ? ' <span class="px-1 rounded bg-sky-100 text-sky-800 font-bold text-[9px]">TBI</span>' : ''}</div><div class="text-[10px] text-slate-500">${mP} périodes ce mois</div></td>`;
+        days.forEach(d => {
+          const k = dateKey(d);
+          const list = dayCells[r.id + '|' + k] || [];
+          const isT = k === todayKey;
+          const base = `border-b ${d.getDay() === 1 ? 'border-l-2 border-l-slate-400' : 'border-l border-l-slate-200'} p-0 align-top ${isT ? 'bg-amber-50' : (d.getDay() === 6 ? 'bg-slate-50' : '')}`;
+          const slots = ['M', 'A', 'S'].map(sl => {
+            const inSlot = list.filter(e => e.dayparts.includes(sl));
+            if (!inSlot.length) return `<div class="h-6 flex items-center px-1 text-[8px] text-slate-300 border-t border-slate-100">${sl}</div>`;
+            const byC = {};
+            inSlot.forEach(e => { (byC[e.courseId] = byC[e.courseId] || []).push(e); });
+            const bad = inSlot.some(e => e.conflict.length), over = inSlot.some(e => e.over);
+            return `<div class="h-6 flex border-t border-white ${bad ? 'outline outline-2 outline-red-600 -outline-offset-2' : over ? 'outline outline-2 outline-amber-500 -outline-offset-2' : ''}">` +
+              Object.keys(byC).map(id => `<div draggable="true" ondragstart="locDragStart(event, '${id}', '${r.id}', '${k}')" ondragend="locDragEnd()" class="flex-1 min-w-0 flex items-center px-1 text-white font-bold text-[10px] overflow-hidden whitespace-nowrap cursor-grab" style="background:${courseColor(id)}" title="${escapeHtml(byC[id][0].code + ' - ' + byC[id][0].title + ' (' + byC[id].map(e => e.startTxt + '-' + e.endTxt).join(', ') + ')')}"><span class="text-[8px] opacity-70 mr-1">${sl}</span>${escapeHtml(String(byC[id][0].code).replace(/\s/g, ''))}</div>`).join('') + (bad ? '<span class="text-[10px] px-0.5 bg-red-600 text-white font-bold">⚠</span>' : '') + '</div>';
+          }).join('');
+          body += `<td class="${base} cursor-pointer" onclick="locDayClick('${r.id}', '${k}')">${slots}</td>`;
+        });
+        body += '</tr>';
+      });
+      body += '</tbody>';
+      }
 
       const conflicts = occ.entries.filter(e => e.conflict.length);
       const nConf = Math.floor(conflicts.length / 2) || (conflicts.length ? 1 : 0);
@@ -5231,8 +5291,8 @@
       sum.push(nConf ? `<span class="text-red-700 font-bold">⚠ ${nConf} conflit(s) de local</span>` : '<span class="text-emerald-700 font-semibold">aucun conflit</span>');
       if (overs.length) sum.push(`<span class="text-amber-700 font-semibold">⚠ ${new Set(overs.map(e => e.courseId + e.roomId)).size} UE avec capacité dépassée</span>`);
       document.getElementById('lgSummary').innerHTML = sum.join(' · ');
-      box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[56vh]"><table class="text-[10px] border-separate border-spacing-0">${head}${body}</table></div>`;
-      document.getElementById('lgDetail').innerHTML = '<span class="text-slate-400">Cliquez sur une case pour le détail des séances. M = matin, A = après-midi, S = soir. Contour rouge = conflit, orange = capacité dépassée. Glissez une UE sur une autre ligne pour la changer de local.</span>';
+      box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="text-[10px] border-separate border-spacing-0">${head}${body}</table></div>`;
+      document.getElementById('lgDetail').innerHTML = '<span class="text-slate-400">Cliquez sur une case pour le détail des séances. M = matin, A = après-midi, S = soir (vue jour : 3 lignes par jour). Contour rouge = conflit, orange = capacité dépassée. Glissez une UE sur une autre ligne pour la changer de local.</span>';
 
       // détail des conflits
       const seen = new Set(), lines = [];
@@ -5245,10 +5305,16 @@
       document.getElementById('lgConflicts').innerHTML = lines.length
         ? `<details class="mt-2 text-xs"><summary class="cursor-pointer font-bold text-red-700">Voir les ${lines.length} conflit(s)</summary><ul class="mt-1 space-y-0.5">${lines.slice(0, 200).map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul></details>` : '';
     }
-    function locCellClick(roomId, wi) {
-      const list = (window.__locCells || {})[roomId + '|' + wi] || [];
+    function lgMonthStep(n) {
+      const sel = document.getElementById('lgMonth');
+      const i = sel.selectedIndex + n;
+      if (i >= 0 && i < sel.options.length) { sel.selectedIndex = i; renderLocAgenda(); }
+    }
+    function locCellClick(roomId, wi) { showLocDetail(roomId, (window.__locCells || {})[roomId + '|' + wi] || [], 'cette semaine'); }
+    function locDayClick(roomId, key) { showLocDetail(roomId, (window.__locDayCells || {})[roomId + '|' + key] || [], 'ce jour'); }
+    function showLocDetail(roomId, list, when) {
       const r = locaux.find(x => x.id === roomId);
-      document.getElementById('lgDetail').innerHTML = `<div class="font-bold text-[#0a3a60] mb-1">${r ? escapeHtml(roomLong(r)) : ''} <span class="font-semibold text-slate-600">— ${list.length} séance(s), ${list.reduce((a, e) => a + e.periods, 0)} périodes cette semaine</span></div>` +
+      document.getElementById('lgDetail').innerHTML = `<div class="font-bold text-[#0a3a60] mb-1">${r ? escapeHtml(roomLong(r)) : ''} <span class="font-semibold text-slate-600">— ${list.length} séance(s), ${list.reduce((a, e) => a + e.periods, 0)} périodes ${when}</span></div>` +
         list.slice().sort((a, b) => a.date - b.date || a.start - b.start).map(e =>
           `<div class="flex items-center gap-2 py-0.5"><span class="inline-block w-3 h-3 rounded" style="background:${courseColor(e.courseId)}"></span>
            <span class="font-semibold">${fmtDM(e.date)} ${escapeHtml(e.startTxt)}-${escapeHtml(e.endTxt)} (${dayPartsText([e], true)}, ${e.periods} p)</span>
@@ -5284,10 +5350,14 @@
       if (!tr || tr.dataset.room === d.roomId) return;
       askLocMove(d, tr.dataset.room);
     }
+    function dragEntries(d) {
+      const m = typeof d.wi === 'string' ? window.__locDayCells : window.__locCells;
+      return ((m || {})[d.roomId + '|' + d.wi] || []).filter(e => e.courseId === d.courseId);
+    }
     function patchMoveWeek(c, d, target) {
       const ls = Object.assign({}, c.localSessions || {});
       const room = locaux.find(r => r.id === target);
-      (window.__locCells[d.roomId + '|' + d.wi] || []).filter(e => e.courseId === c.id).forEach(e => {
+      dragEntries(d).forEach(e => {
         if (target === c.localId) delete ls[e.sessId];
         else ls[e.sessId] = {id: room.id, label: roomShort(room), num: room.numero};
       });
@@ -5308,11 +5378,11 @@
     function askLocMove(d, target) {
       const c = courses.find(x => x.id === d.courseId), room = locaux.find(r => r.id === target);
       if (!c || !room) return;
-      const nWeek = (window.__locCells[d.roomId + '|' + d.wi] || []).filter(e => e.courseId === c.id).length;
+      const nWeek = dragEntries(d).length;
       locMoveCtx = {d, target};
       document.getElementById('lgMoveBody').innerHTML = `
         <div class="font-bold text-[#0a3a60] mb-2">Déplacer ${escapeHtml(c.codeUE)} vers ${escapeHtml(roomLong(room))}</div>
-        <button onclick="doLocMove('week')" class="block w-full text-left border border-slate-300 rounded px-3 py-2 mb-2 hover:bg-sky-50"><span class="font-bold">Cette semaine seulement</span> <span class="text-slate-500">(${nWeek} séance(s))</span><br>${moveWarnHtml(c, patchMoveWeek(c, d, target), (window.__locCells[d.roomId + '|' + d.wi] || []).filter(e => e.courseId === c.id).map(e => e.sessId))}</button>
+        <button onclick="doLocMove('week')" class="block w-full text-left border border-slate-300 rounded px-3 py-2 mb-2 hover:bg-sky-50"><span class="font-bold">${typeof d.wi === 'string' ? 'Ce jour seulement' : 'Cette semaine seulement'}</span> <span class="text-slate-500">(${nWeek} séance(s))</span><br>${moveWarnHtml(c, patchMoveWeek(c, d, target), dragEntries(d).map(e => e.sessId))}</button>
         <button onclick="doLocMove('all')" class="block w-full text-left border border-slate-300 rounded px-3 py-2 mb-2 hover:bg-sky-50"><span class="font-bold">Toute l'UE</span> <span class="text-slate-500">(toutes les séances, ce local devient le local par défaut)</span><br>${moveWarnHtml(c, patchMoveAll(c, target))}</button>
         <button onclick="closeLocMove()" class="px-3 py-1 border border-slate-300 rounded hover:bg-slate-100">Annuler</button>`;
       document.getElementById('lgMoveDlg').classList.remove('hidden');
