@@ -326,6 +326,7 @@
             tardive</span>
           <span class="px-2 py-0.5 bg-sky-200 text-sky-900 font-bold rounded text-[11px]">D = Dispensé</span>
           <span class="px-2 py-0.5 bg-amber-200 text-amber-950 font-bold rounded text-[11px]">CM = Certificat médical</span>
+          <span class="px-2 py-0.5 bg-pink-200 text-pink-900 font-bold rounded text-[11px]">J = Justifié</span>
           <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">? = Non encodé</span>
         </div>
         <!-- Compteurs de l'encodage des points -->
@@ -560,7 +561,7 @@
           NOM Prénom
         </div>
 
-        <!-- Grille 3 colonnes des boutons (P, M, R, A, T, ?, D, CM) -->
+        <!-- Grille 3 colonnes des boutons (P, M, R, A, T, ?, D, CM, J) -->
         <div class="grid grid-cols-3 gap-2 w-full max-w-[280px]">
           <!-- P : Présent -->
           <button onclick="applyStatusAndClose('P')"
@@ -605,9 +606,15 @@
             title="Certificat médical (non pénalisant)">
             <span class="absolute top-1 right-1.5 text-[11px] leading-none" title="Validation administrateur requise">🔒</span>CM
           </button>
+          <!-- J : Justifié (réservé aux administrateurs) -->
+          <button onclick="applyStatusAndClose('J')"
+            class="relative h-20 bg-[#fbcfe8] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#9d174d] transition shadow"
+            title="Absence justifiée (non pénalisant)">
+            <span class="absolute top-1 right-1.5 text-[11px] leading-none" title="Validation administrateur requise">🔒</span>J
+          </button>
         </div>
 
-        <p class="mt-2 text-[10px] text-slate-500 text-center">🔒 T, D et CM : validation par un administrateur (code)</p>
+        <p class="mt-2 text-[10px] text-slate-500 text-center">🔒 T, D, CM et J : validation par un administrateur (code)</p>
 
         <!-- Volet déroulant des curseurs pour le statut R -->
         <div id="retardSlidersBox"
@@ -685,6 +692,10 @@
               <div class="flex items-center gap-2"><span
                   class="min-w-4 h-4 px-0.5 bg-[#fde68a] border border-black inline-block text-[10px] text-center font-bold">CM</span>
                 <span>Certificat médical</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#fbcfe8] border border-black inline-block text-[10px] text-center font-bold">J</span>
+                <span>Justifié</span>
               </div>
               <div class="flex items-center gap-2"><span
                   class="w-4 h-4 bg-[#cbd5e1] border border-black inline-block text-[10px] text-center font-bold">?</span>
@@ -2753,8 +2764,8 @@
         const status = record ? record.status : '?';
 
         if (!isSessionRealised(sess, status !== '?')) return;
-        // T (inscription tardive), D (dispensé) et CM (certificat médical) : non pénalisants
-        if (status === 'T' || status === 'D' || status === 'CM') return;
+        // T (inscription tardive), D (dispensé), CM (certificat médical) et J (justifié) : non pénalisants
+        if (status === 'T' || status === 'D' || status === 'CM' || status === 'J') return;
 
         eligibleSessions++;
 
@@ -2935,6 +2946,9 @@
           } else if (status === 'CM') {
             tdCell.className += " bg-[#fde68a] text-[#92400e] hover:brightness-95";
             tdCell.title = "Certificat médical (non pénalisé)";
+          } else if (status === 'J') {
+            tdCell.className += " bg-[#fbcfe8] text-[#9d174d] hover:brightness-95";
+            tdCell.title = "Absence justifiée (non pénalisé)";
           } else {
             tdCell.className += " text-slate-400 hover:bg-slate-200";
           }
@@ -2988,9 +3002,9 @@
     }
 
     // -------------------------------------------------------------
-    // VALIDATION ADMINISTRATEUR : T, D et CM ne peuvent être posés ou modifiés que par un administrateur connecté
+    // VALIDATION ADMINISTRATEUR : T, D, CM et J ne peuvent être posés ou modifiés que par un administrateur connecté
     // -------------------------------------------------------------
-    const ADMIN_STATUSES = ['T', 'D', 'CM'];
+    const ADMIN_STATUSES = ['T', 'D', 'CM', 'J'];
 
     function isAdminStatus(status) {
       return ADMIN_STATUSES.includes(status);
@@ -3012,7 +3026,7 @@
         const r = attendanceData[`${s.id}_${sessionId}`];
         return r && isAdminStatus(r.status);
       }).length;
-      const note = keep > 0 ? `\n\n(${keep} pointage(s) T, D ou CM validé(s) par l'admin ne seront pas modifiés.)` : '';
+      const note = keep > 0 ? `\n\n(${keep} pointage(s) T, D, CM ou J validé(s) par l'admin ne seront pas modifiés.)` : '';
       if (confirm(`Voulez-vous marquer tous les étudiants comme '${defaultStatus}' pour cette séance ?${note}`)) {
         indicateSaving();
         students.forEach(s => {
@@ -4357,7 +4371,7 @@
       ws.getRow(SUM).height = 20;
 
       const LEG = SIG + 4;
-      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)",
+      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)  ·  J = Justifié (non pénalisant)",
         {font: {italic: true, size: 8}, alignment: {vertical: 'middle', horizontal: 'left'}, border: false});
 
       ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD + 3, showGridLines: false}];
