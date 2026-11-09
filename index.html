@@ -186,6 +186,8 @@
               <button id="teachersBtn" onclick="openTeachersModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">👥 Gérer les enseignants</button>
               <span class="admin-only hidden">•</span>
               <button id="locauxBtn" onclick="openLocauxModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">🏫 Locaux</button>
+              <span class="admin-only hidden">•</span>
+              <button id="bulkBtn" onclick="openBulkModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">📥 Import matricules</button>
               <span>•</span>
               <span id="userChip" class="inline-flex items-center gap-1.5">
                 <span id="userChipLabel" class="text-slate-700 font-semibold"></span>
@@ -326,7 +328,6 @@
             tardive</span>
           <span class="px-2 py-0.5 bg-sky-200 text-sky-900 font-bold rounded text-[11px]">D = Dispensé</span>
           <span class="px-2 py-0.5 bg-amber-200 text-amber-950 font-bold rounded text-[11px]">CM = Certificat médical</span>
-          <span class="px-2 py-0.5 bg-pink-200 text-pink-900 font-bold rounded text-[11px]">J = Justifié</span>
           <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">? = Non encodé</span>
         </div>
         <!-- Compteurs de l'encodage des points -->
@@ -526,6 +527,29 @@
     </div>
   </div>
 
+  <!-- ===== Import groupé des étudiants (admins) ===== -->
+  <div id="bulkModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-2 md:p-4">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
+      <div class="bg-[#0a3a60] text-white px-4 py-2 flex items-center gap-2">
+        <h2 class="font-bold text-sm mr-auto">📥 Import groupé des étudiants (matricules)</h2>
+        <button onclick="closeBulkModal()" class="text-white/80 hover:text-white text-lg leading-none" title="Fermer">✕</button>
+      </div>
+      <div class="p-4 overflow-auto text-xs">
+        <div id="bulkDropZone" class="border-2 border-dashed border-emerald-400 rounded-lg p-5 text-center mb-3 bg-emerald-50 transition">
+          <div class="font-bold text-emerald-800 text-sm mb-1">Déposez ici vos fichiers Excel (plusieurs à la fois)</div>
+          <div class="text-slate-600 mb-2">Un fichier par UE, ex. <span class="font-mono">Etudiants_410.xls</span> : l'UE est reconnue d'après le numéro. Rien n'est modifié avant votre validation.</div>
+          <label class="inline-block px-3 py-1.5 bg-white border border-emerald-500 text-emerald-800 font-bold rounded cursor-pointer hover:bg-emerald-100">…ou choisir des fichiers<input id="bulkFileInput" type="file" multiple accept=".xls,.xlsx,.csv" class="hidden"></label>
+        </div>
+        <div id="bulkBody"></div>
+      </div>
+      <div class="border-t border-slate-200 px-4 py-2 flex flex-wrap items-center gap-2 bg-slate-50">
+        <span id="bulkTotal" class="text-slate-600 mr-auto"></span>
+        <button onclick="closeBulkModal()" class="px-3 py-1.5 border border-slate-300 rounded hover:bg-slate-100 text-xs">Fermer</button>
+        <button id="bulkApplyBtn" onclick="bulkApply()" disabled class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow disabled:opacity-40 disabled:cursor-not-allowed">Appliquer l'import</button>
+      </div>
+    </div>
+  </div>
+
   <div id="aaModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-2xl overflow-hidden">
       <div class="bg-[#0a3a60] text-white px-4 py-2 font-bold text-sm">Acquis d'apprentissage de l'UE</div>
@@ -561,7 +585,7 @@
           NOM Prénom
         </div>
 
-        <!-- Grille 3 colonnes des boutons (P, M, R, A, T, ?, D, CM, J) -->
+        <!-- Grille 3 colonnes des boutons (P, M, R, A, T, ?, D, CM) -->
         <div class="grid grid-cols-3 gap-2 w-full max-w-[280px]">
           <!-- P : Présent -->
           <button onclick="applyStatusAndClose('P')"
@@ -606,15 +630,9 @@
             title="Certificat médical (non pénalisant)">
             <span class="absolute top-1 right-1.5 text-[11px] leading-none" title="Validation administrateur requise">🔒</span>CM
           </button>
-          <!-- J : Justifié (réservé aux administrateurs) -->
-          <button onclick="applyStatusAndClose('J')"
-            class="relative h-20 bg-[#fbcfe8] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#9d174d] transition shadow"
-            title="Absence justifiée (non pénalisant)">
-            <span class="absolute top-1 right-1.5 text-[11px] leading-none" title="Validation administrateur requise">🔒</span>J
-          </button>
         </div>
 
-        <p class="mt-2 text-[10px] text-slate-500 text-center">🔒 T, D, CM et J : validation par un administrateur (code)</p>
+        <p class="mt-2 text-[10px] text-slate-500 text-center">🔒 T, D et CM : validation par un administrateur (code)</p>
 
         <!-- Volet déroulant des curseurs pour le statut R -->
         <div id="retardSlidersBox"
@@ -692,10 +710,6 @@
               <div class="flex items-center gap-2"><span
                   class="min-w-4 h-4 px-0.5 bg-[#fde68a] border border-black inline-block text-[10px] text-center font-bold">CM</span>
                 <span>Certificat médical</span>
-              </div>
-              <div class="flex items-center gap-2"><span
-                  class="w-4 h-4 bg-[#fbcfe8] border border-black inline-block text-[10px] text-center font-bold">J</span>
-                <span>Justifié</span>
               </div>
               <div class="flex items-center gap-2"><span
                   class="w-4 h-4 bg-[#cbd5e1] border border-black inline-block text-[10px] text-center font-bold">?</span>
@@ -2764,8 +2778,8 @@
         const status = record ? record.status : '?';
 
         if (!isSessionRealised(sess, status !== '?')) return;
-        // T (inscription tardive), D (dispensé), CM (certificat médical) et J (justifié) : non pénalisants
-        if (status === 'T' || status === 'D' || status === 'CM' || status === 'J') return;
+        // T (inscription tardive), D (dispensé) et CM (certificat médical) : non pénalisants
+        if (status === 'T' || status === 'D' || status === 'CM') return;
 
         eligibleSessions++;
 
@@ -2946,9 +2960,6 @@
           } else if (status === 'CM') {
             tdCell.className += " bg-[#fde68a] text-[#92400e] hover:brightness-95";
             tdCell.title = "Certificat médical (non pénalisé)";
-          } else if (status === 'J') {
-            tdCell.className += " bg-[#fbcfe8] text-[#9d174d] hover:brightness-95";
-            tdCell.title = "Absence justifiée (non pénalisé)";
           } else {
             tdCell.className += " text-slate-400 hover:bg-slate-200";
           }
@@ -3002,9 +3013,9 @@
     }
 
     // -------------------------------------------------------------
-    // VALIDATION ADMINISTRATEUR : T, D, CM et J ne peuvent être posés ou modifiés que par un administrateur connecté
+    // VALIDATION ADMINISTRATEUR : T, D et CM ne peuvent être posés ou modifiés que par un administrateur connecté
     // -------------------------------------------------------------
-    const ADMIN_STATUSES = ['T', 'D', 'CM', 'J'];
+    const ADMIN_STATUSES = ['T', 'D', 'CM'];
 
     function isAdminStatus(status) {
       return ADMIN_STATUSES.includes(status);
@@ -3026,7 +3037,7 @@
         const r = attendanceData[`${s.id}_${sessionId}`];
         return r && isAdminStatus(r.status);
       }).length;
-      const note = keep > 0 ? `\n\n(${keep} pointage(s) T, D, CM ou J validé(s) par l'admin ne seront pas modifiés.)` : '';
+      const note = keep > 0 ? `\n\n(${keep} pointage(s) T, D ou CM validé(s) par l'admin ne seront pas modifiés.)` : '';
       if (confirm(`Voulez-vous marquer tous les étudiants comme '${defaultStatus}' pour cette séance ?${note}`)) {
         indicateSaving();
         students.forEach(s => {
@@ -3421,6 +3432,7 @@
           });
 
           let colIdxMatricule = -1;
+          let matExplicit = false;
           let colIdxNom = 0;
           let colIdxPrenom = 1;
           let dataStartRow = 0;
@@ -3429,9 +3441,10 @@
             const row = rows[r];
             row.forEach((cell, cIdx) => {
               const val = String(cell).toLowerCase().trim();
-              if (val.includes("matricule") || val.includes("n°") || val === "id") colIdxMatricule = cIdx;
-              if (val === "nom" || val.includes("nom de famille")) colIdxNom = cIdx;
-              if (val === "prénom" || val === "prenom") colIdxPrenom = cIdx;
+              if (val.includes("matricule") || val === "noinit") { colIdxMatricule = cIdx; matExplicit = true; }
+              else if ((val.includes("n°") || val === "id") && !matExplicit) colIdxMatricule = cIdx;
+              if (val === "nom" || val === "nometud" || val.includes("nom de famille")) colIdxNom = cIdx;
+              if (val === "prénom" || val === "prenom" || val === "préetud" || val === "preetud") colIdxPrenom = cIdx;
             });
             if (colIdxNom !== -1 && colIdxPrenom !== -1 && (rows[r].some(c => String(c).toLowerCase().includes('nom')))) {
               dataStartRow = r + 1;
@@ -4371,7 +4384,7 @@
       ws.getRow(SUM).height = 20;
 
       const LEG = SIG + 4;
-      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)  ·  J = Justifié (non pénalisant)",
+      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)",
         {font: {italic: true, size: 8}, alignment: {vertical: 'middle', horizontal: 'left'}, border: false});
 
       ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD + 3, showGridLines: false}];
@@ -5543,6 +5556,278 @@
       upsertCourse(Object.assign({}, c, patch));
       renderLocAgenda();
     }
+
+    // -------------------------------------------------------------
+    // IMPORT GROUPÉ DES ÉTUDIANTS (admins) : plusieurs fichiers Excel (.xls/.xlsx) d'un coup, un par UE
+    //  - lit uniquement la 1re feuille « liste d'étudiants » (NoInit = matricule, NomEtud, PréEtud)
+    //  - l'UE est déduite du numéro dans le nom du fichier (Etudiants_410.xls → UE 410-…) ; sinon choix manuel
+    //  - AUCUN étudiant n'est jamais supprimé ; présences et points ne sont pas touchés
+    //  - aperçu obligatoire avant d'écrire, sauvegarde JSON téléchargée automatiquement avant l'application
+    // -------------------------------------------------------------
+    let bulkItems = [];
+    let bulkPayloads = {};
+    let bulkBusy = false;
+
+    function openBulkModal() {
+      if (!isLoggedAdmin()) return;
+      bulkItems = [];
+      document.getElementById('bulkModal').classList.remove('hidden');
+      renderBulk();
+    }
+    function closeBulkModal() { document.getElementById('bulkModal').classList.add('hidden'); }
+
+    // Détecte les colonnes (insensible aux accents / majuscules) : matricule = NoInit | Matricule, nom = NomEtud | Nom, prénom = PréEtud | Prénom
+    function parseStudentSheetRows(rows) {
+      const k = c => normKey(c).replace(/ /g, '');
+      let hdr = -1, cMat = -1, cNom = -1, cPre = -1, matExplicit = false;
+      for (let r = 0; r < Math.min(rows.length, 15) && hdr < 0; r++) {
+        let m = -1, n = -1, p = -1, mx = false;
+        (rows[r] || []).forEach((cell, i) => {
+          const v = k(cell);
+          if (v === 'matricule' || v === 'noinit' || v === 'matriculeetudiant') { m = i; mx = true; }
+          else if ((v === 'n' || v === 'no' || v === 'id' || v === 'ndeletudiant') && !mx && m < 0) m = i;
+          if (v === 'nom' || v === 'nometud' || v === 'nomdefamille') n = i;
+          if (v === 'prenom' || v === 'preetud' || v === 'prenometud') p = i;
+        });
+        if (n >= 0) { hdr = r; cMat = m; cNom = n; cPre = p >= 0 ? p : n + 1; matExplicit = mx; }
+      }
+      if (hdr < 0) return null;
+      const out = [];
+      for (let r = hdr + 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const nom = String(row[cNom] || '').trim(), prenom = String(row[cPre] || '').trim();
+        const matricule = cMat >= 0 ? String(row[cMat] || '').trim() : '';
+        if (!nom || /^total/i.test(nom)) continue;
+        out.push({nom, prenom, matricule});
+      }
+      return {rows: out, hasMatricule: cMat >= 0, matExplicit};
+    }
+    function readStudentWorkbook(buf) {
+      const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+      // feuille de la liste d'étudiants : on évite la feuille « Inscriptions » (adresses, n° national… : jamais lue)
+      const name = wb.SheetNames.find(n => /etudiants/i.test(n) && !/inscri/i.test(n)) || wb.SheetNames[0];
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, defval: ''});
+      const res = parseStudentSheetRows(rows);
+      return res ? Object.assign(res, {sheet: name}) : null;
+    }
+    function guessCourseFromFilename(fname) {
+      const m = String(fname).replace(/\.[^.]+$/, '').match(/(\d{2,4})(?!.*\d)/);
+      if (!m) return '';
+      const cands = courses.filter(c => String(c.codeUE || '').split('-')[0].trim() === m[1]);
+      return cands.length === 1 ? cands[0].id : '';
+    }
+
+    async function bulkAddFiles(fileList) {
+      if (bulkBusy) return;
+      const files = Array.from(fileList || []).filter(isSpreadsheetFile);
+      if (!files.length) { alert("Déposez des fichiers Excel (.xls, .xlsx) ou .csv."); return; }
+      bulkBusy = true;
+      try {
+        for (const f of files) {
+          let parsed = null, error = '';
+          try { parsed = readStudentWorkbook(await f.arrayBuffer()); if (!parsed) error = "colonnes Nom / Prénom introuvables"; }
+          catch (e) { error = "fichier illisible"; }
+          const item = {name: f.name, error, rows: parsed ? parsed.rows : [], hasMatricule: !!(parsed && parsed.hasMatricule), sheet: parsed ? parsed.sheet : '', courseId: guessCourseFromFilename(f.name), plan: null};
+          const dup = bulkItems.findIndex(x => x.name === f.name);
+          if (dup >= 0) bulkItems[dup] = item; else bulkItems.push(item);
+        }
+        renderBulk('Lecture des registres…');
+        try { bulkPayloads = await fetchAllPayloads(true); } catch (e) { bulkPayloads = {}; }
+        bulkItems.forEach(it => bulkPlan(it));
+      } finally { bulkBusy = false; }
+      renderBulk();
+    }
+
+    function bulkExisting(courseId) {
+      if (courseId === currentCourseId) return students;
+      const p = bulkPayloads[courseId];
+      return p && Array.isArray(p.students) ? p.students : [];
+    }
+    function nomKeyOf(s) { return normKey(s.nom || '').split(' ').filter(Boolean).sort().join(' '); }
+    function preWords(s) { return new Set(normKey(s.prenom || '').split(' ').filter(Boolean)); }
+    function isSubset(a, b) { for (const x of a) if (!b.has(x)) return false; return true; }
+
+    // Compare une ligne du fichier à la liste existante : same | update | conflict | probable | new
+    function classifyRow(list, r) {
+      const ex = list.find(s => sameStudent(s, r));
+      if (ex) return (matKey(r) && !matKey(ex)) ? {st: 'update', target: ex.id} : {st: 'same', target: ex.id};
+      const conf = list.find(s => matKey(s) && matKey(r) && nameKey(s) === nameKey(r));
+      if (conf) return {st: 'conflict', target: conf.id};
+      const nk = nomKeyOf(r), pr = preWords(r);
+      if (pr.size) {
+        const prob = list.find(s => nomKeyOf(s) === nk && !(matKey(s) && matKey(r)) && (() => { const ps = preWords(s); return ps.size && (isSubset(ps, pr) || isSubset(pr, ps)); })());
+        if (prob) return {st: 'probable', target: prob.id};
+      }
+      return {st: 'new', target: ''};
+    }
+    function bulkPlan(it) {
+      if (it.error || !it.courseId) { it.plan = null; return; }
+      const list = bulkExisting(it.courseId);
+      const used = new Set();
+      it.plan = it.rows.map(r => {
+        const c = classifyRow(list, r);
+        if (c.target) used.add(c.target);
+        const action = {same: 'none', update: 'apply', probable: 'merge', conflict: 'skip', new: 'add'}[c.st];
+        return {r, st: c.st, target: c.target, action};
+      });
+      it.absent = list.filter(s => !used.has(s.id)).length;
+      it.existing = list.length;
+    }
+    function bulkSetCourse(i, courseId) { bulkItems[i].courseId = courseId; bulkPlan(bulkItems[i]); renderBulk(); }
+    function bulkSetAction(i, j, action) { bulkItems[i].plan[j].action = action; renderBulk(true); }
+    function bulkRemove(i) { bulkItems.splice(i, 1); renderBulk(); }
+
+    function renderBulk(msg) {
+      const box = document.getElementById('bulkBody');
+      if (!box) return;
+      if (msg) { box.innerHTML = `<p class="text-xs text-slate-500 py-6 text-center">${escapeHtml(msg)}</p>`; return; }
+      const openSet = new Set(Array.from(box.querySelectorAll('details[open]')).map(d => d.dataset.i));
+      if (!bulkItems.length) {
+        box.innerHTML = '<p class="text-xs text-slate-500 py-6 text-center">Déposez ici vos fichiers Excel d\'étudiants (un par UE, plusieurs à la fois).</p>';
+        document.getElementById('bulkApplyBtn').disabled = true;
+        return;
+      }
+      const courseOpts = sel => '<option value="">— choisir l\'UE —</option>' + sortedCourses().map(c => `<option value="${c.id}"${c.id === sel ? ' selected' : ''}>${escapeHtml(c.codeUE + ' - ' + (c.titre || c.intituleUE))}</option>`).join('');
+      let total = {add: 0, apply: 0};
+      box.innerHTML = bulkItems.map((it, i) => {
+        const head = `<div class="flex flex-wrap items-center gap-2 mb-1"><span class="font-bold">${escapeHtml(it.name)}</span>
+          <select onchange="bulkSetCourse(${i}, this.value)" class="border border-slate-300 rounded px-1 py-0.5 text-xs max-w-xs bg-white">${courseOpts(it.courseId)}</select>
+          <button onclick="bulkRemove(${i})" class="ml-auto text-rose-600 hover:bg-rose-50 rounded px-1.5" title="Retirer ce fichier">✕</button></div>`;
+        if (it.error) return `<div class="border border-red-300 bg-red-50 rounded p-2 mb-2">${head}<div class="text-red-700 font-semibold">⚠ ${escapeHtml(it.error)} : fichier ignoré.</div></div>`;
+        if (!it.courseId) return `<div class="border border-amber-300 bg-amber-50 rounded p-2 mb-2">${head}<div class="text-amber-800 font-semibold">${it.rows.length} étudiant(s) lus. Choisissez l'UE correspondante (non reconnue d'après le nom du fichier).</div></div>`;
+        if (!it.plan) return `<div class="border rounded p-2 mb-2">${head}</div>`;
+        const cnt = st => it.plan.filter(x => x.st === st).length;
+        const nAdd = it.plan.filter(x => x.action === 'add').length, nApply = it.plan.filter(x => x.action === 'apply' || x.action === 'merge' || x.action === 'overwrite').length;
+        total.add += nAdd; total.apply += nApply;
+        const chip = (n, label, cls) => n ? `<span class="px-1.5 py-0.5 rounded font-semibold ${cls}">${n} ${label}</span>` : '';
+        const noMat = !it.hasMatricule ? '<div class="text-amber-800 font-semibold">⚠ Aucune colonne matricule trouvée dans ce fichier.</div>' : '';
+        const details = it.plan.map((x, j) => ({x, j})).filter(o => o.x.st !== 'same' && o.x.st !== 'update');
+        const optSel = (cur, arr) => arr.map(([v, l]) => `<option value="${v}"${v === cur ? ' selected' : ''}>${l}</option>`).join('');
+        const list = bulkExisting(it.courseId);
+        const detHtml = details.length ? `<details data-i="${i}" ${openSet.has(String(i)) ? 'open' : ''} class="mt-1"><summary class="cursor-pointer text-[11px] font-semibold text-blue-800">Voir les ${details.length} cas à examiner</summary><table class="w-full mt-1 text-[11px]"><tbody class="divide-y divide-slate-200">` + details.map(({x, j}) => {
+          const tg = list.find(s => s.id === x.target);
+          const what = {new: '<span class="text-emerald-700 font-bold">Nouveau</span>', probable: '<span class="text-amber-700 font-bold">Ressemble à</span>', conflict: '<span class="text-red-700 font-bold">Matricule différent de</span>'}[x.st];
+          const opts = x.st === 'new' ? [['add', 'Ajouter'], ['skip', 'Ignorer']]
+            : x.st === 'probable' ? [['merge', 'Compléter l\'existant'], ['add', 'Ajouter comme nouveau'], ['skip', 'Ignorer']]
+            : [['skip', 'Ignorer'], ['overwrite', 'Remplacer le matricule'], ['add', 'Ajouter comme nouveau']];
+          return `<tr><td class="py-0.5 pr-2">${escapeHtml(x.r.nom + ' ' + x.r.prenom)} <span class="text-slate-400 font-mono">${escapeHtml(x.r.matricule)}</span></td><td class="pr-2">${what}</td><td class="pr-2">${tg ? escapeHtml(tg.nom + ' ' + tg.prenom) + ' <span class="text-slate-400 font-mono">' + escapeHtml(tg.matricule || '') + '</span>' : ''}</td><td><select onchange="bulkSetAction(${i}, ${j}, this.value)" class="border border-slate-300 rounded px-1 py-0.5 bg-white">${optSel(x.action, opts)}</select></td></tr>`;
+        }).join('') + '</tbody></table></details>' : '';
+        return `<div class="border border-slate-300 rounded p-2 mb-2">${head}
+          <div class="flex flex-wrap gap-1.5 text-[11px] mb-1">${chip(cnt('update'), 'matricule(s) à ajouter', 'bg-emerald-100 text-emerald-800')}${chip(cnt('same'), 'déjà à jour', 'bg-slate-100 text-slate-700')}${chip(cnt('new'), 'nouveau(x)', 'bg-sky-100 text-sky-800')}${chip(cnt('probable'), 'à vérifier', 'bg-amber-100 text-amber-800')}${chip(cnt('conflict'), 'matricule différent', 'bg-red-100 text-red-700')}</div>
+          <div class="text-[11px] text-slate-500">${it.rows.length} ligne(s) dans le fichier · ${it.existing} étudiant(s) déjà dans l'UE · <strong>${it.absent}</strong> du registre absent(s) du fichier : <strong>conservé(s)</strong> (jamais supprimés)</div>${noMat}${detHtml}</div>`;
+      }).join('');
+      const btn = document.getElementById('bulkApplyBtn');
+      btn.disabled = !bulkItems.some(it => it.plan);
+      document.getElementById('bulkTotal').textContent = `${total.apply} étudiant(s) complétés (matricule), ${total.add} ajouté(s)`;
+    }
+
+    // Applique les opérations sur une liste d'étudiants (jamais de suppression) ; retourne {added, completed}
+    function applyBulkOps(list, plan) {
+      let added = 0, completed = 0;
+      plan.forEach(x => {
+        const act = x.action;
+        if (act === 'none' || act === 'skip') return;
+        const mk = String(x.r.matricule || '').trim();
+        if (act === 'add') {
+          if (list.some(s => sameStudent(s, x.r))) return;      // protection contre les doublons (ex. relance)
+          list.push({id: `std_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`, matricule: mk, nom: x.r.nom, prenom: x.r.prenom});
+          added++; return;
+        }
+        let tg = list.find(s => s.id === x.target) || list.find(s => sameStudent(s, x.r));
+        if (!tg || !mk) return;
+        if (act === 'overwrite') { if (tg.matricule !== mk) { tg.matricule = mk; completed++; } return; }
+        if (!String(tg.matricule || '').trim()) { tg.matricule = mk; completed++; }   // apply | merge : seulement si vide
+      });
+      return {added, completed};
+    }
+
+    async function bulkApply() {
+      if (bulkBusy) return;
+      const items = bulkItems.filter(it => it.plan && it.courseId);
+      if (!items.length) return;
+      if (new Set(items.map(it => it.courseId)).size !== items.length && !confirm("Plusieurs fichiers vont vers la même UE. Continuer ?")) return;
+      if (!confirm(`Appliquer l'import à ${items.length} UE ?\n\nAucun étudiant ne sera supprimé, présences et points restent intacts.\nUne sauvegarde (.json) de ces registres sera téléchargée avant les modifications.`)) return;
+      bulkBusy = true;
+      const report = [];
+      try {
+        // 1. sauvegarde de sécurité
+        const backup = {date: new Date().toISOString(), registres: {}};
+        items.forEach(it => {
+          backup.registres[it.courseId] = it.courseId === currentCourseId ? JSON.parse(JSON.stringify(buildPayload())) : (bulkPayloads[it.courseId] || null);
+        });
+        try {
+          const blob = new Blob([JSON.stringify(backup)], {type: 'application/json'});
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `sauvegarde_avant_import_${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        } catch (e) { console.warn("Sauvegarde automatique impossible", e); }
+        // 2. application
+        for (const it of items) {
+          const c = courses.find(x => x.id === it.courseId);
+          let res;
+          if (it.courseId === currentCourseId) {
+            res = applyBulkOps(students, it.plan);
+            sortStudents(); saveToStorage(); renderTable();
+          } else {
+            res = await bulkWriteRegistre(it.courseId, c, it.plan);
+          }
+          report.push(`• ${c ? c.codeUE : it.name} : ${res.added} ajouté(s), ${res.completed} matricule(s) complété(s)` + (res.error ? ` ⚠ ${res.error}` : ''));
+        }
+        ficheCache = {at: 0, payloads: null, online: false};
+      } finally { bulkBusy = false; }
+      alert("Import terminé :\n" + report.join('\n') + "\n\nLes étudiants déjà présents, leurs présences et leurs points n'ont pas été modifiés.");
+      closeBulkModal();
+    }
+
+    // Écriture dans le registre d'une UE qui n'est pas ouverte : transaction Firestore (relit la version à jour, modifie
+    // uniquement la liste des étudiants) + copie locale
+    async function bulkWriteRegistre(courseId, course, plan) {
+      const result = {added: 0, completed: 0, error: ''};
+      const mutate = payload => {
+        payload.students = Array.isArray(payload.students) ? payload.students : [];
+        const r = applyBulkOps(payload.students, plan);
+        result.added = r.added; result.completed = r.completed;
+        payload.students.sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', {sensitivity: 'base'}) || String(a.prenom || '').localeCompare(String(b.prenom || ''), 'fr', {sensitivity: 'base'}));
+        payload.savedAt = new Date().toISOString();
+        return payload;
+      };
+      const fresh = () => ({courseTitle: course ? `${course.titre} (${course.bloc})` : '', adminMetadata: Object.assign(blankAdminMetadata(), course ? {section: course.section, codeUE: course.codeUE, intituleUE: course.intituleUE, teacher: course.enseignant, periods: course.periodes} : {}),
+        students: [], sessions: [], attendanceData: {}, abandonedStudents: {}, grades: {}, aaGrades: {}});
+      let final = null;
+      if (db) {
+        const ref = db.collection(REMOTE_COLLECTION).doc(courseId);
+        try {
+          await db.runTransaction(async tx => {
+            const snap = await tx.get(ref);
+            let pl;
+            if (snap.exists) { const x = snap.data(); pl = typeof x.data === 'string' ? JSON.parse(x.data) : x.data; } else pl = fresh();
+            pl = mutate(pl);
+            final = pl;
+            tx.set(ref, {data: JSON.stringify(pl), savedAt: pl.savedAt, codeUE: (pl.adminMetadata && pl.adminMetadata.codeUE) || '', courseTitle: pl.courseTitle || ''});
+          });
+        } catch (err) { console.warn("Import groupé : écriture Firestore impossible", err); result.error = "écriture en ligne impossible (droits ou connexion), rien n'a été modifié"; return Object.assign(result, {added: 0, completed: 0}); }
+      }
+      try {
+        const key = storageKeyFor(courseId);
+        if (!db) {
+          const raw = localStorage.getItem(key);
+          final = mutate(raw ? JSON.parse(raw) : fresh());
+        }
+        if (final) localStorage.setItem(key, JSON.stringify(final));
+      } catch (e) { /* ignoré */ }
+      return result;
+    }
+    function initBulkDrop() {
+      const zone = document.getElementById('bulkDropZone');
+      if (!zone) return;
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('bg-emerald-100'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('bg-emerald-100'));
+      zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('bg-emerald-100'); bulkAddFiles(e.dataTransfer.files); });
+      document.getElementById('bulkFileInput').addEventListener('change', e => { bulkAddFiles(e.target.files); e.target.value = ''; });
+    }
+    initBulkDrop();
 
     function escapeHtml(str) {
       if (!str) return '';
