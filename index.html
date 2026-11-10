@@ -188,6 +188,8 @@
               <button id="locauxBtn" onclick="openLocauxModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">🏫 Locaux</button>
               <span class="admin-only hidden">•</span>
               <button id="bulkBtn" onclick="openBulkModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">📥 Import matricules</button>
+              <span class="admin-only hidden">•</span>
+              <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">📊 Analyses</button>
               <span>•</span>
               <span id="userChip" class="inline-flex items-center gap-1.5">
                 <span id="userChipLabel" class="text-slate-700 font-semibold"></span>
@@ -547,6 +549,24 @@
         <button onclick="closeBulkModal()" class="px-3 py-1.5 border border-slate-300 rounded hover:bg-slate-100 text-xs">Fermer</button>
         <button id="bulkApplyBtn" onclick="bulkApply()" disabled class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow disabled:opacity-40 disabled:cursor-not-allowed">Appliquer l'import</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== Analyses (admins) ===== -->
+  <div id="analysesModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-2 md:p-4">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-[96vw] max-h-[95vh] flex flex-col overflow-hidden">
+      <div class="bg-[#0a3a60] text-white px-4 py-2 flex flex-wrap items-center gap-2">
+        <h2 class="font-bold text-sm mr-auto">📊 Analyses <span id="anaAsOf" class="font-normal text-white/70 text-xs ml-2"></span></h2>
+        <select id="anaYear" onchange="renderAnalyses()" class="bg-white text-slate-800 border border-slate-300 rounded px-2 py-1 text-xs"></select>
+        <button id="anaTab_overview" onclick="showAnaTab('overview')" class="px-3 py-1 rounded text-xs font-bold">Vue d'ensemble</button>
+        <button id="anaTab_sections" onclick="showAnaTab('sections')" class="px-3 py-1 rounded text-xs font-bold">Sections par année</button>
+        <button id="anaTab_teachers" onclick="showAnaTab('teachers')" class="px-3 py-1 rounded text-xs font-bold">Enseignants</button>
+        <button id="anaTab_students" onclick="showAnaTab('students')" class="px-3 py-1 rounded text-xs font-bold">Étudiants</button>
+        <button id="anaTab_export" onclick="showAnaTab('export')" class="px-3 py-1 rounded text-xs font-bold">Export Power BI</button>
+        <button onclick="loadAnalyses(true)" class="px-2 py-1 rounded text-xs bg-white/10 hover:bg-white/20" title="Relire tous les registres">↻</button>
+        <button onclick="closeAnalysesModal()" class="ml-1 text-white/80 hover:text-white text-lg leading-none" title="Fermer">✕</button>
+      </div>
+      <div id="anaBody" class="p-4 overflow-auto text-xs"></div>
     </div>
   </div>
 
@@ -5918,6 +5938,326 @@
         if (final) localStorage.setItem(key, JSON.stringify(final));
       } catch (e) { /* ignoré */ }
       return res;
+    }
+
+    // -------------------------------------------------------------
+    // ANALYSES (administrateurs uniquement) : pointages à compléter, sections par année, enseignants, étudiants,
+    // et export « Power BI » (tables à plat dans un classeur Excel : UE, Séances, Présences, Étudiants, Sections)
+    //  - taux de présence : mêmes règles que le registre (T, D et CM ne pénalisent pas ; R compte au prorata de la quotité)
+    //  - « pointage à compléter » : séance passée (ou séance du jour terminée) avec au moins un étudiant sans statut
+    // -------------------------------------------------------------
+    let anaData = null, anaTab = 'overview', anaBusy = false;
+    function anaNow() { return window.__anaNow || new Date(); }
+    const pct = (a, b) => b > 0 ? Math.round((a / b) * 1000) / 10 : null;
+    const fmtPct = v => v === null || v === undefined ? '–' : `${String(v).replace('.', ',')} %`;
+
+    function anaYearOf(p, c) {
+      const ay = String((p && p.adminMetadata && p.adminMetadata.academicYear) || '').match(/(20\d{2})/);
+      if (ay) return `${ay[1]}-${parseInt(ay[1], 10) + 1}`;
+      const first = ((p && p.sessions) || []).map(s => parseDateInPayload(p, s.date)).filter(Boolean)
+        .map(d => new Date(d.year, d.month - 1, d.day)).sort((a, b) => a - b)[0];
+      if (first) { const y = academicYearOf(first); return `${y}-${y + 1}`; }
+      const dd = c && /^(\d{4})-(\d{2})-(\d{2})$/.test(c.dateDebut || '') ? new Date(c.dateDebut) : null;
+      const y = academicYearOf(dd || anaNow());
+      return `${y}-${y + 1}`;
+    }
+
+    function analyseCourse(c, p, now) {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const abandoned = p.abandonedStudents || {};
+      const att = p.attendanceData || {};
+      const all = p.students || [];
+      const active = all.filter(s => !abandoned[s.id]);
+      const sess = (p.sessions || []).map(s => ({s, d: parseDateInPayload(p, s.date)})).filter(x => x.d)
+        .map(x => ({s: x.s, date: new Date(x.d.year, x.d.month - 1, x.d.day)}))
+        .sort((a, b) => a.date - b.date || String(a.s.start || '').localeCompare(String(b.s.start || '')));
+      const A = {c, p, year: anaYearOf(p, c), section: c.section || '(sans section)', teacher: c.enseignant || '(sans enseignant)',
+        enrolled: all.length, abandons: all.length - active.length, active: active.length,
+        sessions: sess.length, done: 0, due: 0, periodsDone: 0, periodsPlanned: parseInt(c.periodes, 10) || 0,
+        eligible: 0, presence: 0, st: {P: 0, M: 0, R: 0, A: 0, T: 0, D: 0, CM: 0},
+        expected: 0, encoded: 0, late: [], sessRows: [], presRows: [], studentRates: {}, aa: {ok: 0, ajourne: 0, echec: 0, enCours: 0}};
+      sess.forEach(x => {
+        const day = x.date.getTime();
+        const endMin = timeToMin(x.s.end);
+        const due = day < today || (day === today && endMin !== null && endMin <= nowMin);
+        const row = {s: x.s, date: x.date, due, done: false, enc: 0, miss: 0, P: 0, A: 0, R: 0, T: 0, D: 0, CM: 0, M: 0};
+        let anyEnc = false;
+        active.forEach(st => {
+          const rec = att[`${st.id}_${x.s.id}`];
+          const status = rec && rec.status ? rec.status : '?';
+          const encoded = status !== '?';
+          if (encoded) { anyEnc = true; row.enc++; row[status] = (row[status] || 0) + 1; } else row.miss++;
+          if (due) { A.expected++; if (encoded) A.encoded++; }
+          A.presRows.push({st, sess: x.s, date: x.date, status, quotite: rec && rec.quotite !== undefined ? rec.quotite : (status === 'P' || status === 'M' ? 1 : 0)});
+        });
+        row.done = day < today || (day === today && anyEnc);
+        if (row.done) {
+          A.done++; A.periodsDone += sessionPeriods(x.s) || 0;
+          active.forEach(st => {
+            const rec = att[`${st.id}_${x.s.id}`];
+            const status = rec && rec.status ? rec.status : '?';
+            if (status !== '?') A.st[status] = (A.st[status] || 0) + 1;
+            if (status === '?' || status === 'T' || status === 'D' || status === 'CM') return;   // taux calculé sur les cases pointées ; T, D, CM non pénalisants
+            const r = A.studentRates[st.id] || (A.studentRates[st.id] = {el: 0, pts: 0, abs: 0});
+            r.el++; A.eligible++;
+            if (status === 'P' || status === 'M') { r.pts += 1; A.presence += 1; }
+            else if (status === 'R') { const q = rec.quotite !== undefined ? rec.quotite : 1; r.pts += q; A.presence += q; }
+            else if (status === 'A') r.abs++;
+          });
+        }
+        if (due) A.due++;
+        if (due && row.miss > 0 && active.length) A.late.push(row);
+        A.sessRows.push(row);
+      });
+      const n = parseInt(c.nbAA, 10);
+      if (n > 0) {
+        withPayload(p, () => {
+          active.forEach(st => {
+            const r = computeAA(st.id, n);
+            if (r.s1.result === 'reussite') A.aa.ok++;
+            else if (r.s1.result === 'ajourne') { if (r.s2.result === 'acquis') A.aa.ok++; else if (r.s2.result === 'refus') A.aa.echec++; else A.aa.ajourne++; }
+            else A.aa.enCours++;
+          });
+        });
+      }
+      A.noRegistre = !sess.length;
+      A.started = /^\d{4}-\d{2}-\d{2}$/.test(c.dateDebut || '') && new Date(c.dateDebut).getTime() <= today;
+      A.finished = /^\d{4}-\d{2}-\d{2}$/.test(c.dateFin || '') && new Date(c.dateFin).getTime() < today;
+      return A;
+    }
+
+    async function loadAnalyses(force) {
+      if (anaBusy) return;
+      anaBusy = true;
+      renderAnalyses('Lecture de tous les registres…');
+      try {
+        const payloads = await fetchAllPayloads(!!force);
+        const now = anaNow();
+        const list = [];
+        courses.forEach(c => { const p = payloads[c.id]; if (p && Array.isArray(p.students)) list.push(analyseCourse(c, p, now)); });
+        const noReg = courses.filter(c => !payloads[c.id] || !Array.isArray(payloads[c.id].students)).length;
+        anaData = {list, noReg, now};
+      } catch (e) { console.warn(e); anaData = {list: [], noReg: 0, now: anaNow(), error: true}; }
+      anaBusy = false;
+      renderAnalyses();
+    }
+
+    function openAnalysesModal() {
+      if (!isLoggedAdmin()) return;
+      document.getElementById('analysesModal').classList.remove('hidden');
+      loadAnalyses(true);
+    }
+    function closeAnalysesModal() { document.getElementById('analysesModal').classList.add('hidden'); }
+    function showAnaTab(t) { anaTab = t; renderAnalyses(); }
+
+    function anaFiltered() {
+      const y = (document.getElementById('anaYear') || {}).value || '';
+      return (anaData ? anaData.list : []).filter(a => !y || a.year === y);
+    }
+    const anaCell = (v, cls) => `<td class="px-2 py-1 ${cls || ''}">${v}</td>`;
+    function anaBar(v, color) {
+      if (v === null || v === undefined) return '<span class="text-slate-300">–</span>';
+      return `<div class="flex items-center gap-1.5"><div class="w-20 h-2 bg-slate-200 rounded overflow-hidden"><div class="h-2 ${color || 'bg-emerald-500'}" style="width:${Math.min(100, v)}%"></div></div><span class="font-semibold">${fmtPct(v)}</span></div>`;
+    }
+    const presColor = v => v === null ? 'bg-slate-300' : v >= 85 ? 'bg-emerald-500' : v >= 70 ? 'bg-amber-500' : 'bg-red-500';
+    const daysBetween = (a, b) => Math.round((b - a) / 86400000);
+
+    function aggregate(list) {
+      const g = {n: list.length, enrolled: 0, abandons: 0, active: 0, eligible: 0, presence: 0, expected: 0, encoded: 0, pDone: 0, pPlanned: 0, aa: {ok: 0, ajourne: 0, echec: 0, enCours: 0}, keys: new Set(), A: 0, R: 0};
+      list.forEach(a => {
+        g.enrolled += a.enrolled; g.abandons += a.abandons; g.active += a.active; g.eligible += a.eligible; g.presence += a.presence;
+        g.expected += a.expected; g.encoded += a.encoded; g.pDone += a.periodsDone; g.pPlanned += a.periodsPlanned; g.A += a.st.A; g.R += a.st.R;
+        Object.keys(g.aa).forEach(k => g.aa[k] += a.aa[k]);
+        (a.p.students || []).forEach(s => g.keys.add(matKey(s) || nameKey(s)));
+      });
+      g.rate = pct(g.presence, g.eligible); g.abandon = pct(g.abandons, g.enrolled); g.encRate = pct(g.encoded, g.expected);
+      const resolved = g.aa.ok + g.aa.ajourne + g.aa.echec;
+      g.aaRate = resolved ? pct(g.aa.ok, resolved) : null;
+      return g;
+    }
+
+    function renderAnalyses(msg) {
+      const body = document.getElementById('anaBody');
+      if (!body) return;
+      ['overview', 'sections', 'teachers', 'students', 'export'].forEach(t => {
+        const b = document.getElementById('anaTab_' + t);
+        b.classList.toggle('bg-white', t === anaTab); b.classList.toggle('text-[#0a3a60]', t === anaTab);
+        b.classList.toggle('bg-white/10', t !== anaTab); b.classList.toggle('text-white', t !== anaTab);
+      });
+      if (msg || !anaData) { body.innerHTML = `<p class="py-10 text-center text-slate-500">${escapeHtml(msg || 'Chargement…')}</p>`; return; }
+      // filtre d'année
+      const ySel = document.getElementById('anaYear');
+      const years = [...new Set(anaData.list.map(a => a.year))].sort();
+      const curY = `${academicYearOf(anaNow())}-${academicYearOf(anaNow()) + 1}`;
+      let cur = ySel.value;
+      if (!ySel.dataset.init) { ySel.dataset.init = '1'; cur = years.includes(curY) ? curY : ''; }
+      ySel.innerHTML = '<option value="">Toutes les années</option>' + years.map(y => `<option value="${y}"${y === cur ? ' selected' : ''}>${y}</option>`).join('');
+      ySel.value = years.includes(cur) ? cur : '';
+      document.getElementById('anaAsOf').textContent = `Situation au ${anaData.now.toLocaleDateString('fr-BE')} à ${String(anaData.now.getHours()).padStart(2, '0')}:${String(anaData.now.getMinutes()).padStart(2, '0')}`;
+      const list = anaFiltered();
+      if (anaTab === 'overview') body.innerHTML = anaOverview(list);
+      else if (anaTab === 'sections') body.innerHTML = anaSections(list);
+      else if (anaTab === 'teachers') body.innerHTML = anaTeachers(list);
+      else if (anaTab === 'students') body.innerHTML = anaStudents(list);
+      else body.innerHTML = anaExportPane();
+    }
+
+    function kpi(label, value, sub, cls) {
+      return `<div class="border border-slate-200 rounded-lg p-3 bg-white"><div class="text-[11px] text-slate-500 font-semibold">${label}</div><div class="text-2xl font-bold ${cls || 'text-[#0a3a60]'}">${value}</div><div class="text-[11px] text-slate-500">${sub || ''}</div></div>`;
+    }
+
+    // ----- Vue d'ensemble : indicateurs + UE dont le pointage n'est pas à jour -----
+    function anaOverview(list) {
+      const g = aggregate(list), now = anaData.now;
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const late = list.filter(a => a.late.length).map(a => {
+        const oldest = a.late[0].date;
+        return {a, oldest, days: daysBetween(oldest, today), cells: a.late.reduce((s, r) => s + r.miss, 0)};
+      }).sort((x, y) => y.days - x.days || y.cells - x.cells);
+      const noSessU = list.filter(a => !a.sessions && a.started && !a.finished && a.enrolled);
+      const emptyReg = anaData.noReg;
+      let html = `<div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+        ${kpi('UE analysées', g.n, `${g.keys.size} étudiant(s) distinct(s)`)}
+        ${kpi('Taux de présence', fmtPct(g.rate), 'sur les cases pointées, T/D/CM non pénalisants', g.rate !== null && g.rate < 80 ? 'text-red-600' : 'text-emerald-700')}
+        ${kpi('Abandons', fmtPct(g.abandon), `${g.abandons} sur ${g.enrolled} inscriptions`, g.abandon > 15 ? 'text-red-600' : 'text-[#0a3a60]')}
+        ${kpi('Pointage à jour', fmtPct(g.encRate), `${g.encoded} cases encodées sur ${g.expected} dues`, g.encRate !== null && g.encRate < 95 ? 'text-amber-600' : 'text-emerald-700')}
+        ${kpi('Périodes données', `${g.pDone}`, g.pPlanned ? `sur ${g.pPlanned} prévues (${fmtPct(pct(g.pDone, g.pPlanned))})` : '1 période = 50 min')}
+      </div>`;
+      html += `<h3 class="font-bold text-[#0a3a60] mb-1">Pointages à compléter <span class="text-slate-400 font-normal">(${late.length} UE)</span></h3>
+        <p class="text-[11px] text-slate-500 mb-2">Une séance est « à pointer » dès qu'elle est passée (ou terminée aujourd'hui) et qu'au moins un étudiant n'a pas de statut. Rouge : plus de 7 jours de retard.</p>`;
+      if (!late.length) html += '<div class="rounded border border-emerald-200 bg-emerald-50 text-emerald-800 font-semibold px-3 py-2 mb-4">✔ Tous les pointages dus sont encodés.</div>';
+      else html += `<div class="border border-slate-300 rounded overflow-auto max-h-[42vh] mb-4"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>
+        <th class="text-left px-2 py-1.5">UE</th><th class="text-left px-2 py-1.5">Section</th><th class="text-left px-2 py-1.5">Enseignant</th><th class="text-right px-2 py-1.5">Séances</th><th class="text-right px-2 py-1.5">Cases vides</th><th class="text-left px-2 py-1.5">Plus ancienne</th><th class="text-right px-2 py-1.5">Retard</th></tr></thead><tbody class="divide-y divide-slate-200">` +
+        late.map(x => `<tr class="${x.days > 7 ? 'bg-red-50' : x.days >= 1 ? 'bg-amber-50' : ''}">
+          ${anaCell(`<span class="font-bold">${escapeHtml(x.a.c.codeUE)}</span> ${escapeHtml(x.a.c.titre || x.a.c.intituleUE || '')}<details class="text-[10px] text-slate-500"><summary class="cursor-pointer">dates</summary>${x.a.late.map(r => fmtDM(r.date) + ' (' + r.miss + ')').join(', ')}</details>`)}
+          ${anaCell(escapeHtml(x.a.section))}${anaCell(escapeHtml(x.a.teacher))}${anaCell(x.a.late.length, 'text-right')}${anaCell(x.cells, 'text-right')}${anaCell(fmtDM(x.oldest) + '/' + x.oldest.getFullYear())}
+          ${anaCell(x.days === 0 ? "aujourd'hui" : x.days + ' j', 'text-right font-bold ' + (x.days > 7 ? 'text-red-700' : 'text-amber-700'))}</tr>`).join('') + '</tbody></table></div>';
+      if (noSessU.length || emptyReg) {
+        html += `<h3 class="font-bold text-[#0a3a60] mb-1">UE sans séance encodée</h3><div class="rounded border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 mb-4 text-xs">` +
+          (noSessU.length ? `<div class="mb-1"><strong>${noSessU.length} UE commencée(s) sans aucune séance :</strong> ${noSessU.map(a => escapeHtml(a.c.codeUE)).join(', ')}.</div>` : '') +
+          (emptyReg ? `<div>${emptyReg} UE du catalogue n'ont pas encore de registre.</div>` : '') + '</div>';
+      }
+      // faible présence
+      const low = list.filter(a => a.eligible >= 10 && pct(a.presence, a.eligible) < 70).sort((x, y) => pct(x.presence, x.eligible) - pct(y.presence, y.eligible));
+      if (low.length) html += `<h3 class="font-bold text-[#0a3a60] mb-1">UE à présence faible (&lt; 70 %)</h3><div class="text-xs mb-2">${low.map(a => `<span class="inline-block mr-2 mb-1 px-2 py-0.5 rounded bg-red-100 text-red-800 font-semibold">${escapeHtml(a.c.codeUE)} · ${fmtPct(pct(a.presence, a.eligible))}</span>`).join('')}</div>`;
+      return html;
+    }
+
+    // ----- Sections par année -----
+    function anaSections(list) {
+      const by = {};
+      list.forEach(a => { (by[a.section + '||' + a.year] = by[a.section + '||' + a.year] || []).push(a); });
+      const keys = Object.keys(by).sort((x, y) => x.split('||')[0].localeCompare(y.split('||')[0], 'fr') || y.split('||')[1].localeCompare(x.split('||')[1]));
+      if (!keys.length) return '<p class="py-8 text-center text-slate-500">Aucune donnée.</p>';
+      let html = '<p class="text-[11px] text-slate-500 mb-2">Une ligne par section et par année académique, avec le détail des UE en dessous. L\'année est lue dans chaque registre (champ « Année académique »).</p><div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>' +
+        ['Section', 'Année', 'UE', 'Étudiants', 'Présence', 'Abandon', 'Pointage à jour', 'Réussite des AA', 'Périodes données / prévues'].map((h, i) => `<th class="px-2 py-1.5 ${i > 1 ? 'text-right' : 'text-left'}">${h}</th>`).join('') + '</tr></thead><tbody class="divide-y divide-slate-200">';
+      keys.forEach(k => {
+        const [sec, yr] = k.split('||'), l = by[k], g = aggregate(l);
+        html += `<tr class="bg-white font-semibold">${anaCell(escapeHtml(sec))}${anaCell(yr)}${anaCell(g.n, 'text-right')}${anaCell(g.keys.size, 'text-right')}${anaCell(anaBar(g.rate, presColor(g.rate)), 'text-right')}${anaCell(fmtPct(g.abandon), 'text-right ' + (g.abandon > 15 ? 'text-red-700' : ''))}${anaCell(fmtPct(g.encRate), 'text-right')}${anaCell(fmtPct(g.aaRate), 'text-right')}${anaCell(g.pDone + (g.pPlanned ? ' / ' + g.pPlanned : ''), 'text-right')}</tr>`;
+        l.slice().sort((a, b) => String(a.c.codeUE).localeCompare(String(b.c.codeUE), 'fr', {numeric: true})).forEach(a => {
+          const r = pct(a.presence, a.eligible);
+          html += `<tr class="text-slate-600">${anaCell('<span class="pl-4">' + escapeHtml(a.c.codeUE) + ' <span class="text-slate-400">' + escapeHtml(a.c.titre || a.c.intituleUE || '') + '</span></span>')}${anaCell(a.year)}${anaCell('')}${anaCell(a.active + (a.abandons ? ' <span class="text-red-600">(+' + a.abandons + ' abandon)</span>' : ''), 'text-right')}${anaCell(anaBar(r, presColor(r)), 'text-right')}${anaCell(fmtPct(pct(a.abandons, a.enrolled)), 'text-right')}${anaCell(fmtPct(pct(a.encoded, a.expected)), 'text-right')}${anaCell(a.aa.ok + a.aa.ajourne + a.aa.echec ? fmtPct(pct(a.aa.ok, a.aa.ok + a.aa.ajourne + a.aa.echec)) : '–', 'text-right')}${anaCell(a.periodsDone + (a.periodsPlanned ? ' / ' + a.periodsPlanned : ''), 'text-right')}</tr>`;
+        });
+      });
+      return html + '</tbody></table></div>';
+    }
+
+    // ----- Enseignants -----
+    function anaTeachers(list) {
+      const by = {};
+      list.forEach(a => { (by[a.teacher] = by[a.teacher] || []).push(a); });
+      const rows = Object.keys(by).map(t => {
+        const l = by[t], g = aggregate(l);
+        return {t, g, late: l.reduce((s, a) => s + a.late.length, 0), n: l.length, codes: l.map(a => a.c.codeUE)};
+      }).sort((x, y) => (x.g.encRate === null) - (y.g.encRate === null) || (x.g.encRate - y.g.encRate) || x.t.localeCompare(y.t, 'fr'));
+      if (!rows.length) return '<p class="py-8 text-center text-slate-500">Aucune donnée.</p>';
+      return '<p class="text-[11px] text-slate-500 mb-2">Triés par pointage le moins à jour. Le délai exact de pointage n\'est pas enregistré aujourd\'hui : on mesure la complétude (cases encodées sur cases dues).</p><div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>' +
+        ['Enseignant', 'UE', 'Étudiants', 'Présence moyenne', 'Pointage à jour', 'Séances à compléter', 'Périodes données / prévues'].map((h, i) => `<th class="px-2 py-1.5 ${i > 0 ? 'text-right' : 'text-left'}">${h}</th>`).join('') + '</tr></thead><tbody class="divide-y divide-slate-200">' +
+        rows.map(r => `<tr class="${r.late ? 'bg-amber-50' : ''}">${anaCell('<span class="font-semibold">' + escapeHtml(r.t) + '</span><div class="text-[10px] text-slate-400">' + escapeHtml(r.codes.join(', ')) + '</div>')}${anaCell(r.n, 'text-right')}${anaCell(r.g.active, 'text-right')}${anaCell(anaBar(r.g.rate, presColor(r.g.rate)), 'text-right')}${anaCell(fmtPct(r.g.encRate), 'text-right font-semibold ' + (r.g.encRate !== null && r.g.encRate < 90 ? 'text-red-700' : ''))}${anaCell(r.late || '0', 'text-right')}${anaCell(r.g.pDone + (r.g.pPlanned ? ' / ' + r.g.pPlanned : ''), 'text-right')}</tr>`).join('') + '</tbody></table></div>';
+    }
+
+    // ----- Étudiants (vue transversale, par matricule ou nom) -----
+    function anaStudentRows(list) {
+      const m = {};
+      list.forEach(a => {
+        (a.p.students || []).forEach(s => {
+          const k = matKey(s) || nameKey(s);
+          const e = m[k] || (m[k] = {s, ues: [], el: 0, pts: 0, abs: 0, abandons: 0});
+          if (!e.s.matricule && s.matricule) e.s = s;
+          e.ues.push(a.c.codeUE);
+          if ((a.p.abandonedStudents || {})[s.id]) e.abandons++;
+          const r = a.studentRates[s.id];
+          if (r) { e.el += r.el; e.pts += r.pts; e.abs += r.abs; }
+        });
+      });
+      return Object.values(m).map(e => Object.assign(e, {rate: pct(e.pts, e.el)}));
+    }
+    function anaStudents(list) {
+      const th = parseInt((document.getElementById('anaThreshold') || {}).value, 10) || 80;
+      const rows = anaStudentRows(list);
+      const risk = rows.filter(e => e.abandons || (e.rate !== null && e.rate < th && e.el >= 3)).sort((a, b) => (b.abandons - a.abandons) || ((a.rate === null ? 101 : a.rate) - (b.rate === null ? 101 : b.rate)));
+      return `<div class="flex flex-wrap items-center gap-2 mb-2"><label class="font-semibold text-slate-600">Seuil de présence</label>
+        <input id="anaThreshold" type="number" min="1" max="100" value="${th}" onchange="renderAnalyses()" class="w-16 border border-slate-300 rounded px-2 py-1"> %
+        <span class="text-slate-500">${risk.length} étudiant(s) sous le seuil (au moins 3 séances) ou ayant abandonné, sur ${rows.length}.</span></div>
+        <div class="border border-slate-300 rounded overflow-auto max-h-[56vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>
+        <th class="text-left px-2 py-1.5">Étudiant</th><th class="text-left px-2 py-1.5">Matricule</th><th class="text-left px-2 py-1.5">UE</th><th class="text-right px-2 py-1.5">Présence (toutes UE)</th><th class="text-right px-2 py-1.5">Absences</th><th class="text-right px-2 py-1.5">Abandons</th></tr></thead><tbody class="divide-y divide-slate-200">` +
+        (risk.length ? risk.map(e => `<tr>${anaCell('<span class="font-semibold">' + escapeHtml((e.s.nom || '') + ' ' + (e.s.prenom || '')) + '</span>')}${anaCell('<span class="font-mono text-slate-500">' + escapeHtml(e.s.matricule || '–') + '</span>')}${anaCell(escapeHtml([...new Set(e.ues)].join(', ')))}${anaCell(anaBar(e.rate, presColor(e.rate)), 'text-right')}${anaCell(e.abs, 'text-right')}${anaCell(e.abandons || '–', 'text-right ' + (e.abandons ? 'text-red-700 font-bold' : ''))}</tr>`).join('') : '<tr><td colspan="6" class="px-2 py-6 text-center text-slate-400">Aucun étudiant sous le seuil.</td></tr>') + '</tbody></table></div>';
+    }
+
+    // ----- Export Power BI -----
+    function anaExportPane() {
+      return `<div class="max-w-2xl"><h3 class="font-bold text-[#0a3a60] mb-1">Exporter pour Power BI</h3>
+        <p class="text-slate-600 mb-3">Génère un classeur Excel (.xlsx) avec des tables à plat, prêtes à être importées dans Power BI (Obtenir des données &gt; Excel, cocher toutes les feuilles) : <strong>UE</strong>, <strong>Sections</strong>, <strong>Seances</strong>, <strong>Presences</strong> (une ligne par étudiant et par séance), <strong>Etudiants</strong>. Toutes les années sont incluses, quel que soit le filtre.</p>
+        <label class="flex items-center gap-2 mb-3 font-semibold text-slate-700"><input type="checkbox" id="anaWithNames"> Inclure les noms et prénoms des étudiants</label>
+        <p class="text-[11px] text-slate-500 mb-3">Par défaut, seuls le matricule (ou un code anonyme) figure dans le fichier : c'est le choix recommandé pour un fichier qui circule (RGPD). Gardez le fichier dans un espace réservé à la direction.</p>
+        <button onclick="exportPowerBI()" class="px-4 py-2 font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Télécharger le classeur Power BI</button></div>`;
+    }
+    function exportPowerBI() {
+      if (!isLoggedAdmin() || !anaData) return;
+      const names = document.getElementById('anaWithNames').checked;
+      const WD = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+      const anon = {};
+      const key = s => { const k = matKey(s) || nameKey(s); if (s.matricule) return s.matricule; return anon[k] || (anon[k] = 'SANS-MATRICULE-' + (Object.keys(anon).length + 1)); };
+      const ue = [], seances = [], pres = [], etu = [];
+      const secAgg = {};
+      anaData.list.forEach(a => {
+        const c = a.c;
+        ue.push({Annee: a.year, Section: a.section, Bloc: c.bloc || '', CodeUE: c.codeUE, Intitule: c.titre || c.intituleUE || '', Enseignant: a.teacher, Local: c.localLabel || '',
+          Inscrits: a.enrolled, Abandons: a.abandons, TauxAbandon: pct(a.abandons, a.enrolled), TauxPresence: pct(a.presence, a.eligible), TauxPointageAJour: pct(a.encoded, a.expected),
+          SeancesPlanifiees: a.sessions, SeancesRealisees: a.done, SeancesAPointer: a.late.length, PeriodesPrevues: a.periodsPlanned || null, PeriodesDonnees: a.periodsDone,
+          Absences: a.st.A, Retards: a.st.R, T_InscriptionTardive: a.st.T, D_Dispense: a.st.D, CM_CertificatMedical: a.st.CM,
+          AA_Reussis: a.aa.ok, AA_Echecs: a.aa.echec, AA_Ajournes: a.aa.ajourne, AA_EnCours: a.aa.enCours});
+        a.sessRows.forEach(r => {
+          const loc = (c.localSessions && c.localSessions[r.s.id] && c.localSessions[r.s.id].label) || c.localLabel || '';
+          seances.push({Annee: a.year, Section: a.section, CodeUE: c.codeUE, Enseignant: a.teacher, Date: dateKey(r.date), Jour: WD[r.date.getDay()], Debut: r.s.start || '', Fin: r.s.end || '',
+            Moment: dayPartsOf(toMin(r.s.start, 0), toMin(r.s.end, 1440)).map(x => DAYPART_LABEL[x]).join(' + '), Periodes: sessionPeriods(r.s) || 0, Local: loc,
+            Inscrits: a.active, Presents: r.P + r.M, Retards: r.R, Absents: r.A, T: r.T, D: r.D, CM: r.CM, NonPointes: r.miss, Realisee: r.done ? 1 : 0, ADateDepassee: r.due ? 1 : 0});
+        });
+        a.presRows.forEach(x => {
+          const o = {Annee: a.year, CodeUE: c.codeUE, Date: dateKey(x.date), Etudiant: key(x.st), Statut: x.status === '?' ? '' : x.status, Quotite: x.status === '?' ? null : x.quotite};
+          if (names) { o.Nom = x.st.nom || ''; o.Prenom = x.st.prenom || ''; }
+          pres.push(o);
+        });
+        const k = a.section + '||' + a.year; (secAgg[k] = secAgg[k] || []).push(a);
+      });
+      const secRows = Object.keys(secAgg).map(k => { const [s, y] = k.split('||'), g = aggregate(secAgg[k]);
+        return {Annee: y, Section: s, NbUE: g.n, EtudiantsDistincts: g.keys.size, Inscriptions: g.enrolled, Abandons: g.abandons, TauxAbandon: g.abandon, TauxPresence: g.rate, TauxPointageAJour: g.encRate, TauxReussiteAA: g.aaRate, PeriodesDonnees: g.pDone, PeriodesPrevues: g.pPlanned || null}; });
+      anaStudentRows(anaData.list).forEach(e => {
+        const o = {Etudiant: key(e.s), NbUE: new Set(e.ues).size, SeancesEligibles: e.el, TauxPresence: e.rate, Absences: e.abs, Abandons: e.abandons};
+        if (names) { o.Nom = e.s.nom || ''; o.Prenom = e.s.prenom || ''; }
+        etu.push(o);
+      });
+      const wb = XLSX.utils.book_new();
+      [['UE', ue], ['Sections', secRows], ['Seances', seances], ['Presences', pres], ['Etudiants', etu]].forEach(([n, rows]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{}]), n));
+      const out = XLSX.write(wb, {type: 'array', bookType: 'xlsx'});
+      const blob = new Blob([out], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `CESNa_PowerBI_${dateKey(anaNow())}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      window.__lastPowerBI = {ue, secRows, seances, pres, etu};
     }
 
     function escapeHtml(str) {
