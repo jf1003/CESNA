@@ -191,12 +191,18 @@
               <span class="admin-only hidden">•</span>
               <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">📊 Analyses</button>
               <span>•</span>
+              <span id="yearBadge" class="font-bold text-slate-700"></span>
+              <span class="admin-only hidden">•</span>
+              <select id="yearSelect" onchange="switchYear(this.value)" title="Changer d'année scolaire" class="admin-only hidden text-xs border border-slate-300 rounded px-1 py-0.5 bg-white text-slate-700"></select>
+              <button id="newYearBtn" onclick="openNewYearModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">➕ Nouvelle année</button>
+              <span>•</span>
               <span id="userChip" class="inline-flex items-center gap-1.5">
                 <span id="userChipLabel" class="text-slate-700 font-semibold"></span>
                 <button id="changePwdBtn" onclick="changeMyPassword()" class="text-slate-600 hover:text-slate-900 underline">Changer mon mot de passe</button>
                 <button onclick="logout()" class="text-slate-600 hover:text-slate-900 underline">Se déconnecter</button>
               </span>
             </div>
+            <div id="yearBanner" class="hidden mt-1 text-xs px-2 py-1 rounded font-semibold"></div>
           </div>
         </div>
 
@@ -569,6 +575,33 @@
         <button onclick="closeAnalysesModal()" class="ml-1 text-white/80 hover:text-white text-lg leading-none" title="Fermer">✕</button>
       </div>
       <div id="anaBody" class="p-4 overflow-auto text-xs"></div>
+    </div>
+  </div>
+
+  <!-- ================= MODALE : NOUVELLE ANNÉE SCOLAIRE (admin) ================= -->
+  <div id="newYearModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-md overflow-hidden">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
+        <span>➕ Nouvelle année scolaire</span>
+        <button onclick="closeNewYearModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+      <div class="p-4 space-y-3 text-xs text-slate-700">
+        <div>
+          <label class="block font-semibold mb-1">Nouvelle année</label>
+          <input type="text" id="newYearInput" placeholder="2027-2028" class="w-full text-sm p-2 border border-slate-300 rounded">
+        </div>
+        <ul class="list-disc pl-5 space-y-0.5">
+          <li>Copie de l'année en cours (<strong id="newYearSource"></strong>) : cours, enseignants, locaux, classes.</li>
+          <li><strong>Remis à zéro</strong> : étudiants, séances, pointages, points et dates de début/fin.</li>
+          <li>L'année en cours n'est <strong>pas modifiée</strong>.</li>
+          <li>La nouvelle année est d'abord visible des administrateurs seulement ; vous l'activez ensuite pour tous.</li>
+        </ul>
+        <div id="newYearStatus" class="text-xs mt-2"></div>
+        <div class="pt-1 flex justify-end gap-2">
+          <button onclick="closeNewYearModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Fermer</button>
+          <button id="newYearBtnGo" onclick="createNewYear()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Créer l'année</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1371,10 +1404,26 @@
       }
     ];
 
+    // -------------------------------------------------------------
+    // ANNÉES SCOLAIRES
+    //  - 2026-2027 = année d'origine : ses données restent dans les collections d'origine (registres, catalogue_ue, locaux), inchangées
+    //  - les années suivantes sont rangées à part : annees/{année}/registres, annees/{année}/catalogue_ue, annees/{année}/locaux
+    //  - annees/_config : { active: "année en cours", years: { "2027-2028": {status: "creation" | "prepa" | ...} } }
+    //  - enseignants et annuaire sont communs à toutes les années
+    // -------------------------------------------------------------
+    const LEGACY_YEAR = "2026-2027";
+    const YEAR_KEY = "CESNA_YEAR";
+    const YEARS_COLLECTION = "annees";
+    let YEAR = LEGACY_YEAR;
+    try { const y = localStorage.getItem(YEAR_KEY); if (/^20\d{2}-20\d{2}$/.test(y || '')) YEAR = y; } catch (e) { /* ignoré */ }
+    const YEAR_SUFFIX = YEAR === LEGACY_YEAR ? "" : "__" + YEAR;   // suffixe des clés localStorage
+    let YEAR_RO = false;                                            // année archivée : lecture seule
+    let YEAR_CFG = {active: LEGACY_YEAR, years: {}};
+
     // Données principales en mémoire
     let courseTitle = "";
     let adminMetadata = {
-      academicYear: "2026-2027",
+      academicYear: YEAR,
       section: "Bachelier en Informatique de gestion",
       codeUE: "",
       intituleUE: "",
@@ -1469,8 +1518,8 @@
     }
 
     function pushRemote(courseId, payload) {
-      if (!db) return;
-      return db.collection(REMOTE_COLLECTION).doc(courseId).set({
+      if (!db || YEAR_RO) return;
+      return yc(REMOTE_COLLECTION).doc(courseId).set({
         data: JSON.stringify(payload),
         savedAt: payload.savedAt || "",
         codeUE: (payload.adminMetadata && payload.adminMetadata.codeUE) || "",
@@ -1494,7 +1543,7 @@
       if (remoteCourseId === courseId && remoteUnsub) return;
       stopRemoteSync();
       remoteCourseId = courseId;
-      remoteUnsub = db.collection(REMOTE_COLLECTION).doc(courseId).onSnapshot(snap => {
+      remoteUnsub = yc(REMOTE_COLLECTION).doc(courseId).onSnapshot(snap => {
         if (courseId !== currentCourseId) return;
         if (snap.metadata.hasPendingWrites) return;   // notre propre écriture en cours
         if (remoteSaveTimer) return;                  // une sauvegarde locale va partir
@@ -1539,12 +1588,12 @@
     }
 
     function storageKeyFor(courseId) {
-      return STORAGE_PREFIX + courseId;
+      return STORAGE_PREFIX + courseId + YEAR_SUFFIX;
     }
 
     function blankAdminMetadata() {
       return {
-        academicYear: "2026-2027",
+        academicYear: YEAR,
         section: "Bachelier en Informatique de gestion",
         codeUE: "",
         intituleUE: "",
@@ -1571,6 +1620,7 @@
 
     // Reprend l'ancienne sauvegarde unique et la range dans le bon cours (si reconnu par son code UE)
     function migrateLegacyData() {
+      if (YEAR !== LEGACY_YEAR) return;
       try {
         const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
         if (!raw) return;
@@ -1771,7 +1821,7 @@
       if (pwdBtn) pwdBtn.classList.toggle('hidden', anon);   // pas de mot de passe en connexion par le nom
       if (!appStarted) {
         appStarted = true;
-        startCoursesSync();
+        yearGate(profile).then(ok => { if (ok) startCoursesSync(); });
       }
       buildCourseSelector();
       renderTable();
@@ -2180,7 +2230,7 @@
     // -------------------------------------------------------------
     // CATALOGUE DES COURS (CRUD) : stocké dans Firestore, collection "cours"
     // -------------------------------------------------------------
-    const COURSES_LS_KEY = "CESNA_COURSES_V2";
+    const COURSES_LS_KEY = "CESNA_COURSES_V2" + YEAR_SUFFIX;
     const COURSES_COLLECTION = "catalogue_ue";
     const DEFAULT_COURSE_FIELDS = {
       section: "", bloc: "", codeUE: "", intituleUE: "", titre: "", enseignant: "À définir", periodes: "",
@@ -2294,7 +2344,7 @@
 
     function startCoursesSync() {
       if (!db) return;
-      db.collection(COURSES_COLLECTION).onSnapshot(snap => {
+      yc(COURSES_COLLECTION).onSnapshot(snap => {
         let hasMeta = false;
         const list = [];
         snap.forEach(d => {
@@ -2321,12 +2371,13 @@
     }
 
     function seedCoursesRemote() {
+      if (YEAR_RO || YEAR !== LEGACY_YEAR) return;   // le catalogue d'une nouvelle année est copié à sa création, jamais ré-initialisé
       const batch = db.batch();
       courses.forEach(c => {
         const {id, ...data} = c;
-        batch.set(db.collection(COURSES_COLLECTION).doc(id), data);
+        batch.set(yc(COURSES_COLLECTION).doc(id), data);
       });
-      batch.set(db.collection(COURSES_COLLECTION).doc('_meta'), {seeded: true, at: new Date().toISOString()});
+      batch.set(yc(COURSES_COLLECTION).doc('_meta'), {seeded: true, at: new Date().toISOString()});
       batch.commit().catch(err => {
         console.warn("Initialisation de la liste des cours impossible :", err);
         setCoursesStatus(err && err.code === 'permission-denied'
@@ -2336,6 +2387,7 @@
     }
 
     function openCoursesModal() {
+      if (roBlock()) return;
       fillLocalSelect();
       renderCoursesList();
       resetCourseForm();
@@ -2460,7 +2512,7 @@
       saveCoursesLocal();
       if (db) {
         const {id, ...data} = course;
-        db.collection(COURSES_COLLECTION).doc(id).set(data).catch(err => {
+        yc(COURSES_COLLECTION).doc(id).set(data).catch(err => {
           console.warn("Échec d'écriture du cours :", err);
           setCoursesStatus(err && err.code === 'permission-denied'
             ? "Liste des cours non synchronisée : ajoutez la collection « catalogue_ue » dans les règles Firestore."
@@ -2471,6 +2523,7 @@
     }
 
     function deleteCourse(id) {
+      if (roBlock()) return;
       const c = courses.find(x => x.id === id);
       if (!c) return;
       let hasRegistre = false;
@@ -2482,7 +2535,7 @@
       courses = courses.filter(x => x.id !== id);
       saveCoursesLocal();
       if (db) {
-        db.collection(COURSES_COLLECTION).doc(id).delete().catch(err => {
+        yc(COURSES_COLLECTION).doc(id).delete().catch(err => {
           console.warn("Échec de suppression du cours :", err);
           setCoursesStatus("La suppression n'a pas pu être synchronisée (règles Firestore ou hors ligne).");
         });
@@ -2592,7 +2645,7 @@
     }
 
     function saveToStorage() {
-      if (!currentCourseId) return;
+      if (!currentCourseId || YEAR_RO) return;   // année archivée : jamais d'écriture
       const payload = buildPayload();
       lastSavedAt = payload.savedAt;
 
@@ -2652,6 +2705,7 @@
     }
 
     function createNewCourse() {
+      if (roBlock()) return;
       if (!ensureCourseSelected()) return;
       if (confirm("Voulez-vous vider le registre de ce cours (étudiants, séances, pointages, points) ? Pensez à faire 'Sauvegarder' pour archiver le fichier actuel.")) {
         const found = courses.find(c => c.id === currentCourseId);
@@ -2814,6 +2868,7 @@
     }
 
     function deleteSession(sessionId) {
+      if (roBlock()) return;
       const sess = sessions.find(x => x.id === sessionId);
       if (!sess) return;
       const suffix = `_${sessionId}`;
@@ -3097,6 +3152,7 @@
     }
 
     function toggleAbandon(studentId) {
+      if (roBlock()) return;
       indicateSaving();
       abandonedStudents[studentId] = !abandonedStudents[studentId];
       saveToStorage();
@@ -3123,6 +3179,7 @@
     }
 
     function fillEntireSession(sessionId, defaultStatus) {
+      if (roBlock()) return;
       // Les pointages T, D, CM, E et J (validés par l'admin) ne sont jamais écrasés par un « tous présents »
       const keep = students.filter(s => {
         const r = attendanceData[`${s.id}_${sessionId}`];
@@ -3150,6 +3207,7 @@
     // MODALE DE POINTAGE INSTANTANÉ (CLIC UNIQUE)
     // -------------------------------------------------------------
     function openPointageModal(student, session) {
+      if (roBlock()) return;
       currentCell.studentId = student.id;
       currentCell.sessionId = session.id;
 
@@ -3301,6 +3359,7 @@
     // AJOUT SÉANCES
     // -------------------------------------------------------------
     function openAddSessionModal() {
+      if (roBlock()) return;
       if (!ensureCourseSelected()) return;
       document.getElementById('sessionDateInput').value = '';
       document.getElementById('datesPreviewTagBox').innerHTML = '';
@@ -3315,6 +3374,7 @@
     // MODIFIER UNE SÉANCE (date et heures) : l'identifiant de la séance ne change pas, les pointages sont conservés
     // -------------------------------------------------------------
     function openEditSessionModal(sessionId) {
+      if (roBlock()) return;
       const sess = sessions.find(x => x.id === sessionId);
       if (!sess) return;
       const d = parseSessionDate(sess.date);
@@ -3392,6 +3452,7 @@
     // CRUD ÉTUDIANTS (Ajouter, Modifier, Supprimer)
     // -------------------------------------------------------------
     function openAddStudentModal() {
+      if (roBlock()) return;
       if (!ensureCourseSelected()) return;
       document.getElementById('editStudentId').value = '';
       document.getElementById('newStudentMatricule').value = '';
@@ -3403,6 +3464,7 @@
     }
 
     function openEditStudentModal(studentId) {
+      if (roBlock()) return;
       const std = students.find(s => s.id === studentId);
       if (!std) return;
       document.getElementById('editStudentId').value = std.id;
@@ -3457,6 +3519,7 @@
 }
 
     function deleteStudent(studentId) {
+      if (roBlock()) return;
       const std = students.find(s => s.id === studentId);
       if (!std) return;
 
@@ -3486,6 +3549,7 @@
     // IMPORT EXCEL AVEC EXTRACTION DES DONNÉES DE COURS & ÉTUDIANTS
     // -------------------------------------------------------------
     function openImportModal() {
+      if (roBlock()) return;
       if (!ensureCourseSelected()) return;
       document.getElementById('pasteStudentListInput').value = '';
       document.getElementById('importModal').classList.remove('hidden');
@@ -3772,6 +3836,7 @@
     }
 
     function setAA(stdId, k, i, val) {
+      if (roBlock()) return;
       const g = aaGrades[stdId] || (aaGrades[stdId] = {});
       const arr = g['a' + k] || (g['a' + k] = []);
       for (let j = 0; j <= i; j++) if (arr[j] === undefined) arr[j] = null;
@@ -3815,6 +3880,7 @@
     // Clic sur une case AA : vide -> acquis -> non acquis -> vide (enseignant)
     // Admin : vide -> acquis -> non acquis -> dispensé -> vide
     function cycleAA(stdId, k, i) {
+      if (roBlock()) return;
       const n = currentNbAA();
       if (!n) return;
       const st = computeAA(stdId, n);
@@ -3850,6 +3916,7 @@
 
     // Clic sur « AA n » dans l'en-tête : marque l'AA acquis pour toutes les cases encore vides
     function fillAAColumn(k, i) {
+      if (roBlock()) return;
       const n = currentNbAA();
       if (!n) return;
       const targets = students.filter(s => {
@@ -3866,6 +3933,7 @@
 
     // Valide et enregistre la note saisie (50 à 100). Retourne false si elle est refusée.
     function commitAANote(stdId, k, input) {
+      if (roBlock()) return;
       const n = currentNbAA();
       const st = computeAA(stdId, n);
       const ss = k === 1 ? st.s1 : st.s2;
@@ -4710,7 +4778,7 @@
     // attributs du nom d'étudiant dans les tableaux : cliquable seulement pour un administrateur
     function studentNameAttrs(std) {
       return canOpenStudentCard()
-        ? `onclick="openStudentCard('${std.id}')" title="Voir la fiche de l'étudiant (présences et points de tous ses cours)"`
+        ? `onclick="openStudentCard('${std.id}')" title="Voir la fiche de l'étudiant (présences et points de tous ses cours et de toutes les années)"`
         : '';
     }
     function studentNameClass() {
@@ -4739,7 +4807,7 @@
       let online = false;
       if (db) {
         try {
-          const snap = await db.collection(REMOTE_COLLECTION).get();
+          const snap = await yc(REMOTE_COLLECTION).get();
           snap.forEach(d => {
             try {
               const x = d.data();
@@ -4860,32 +4928,61 @@
         if (res) rows.push({id, c, p: payloads[id], res});
       });
 
-      if (!rows.length) {
-        body.innerHTML = '<p class="py-8 text-center text-slate-500">Aucun registre ne contient cet étudiant.</p>';
+      // Parcours : les autres années scolaires (lecture seule), de la plus récente à la plus ancienne
+      const others = [];
+      const otherYears = yearList().filter(y => y !== YEAR && yearState(y) !== 'creation').sort().reverse();
+      let histOk = true;
+      for (const y of otherYears) {
+        const yd = await fetchYearData(y, !!force);
+        if (ficheTargetId !== studentId) return;
+        if (!yd.ok) { histOk = false; continue; }
+        const yrows = [];
+        yd.courses.slice().sort((a, b) => String(a.codeUE || '').localeCompare(String(b.codeUE || ''))).forEach(c => {
+          const pl = yd.payloads[c.id];
+          if (!pl) return;
+          const res = withMetaOf(pl, () => studentResultInCourse(pl, c, target));
+          if (res) yrows.push({id: c.id, c, p: pl, res});
+        });
+        if (yrows.length) others.push({y, rows: yrows});
+      }
+
+      if (!rows.length && !others.length) {
+        body.innerHTML = '<p class="py-8 text-center text-slate-500">Aucun registre ne contient cet étudiant' + (otherYears.length ? ' (ni dans les autres années).' : '.') + '</p>';
         return;
       }
-      const rates = rows.map(r => r.res.rate).filter(r => r !== null);
-      const avg = rates.length ? Math.round(rates.reduce((a, b) => a + b, 0) / rates.length) : null;
       const rateCls = r => r === null ? 'text-slate-400' : r >= 80 ? 'text-emerald-700' : r >= 50 ? 'text-amber-600' : 'text-red-700';
-
-      let html = `<div class="mb-2 text-xs text-slate-600">${rows.length} cours · taux de présence moyen : <strong class="${rateCls(avg)}">${fmtRate(avg)}</strong>
-        ${ficheCache.online === false ? '<span class="ml-2 text-amber-700 font-semibold">(hors ligne : copies locales, peut être incomplet)</span>' : ''}</div>
-        <table class="w-full text-xs border-collapse"><thead><tr class="bg-[#0a3a60] text-white text-left">
+      const avgOf = rs => { const a = rs.map(r => r.res.rate).filter(r => r !== null); return a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : null; };
+      const tableOf = rs => {
+        let h = `<table class="w-full text-xs border-collapse"><thead><tr class="bg-[#0a3a60] text-white text-left">
           <th class="px-2 py-1.5">UE</th><th class="px-2 py-1.5 text-center">Présence</th>
           <th class="px-2 py-1.5">1ʳᵉ session</th><th class="px-2 py-1.5">2ᵉ session</th></tr></thead><tbody>`;
-      rows.forEach((r, i) => {
-        const title = r.c ? `${r.c.codeUE || ''} - ${r.c.titre || r.c.intituleUE || ''}` : (r.p.courseTitle || r.id);
-        const res = r.res;
-        const det = res.done ? `${res.absences} abs. / ${res.done} séance${res.done > 1 ? 's' : ''}` : 'aucune séance réalisée';
-        html += `<tr class="${i % 2 ? 'bg-white' : 'bg-amber-50/40'} align-top border-b border-slate-200">
+        rs.forEach((r, i) => {
+          const title = r.c ? `${r.c.codeUE || ''} - ${r.c.titre || r.c.intituleUE || ''}` : (r.p.courseTitle || r.id);
+          const res = r.res;
+          const det = res.done ? `${res.absences} abs. / ${res.done} séance${res.done > 1 ? 's' : ''}` : 'aucune séance réalisée';
+          h += `<tr class="${i % 2 ? 'bg-white' : 'bg-amber-50/40'} align-top border-b border-slate-200">
           <td class="px-2 py-1.5"><div class="font-bold text-slate-800">${escapeHtml(title)}</div>
             ${res.abandoned ? '<span class="px-1 rounded bg-red-100 text-red-700 font-bold text-[10px]">ABANDON</span>' : ''}
             ${res.byName ? '<span class="text-[10px] text-slate-400" title="Reconnu par nom et prénom (matricule absent d\'un des registres)">≈ par nom</span>' : ''}</td>
           <td class="px-2 py-1.5 text-center"><div class="font-bold text-sm ${rateCls(res.rate)}">${fmtRate(res.rate)}</div><div class="text-[10px] text-slate-500">${det}</div></td>
           <td class="px-2 py-1.5">${ficheSession(res.aa && res.aa.s1, 1, res.n)}</td>
           <td class="px-2 py-1.5">${ficheSession(res.aa && res.aa.s2, 2, res.n)}</td></tr>`;
-      });
-      html += '</tbody></table>';
+        });
+        return h + '</tbody></table>';
+      };
+      const multi = yearList().length > 1;
+      const yearHead = (y, rs) => `<div class="mt-4 mb-1 px-2 py-1 bg-slate-100 border-l-4 border-[#0a3a60] font-bold text-sm text-[#0a3a60]">📅 ${y} <span class="font-normal text-xs text-slate-600">· ${yearStateLabel(y)} · ${rs.length} cours · présence moyenne : <strong class="${rateCls(avgOf(rs))}">${fmtRate(avgOf(rs))}</strong></span></div>`;
+      const offline = (ficheCache.online === false || !histOk) ? '<span class="ml-2 text-amber-700 font-semibold">(hors ligne ou accès refusé : parcours peut être incomplet)</span>' : '';
+      let html = '';
+      if (!multi) {
+        html += `<div class="mb-2 text-xs text-slate-600">${rows.length} cours · taux de présence moyen : <strong class="${rateCls(avgOf(rows))}">${fmtRate(avgOf(rows))}</strong>${offline}</div>` + tableOf(rows);
+      } else {
+        const nYears = (rows.length ? 1 : 0) + others.length;
+        const nCours = rows.length + others.reduce((a, o) => a + o.rows.length, 0);
+        html += `<div class="mb-1 text-xs text-slate-600">Parcours : <strong>${nYears} année${nYears > 1 ? 's' : ''}</strong> · ${nCours} cours${offline}</div>`;
+        if (rows.length) html += yearHead(YEAR, rows) + tableOf(rows);
+        others.forEach(o => { html += yearHead(o.y, o.rows) + tableOf(o.rows); });
+      }
       body.innerHTML = html;
     }
 
@@ -4915,7 +5012,7 @@
     //  - le local d'une UE est recopié dans la fiche du cours (localId, localLabel, localSessions) : les profs
     //    le lisent donc sans accéder à la liste des locaux. Exceptions par séance : localSessions[idSéance].
     // -------------------------------------------------------------
-    const LOCAUX_LS_KEY = "CESNA_LOCAUX_V1";
+    const LOCAUX_LS_KEY = "CESNA_LOCAUX_V1" + YEAR_SUFFIX;
     const LOCAUX_COLLECTION = "locaux";
     const IMPLANTATIONS = ["Jambes", "Masson"];
     let locaux = [];
@@ -4943,7 +5040,7 @@
       locauxSyncStarted = true;
       locaux = loadLocauxLocal();
       if (!db || !isLoggedAdmin()) return;
-      db.collection(LOCAUX_COLLECTION).onSnapshot(snap => {
+      yc(LOCAUX_COLLECTION).onSnapshot(snap => {
         const list = [];
         snap.forEach(d => {
           const r = Object.assign({}, d.data(), {id: d.id});
@@ -5123,7 +5220,7 @@
       saveLocauxLocal();
       if (db) {
         const {id, ...data} = room;
-        db.collection(LOCAUX_COLLECTION).doc(id).set(data).catch(err => {
+        yc(LOCAUX_COLLECTION).doc(id).set(data).catch(err => {
           console.warn("Échec d'écriture du local :", err);
           setLocMsg(err && err.code === 'permission-denied'
             ? "Local non synchronisé : ajoutez la collection « locaux » dans les règles Firestore."
@@ -5169,7 +5266,7 @@
       });
       locaux = locaux.filter(x => x.id !== id);
       saveLocauxLocal();
-      if (db) db.collection(LOCAUX_COLLECTION).doc(id).delete().catch(err => console.warn("Suppression du local impossible :", err));
+      if (db) yc(LOCAUX_COLLECTION).doc(id).delete().catch(err => console.warn("Suppression du local impossible :", err));
       resetRoomForm();
       onLocauxChanged();
     }
@@ -5653,7 +5750,7 @@
       };
       let payload = null;
       if (db) {
-        const ref = db.collection(REMOTE_COLLECTION).doc(courseId);
+        const ref = yc(REMOTE_COLLECTION).doc(courseId);
         try {
           await db.runTransaction(async tx => {
             const snap = await tx.get(ref);
@@ -5734,6 +5831,7 @@
     let bulkBusy = false;
 
     function openBulkModal() {
+      if (roBlock()) return;
       if (!isLoggedAdmin()) return;
       bulkItems = [];
       document.getElementById('bulkModal').classList.remove('hidden');
@@ -5962,7 +6060,7 @@
         students: [], sessions: [], attendanceData: {}, abandonedStudents: {}, grades: {}, aaGrades: {}});
       let final = null;
       if (db) {
-        const ref = db.collection(REMOTE_COLLECTION).doc(courseId);
+        const ref = yc(REMOTE_COLLECTION).doc(courseId);
         try {
           await db.runTransaction(async tx => {
             const snap = await tx.get(ref);
@@ -6063,7 +6161,7 @@
       };
       let final = null;
       if (db) {
-        const refDoc = db.collection(REMOTE_COLLECTION).doc(courseId);
+        const refDoc = yc(REMOTE_COLLECTION).doc(courseId);
         try {
           await db.runTransaction(async tx => {
             const snap = await tx.get(refDoc);
@@ -6402,6 +6500,234 @@
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       window.__lastPowerBI = {ue, secRows, seances, pres, etu};
+    }
+
+    // -------------------------------------------------------------
+    // ANNÉES SCOLAIRES : accès aux données, passage d'une année à l'autre, création d'une nouvelle année
+    // -------------------------------------------------------------
+    function yearCollection(name, y) {
+      y = y || YEAR;
+      return y === LEGACY_YEAR ? db.collection(name) : db.collection(YEARS_COLLECTION).doc(y).collection(name);
+    }
+    // Collection de l'année affichée ; pour une année archivée : lecture seule (toute écriture est refusée)
+    function yc(name) {
+      const c = yearCollection(name);
+      if (!YEAR_RO) return c;
+      const deny = () => Promise.reject(Object.assign(new Error("Année archivée : lecture seule"), {code: 'read-only-year'}));
+      return {
+        get: () => c.get(),
+        onSnapshot: (...a) => c.onSnapshot(...a),
+        doc: id => { const d = c.doc(id); return {get: () => d.get(), onSnapshot: (...a) => d.onSnapshot(...a), set: deny, update: deny, delete: deny}; }
+      };
+    }
+    function roBlock() {
+      if (!YEAR_RO) return false;
+      alert(`L'année ${YEAR} est archivée : lecture seule.\n\nChoisissez l'année en cours dans la liste 📅 pour modifier des données.`);
+      return true;
+    }
+    function yearList() {
+      return [...new Set([LEGACY_YEAR].concat(Object.keys(YEAR_CFG.years || {})))].sort();
+    }
+    function yearState(y) {
+      if (y === YEAR_CFG.active) return 'actif';
+      const st = YEAR_CFG.years && YEAR_CFG.years[y] && YEAR_CFG.years[y].status;
+      return st === 'prepa' ? 'prepa' : st === 'creation' ? 'creation' : 'archive';
+    }
+    function yearStateLabel(y) {
+      return {actif: 'en cours', prepa: 'en préparation', creation: 'création incomplète', archive: 'archive'}[yearState(y)];
+    }
+    function nextYearId() {
+      const last = Math.max(...yearList().map(y => parseInt(y, 10)));
+      return `${last + 1}-${last + 2}`;
+    }
+
+    // Au démarrage : quelle année afficher ? Un enseignant voit toujours l'année en cours ; un admin garde son choix.
+    async function yearGate(profile) {
+      if (!db) return true;
+      try {
+        const snap = await db.collection(YEARS_COLLECTION).doc('_config').get();
+        if (snap.exists) {
+          const d = snap.data() || {};
+          YEAR_CFG = {active: d.active || LEGACY_YEAR, years: d.years || {}};
+        }
+      } catch (e) {
+        console.warn("Configuration des années illisible (règles Firestore des années non ajoutées ?) :", e);
+      }
+      const isAdm = profile && profile.role === 'admin';
+      let stored = '';
+      try { stored = localStorage.getItem(YEAR_KEY) || ''; } catch (e) { /* ignoré */ }
+      let target = YEAR_CFG.active;
+      if (isAdm && stored && yearList().includes(stored) && yearState(stored) !== 'creation') target = stored;
+      if (target !== YEAR) {
+        let tried = false;
+        try { tried = sessionStorage.getItem('CESNA_YR_RELOAD') === target; sessionStorage.setItem('CESNA_YR_RELOAD', target); } catch (e) { /* ignoré */ }
+        if (!tried) {
+          try { localStorage.setItem(YEAR_KEY, target); } catch (e) { /* ignoré */ }
+          location.reload();
+          return false;
+        }
+      }
+      YEAR_RO = ['archive', 'creation'].includes(yearState(YEAR));
+      buildYearUI();
+      return true;
+    }
+
+    function buildYearUI() {
+      const st = yearState(YEAR);
+      const badge = document.getElementById('yearBadge');
+      if (badge) badge.textContent = `📅 ${YEAR}`;
+      const sel = document.getElementById('yearSelect');
+      if (sel) {
+        sel.innerHTML = yearList().map(y => `<option value="${y}"${y === YEAR ? ' selected' : ''}>${y} (${yearStateLabel(y)})</option>`).join('');
+      }
+      const ban = document.getElementById('yearBanner');
+      if (!ban) return;
+      if (st === 'actif') { ban.classList.add('hidden'); return; }
+      ban.classList.remove('hidden');
+      if (st === 'prepa') {
+        ban.className = 'mt-1 text-xs px-2 py-1 rounded font-semibold bg-amber-100 text-amber-900 border border-amber-300';
+        ban.innerHTML = `📝 Année ${YEAR} en préparation : visible des administrateurs seulement. <button onclick="activateYear('${YEAR}')" class="ml-2 px-2 py-0.5 rounded bg-amber-600 text-white font-bold hover:bg-amber-700">Activer cette année pour tous</button>`;
+      } else {
+        ban.className = 'mt-1 text-xs px-2 py-1 rounded font-semibold bg-red-100 text-red-800 border border-red-300';
+        ban.innerHTML = `🔒 Année ${YEAR} (${yearStateLabel(YEAR)}) : consultation en lecture seule. <button onclick="switchYear('${YEAR_CFG.active}')" class="ml-2 px-2 py-0.5 rounded bg-red-700 text-white font-bold hover:bg-red-800">Retour à ${YEAR_CFG.active}</button>`;
+      }
+    }
+
+    function switchYear(y) {
+      if (!y || y === YEAR) return;
+      try { localStorage.setItem(YEAR_KEY, y); sessionStorage.removeItem('CESNA_YR_RELOAD'); } catch (e) { /* ignoré */ }
+      location.reload();
+    }
+
+    function setYearStatus(msg, cls) {
+      const el = document.getElementById('newYearStatus');
+      if (!el) return;
+      el.textContent = msg;
+      el.className = 'text-xs mt-2 ' + (cls || 'text-slate-600');
+    }
+
+    function openNewYearModal() {
+      if (!isLoggedAdmin()) return;
+      document.getElementById('newYearInput').value = nextYearId();
+      document.getElementById('newYearSource').textContent = YEAR_CFG.active;
+      document.getElementById('newYearBtnGo').disabled = false;
+      setYearStatus('');
+      document.getElementById('newYearModal').classList.remove('hidden');
+    }
+    function closeNewYearModal() {
+      document.getElementById('newYearModal').classList.add('hidden');
+    }
+
+    // Contenu d'un registre pour la nouvelle année : tout est copié SAUF étudiants, séances, pointages, points
+    function registreForNewYear(p, y) {
+      const meta = Object.assign({}, p.adminMetadata || {}, {academicYear: y, dateDebut: '', date110: '', date510: '', dateFin: ''});
+      return {courseTitle: p.courseTitle || '', adminMetadata: meta, students: [], sessions: [], attendanceData: {}, abandonedStudents: {}, grades: {}, aaGrades: {}, savedAt: new Date().toISOString()};
+    }
+    function courseForNewYear(d) {
+      return Object.assign({}, d, {localSessions: {}, dateDebut: '', date110: '', date510: '', dateFin: ''});
+    }
+
+    async function createNewYear() {
+      if (!isLoggedAdmin()) return;
+      if (!db) { alert("Firebase est indisponible : impossible de créer une année."); return; }
+      const y = document.getElementById('newYearInput').value.trim();
+      const m = y.match(/^(20\d{2})-(20\d{2})$/);
+      if (!m || parseInt(m[2], 10) !== parseInt(m[1], 10) + 1) { alert("Format attendu : 2027-2028 (deux années qui se suivent)."); return; }
+      const src = YEAR_CFG.active;
+      const btn = document.getElementById('newYearBtnGo');
+      btn.disabled = true;
+      try {
+        setYearStatus("Vérification…");
+        const cfgRef = db.collection(YEARS_COLLECTION).doc('_config');
+        const cfgSnap = await cfgRef.get();
+        const cfg = cfgSnap.exists ? cfgSnap.data() : {};
+        const known = Object.assign({}, cfg.years || {});
+        if (y === LEGACY_YEAR || (known[y] && known[y].status !== 'creation')) { alert(`L'année ${y} existe déjà : rien n'est créé.`); btn.disabled = false; setYearStatus(''); return; }
+        if (parseInt(m[1], 10) <= Math.max(...[LEGACY_YEAR].concat(Object.keys(known)).map(v => parseInt(v, 10)))) {
+          if (!(known[y] && known[y].status === 'creation')) { alert("La nouvelle année doit suivre la dernière année existante."); btn.disabled = false; setYearStatus(''); return; }
+        }
+        const active = cfg.active || LEGACY_YEAR;
+        setYearStatus(`Lecture de l'année ${active}…`);
+        const [cs, rs, ls] = await Promise.all([
+          yearCollection(COURSES_COLLECTION, active).get(),
+          yearCollection(REMOTE_COLLECTION, active).get(),
+          yearCollection(LOCAUX_COLLECTION, active).get()
+        ]);
+        const ops = [];
+        let nCourses = 0, nReg = 0, nLoc = 0, nStudents = 0;
+        cs.forEach(d => { ops.push([COURSES_COLLECTION, d.id, d.id.startsWith('_') ? d.data() : courseForNewYear(d.data())]); if (!d.id.startsWith('_')) nCourses++; });
+        rs.forEach(d => {
+          let p;
+          try { const x = d.data(); p = typeof x.data === 'string' ? JSON.parse(x.data) : x.data; } catch (e) { return; }
+          if (!p) return;
+          nStudents += (p.students || []).length;
+          const np = registreForNewYear(p, y);
+          ops.push([REMOTE_COLLECTION, d.id, {data: JSON.stringify(np), savedAt: np.savedAt, codeUE: (np.adminMetadata && np.adminMetadata.codeUE) || '', courseTitle: np.courseTitle || ''}]);
+          nReg++;
+        });
+        ls.forEach(d => { ops.push([LOCAUX_COLLECTION, d.id, d.data()]); nLoc++; });
+        if (!nCourses) { alert(`Aucun cours trouvé dans l'année ${active} : création annulée.`); btn.disabled = false; setYearStatus(''); return; }
+        if (!confirm(`Créer l'année ${y} à partir de ${active} ?\n\n• ${nCourses} cours, ${nLoc} locaux et les enseignants : copiés tels quels\n• ${nReg} registres : copiés SANS les ${nStudents} étudiants, séances, pointages ni points\n• Les dates de début/fin des cours et les exceptions de local par séance sont vidées\n\nL'année ${active} n'est PAS modifiée. La nouvelle année reste invisible des enseignants tant que vous ne l'activez pas.`)) {
+          btn.disabled = false; setYearStatus(''); return;
+        }
+        // 1) on note la création en cours, 2) on écrit les copies (uniquement dans la nouvelle année), 3) on marque l'année prête
+        await cfgRef.set({active, years: {[y]: {status: 'creation', createdAt: new Date().toISOString(), source: active}}}, {merge: true});
+        for (let i = 0; i < ops.length; i += 400) {
+          setYearStatus(`Copie… ${Math.min(i + 400, ops.length)} / ${ops.length}`);
+          const batch = db.batch();
+          ops.slice(i, i + 400).forEach(([col, id, data]) => batch.set(yearCollection(col, y).doc(id), data));
+          await batch.commit();
+        }
+        await cfgRef.set({years: {[y]: {status: 'prepa', createdAt: new Date().toISOString(), source: active}}}, {merge: true});
+        YEAR_CFG = {active, years: Object.assign(known, {[y]: {status: 'prepa'}})};
+        setYearStatus(`✅ Année ${y} créée : ${nCourses} cours, ${nReg} registres vides, ${nLoc} locaux.`, 'text-emerald-700 font-semibold');
+        buildYearUI();
+        if (confirm(`L'année ${y} est créée (en préparation).\n\nL'afficher maintenant ?`)) { closeNewYearModal(); switchYear(y); }
+      } catch (e) {
+        console.warn("Création de l'année impossible :", e);
+        setYearStatus(e && e.code === 'permission-denied'
+          ? "Refusé par Firestore : ajoutez d'abord les règles « annees » (voir les instructions), puis recommencez. Rien n'a été modifié dans l'année en cours."
+          : "Création interrompue : " + (e && e.message ? e.message : e) + ". L'année en cours n'a pas été modifiée ; vous pouvez relancer.", 'text-red-700 font-semibold');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function activateYear(y) {
+      if (!isLoggedAdmin() || !db) return;
+      if (yearState(y) !== 'prepa') return;
+      if (!confirm(`Activer l'année ${y} ?\n\nTous les enseignants verront alors ${y} (sans étudiants) ; ${YEAR_CFG.active} passera en archive (lecture seule).`)) return;
+      try {
+        await db.collection(YEARS_COLLECTION).doc('_config').set({active: y, years: {[y]: {status: 'actif', activatedAt: new Date().toISOString()}}}, {merge: true});
+        try { localStorage.setItem(YEAR_KEY, y); sessionStorage.removeItem('CESNA_YR_RELOAD'); } catch (e) { /* ignoré */ }
+        alert(`L'année ${y} est maintenant l'année en cours.`);
+        location.reload();
+      } catch (e) {
+        alert("Activation impossible : " + (e && e.code === 'permission-denied' ? "refusé par les règles Firestore." : (e && e.message) || e));
+      }
+    }
+
+    // Parcours scolaire : données des autres années (lecture seule)
+    async function fetchYearData(y, force) {
+      ficheCache.years = ficheCache.years || {};
+      const c = ficheCache.years[y];
+      if (!force && c && Date.now() - c.at < 60000) return c;
+      const out = {payloads: {}, courses: [], at: Date.now(), ok: false};
+      if (db) {
+        try {
+          const [rs, cs] = await Promise.all([yearCollection(REMOTE_COLLECTION, y).get(), yearCollection(COURSES_COLLECTION, y).get()]);
+          rs.forEach(d => { try { const x = d.data(); out.payloads[d.id] = typeof x.data === 'string' ? JSON.parse(x.data) : x.data; } catch (e) { /* ignoré */ } });
+          cs.forEach(d => { if (!d.id.startsWith('_')) out.courses.push(Object.assign({}, DEFAULT_COURSE_FIELDS, d.data(), {id: d.id})); });
+          out.ok = true;
+        } catch (e) { console.warn("Lecture de l'année " + y + " impossible :", e); }
+      }
+      ficheCache.years[y] = out;
+      return out;
+    }
+    function withMetaOf(p, fn) {
+      const bak = adminMetadata;
+      adminMetadata = Object.assign(blankAdminMetadata(), p.adminMetadata || {});
+      try { return fn(); } finally { adminMetadata = bak; }
     }
 
     function escapeHtml(str) {
