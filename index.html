@@ -3101,6 +3101,7 @@
       saveToStorage();
       closePointageModal();
       renderTable();
+      if (status === 'T') propagateLateEnrollment(studentId, sessionId);   // inscription tardive : aussi dans les autres cours
     }
 
     function applyStatusAndClose(status) {
@@ -5828,6 +5829,96 @@
       document.getElementById('bulkFileInput').addEventListener('change', e => { bulkAddFiles(e.target.files); e.target.value = ''; });
     }
     initBulkDrop();
+
+    // -------------------------------------------------------------
+    // INSCRIPTION TARDIVE (T) : posée par l'admin dans un cours, elle s'applique aussi aux autres cours de l'étudiant
+    //  - l'étudiant est retrouvé par son matricule, ou à défaut par son nom + prénom
+    //  - toutes les séances des autres cours datées au plus tard de la séance marquée passent en T
+    //  - seules les cases VIDES sont modifiées : un statut déjà encodé (P, A, R…) n'est jamais écrasé (il est signalé)
+    // -------------------------------------------------------------
+    async function propagateLateEnrollment(studentId, sessionId) {
+      try {
+        const std = students.find(s => s.id === studentId), sess = sessions.find(x => x.id === sessionId);
+        if (!std || !sess || !currentCourseId) return;
+        const ref = parseSessionDate(sess.date);
+        if (!ref) return;
+        const refTime = new Date(ref.year, ref.month - 1, ref.day).getTime();
+        const payloads = await fetchAllPayloads(true);
+        const plan = [];
+        courses.forEach(c => {
+          if (c.id === currentCourseId) return;
+          const p = payloads[c.id];
+          if (!p || !Array.isArray(p.students) || !Array.isArray(p.sessions)) return;
+          const other = p.students.find(x => sameStudent(x, std));
+          if (!other) return;
+          const att = p.attendanceData || {};
+          const todo = [], kept = [];
+          p.sessions.forEach(sx => {
+            const d = parseDateInPayload(p, sx.date);
+            if (!d || new Date(d.year, d.month - 1, d.day).getTime() > refTime) return;
+            const cur = (att[`${other.id}_${sx.id}`] || {}).status;
+            if (!cur || cur === '?') todo.push(sx.id);
+            else if (cur !== 'T') kept.push(`${sx.date} (${cur})`);
+          });
+          if (todo.length || kept.length) plan.push({c, other, todo, kept});
+        });
+        const work = plan.filter(x => x.todo.length);
+        if (!work.length) {
+          if (plan.length) alert(`Inscription tardive : ${std.nom} ${std.prenom} est aussi dans d'autres cours, mais aucune case vide à passer en T (cases déjà encodées conservées).`);
+          return;
+        }
+        const lines = plan.map(x => `• ${x.c.codeUE} : ${x.todo.length} séance(s) → T` + (x.kept.length ? `  (déjà encodé, conservé : ${x.kept.slice(0, 4).join(', ')}${x.kept.length > 4 ? '…' : ''})` : ''));
+        if (!confirm(`Inscription tardive de ${std.nom} ${std.prenom}.\n\nAppliquer aussi le T dans ses autres cours (séances jusqu'au ${sess.date}, cases vides seulement) ?\n\n${lines.join('\n')}`)) return;
+        const out = [];
+        for (const x of work) {
+          const n = await writeLateEnrollment(x.c.id, x.other, x.todo);
+          out.push(`• ${x.c.codeUE} : ${n.done} séance(s) passée(s) en T` + (n.error ? ` ⚠ ${n.error}` : ''));
+        }
+        ficheCache = {at: 0, payloads: null, online: false};
+        alert("Inscription tardive appliquée :\n" + out.join('\n'));
+      } catch (err) { console.warn("Propagation de l'inscription tardive impossible", err); }
+    }
+    // Écrit les T dans le registre d'un autre cours (transaction : relit la version à jour, ne touche qu'aux cases vides)
+    async function writeLateEnrollment(courseId, other, sessIds) {
+      const res = {done: 0, error: ''};
+      const stamp = new Date().toISOString();
+      const mutate = payload => {
+        payload.attendanceData = payload.attendanceData || {};
+        const st = (payload.students || []).find(x => x.id === other.id) || (payload.students || []).find(x => sameStudent(x, other));
+        res.done = 0;
+        if (!st) return null;
+        sessIds.forEach(id => {
+          if (!(payload.sessions || []).some(sx => sx.id === id)) return;
+          const key = `${st.id}_${id}`, cur = (payload.attendanceData[key] || {}).status;
+          if (cur && cur !== '?') return;            // jamais d'écrasement
+          payload.attendanceData[key] = {status: 'T', lateMin: 0, earlyMin: 0, quotite: 0, validatedAt: stamp};
+          res.done++;
+        });
+        payload.savedAt = stamp;
+        return payload;
+      };
+      let final = null;
+      if (db) {
+        const refDoc = db.collection(REMOTE_COLLECTION).doc(courseId);
+        try {
+          await db.runTransaction(async tx => {
+            const snap = await tx.get(refDoc);
+            if (!snap.exists) return;
+            const x = snap.data();
+            const pl = mutate(typeof x.data === 'string' ? JSON.parse(x.data) : x.data);
+            if (!pl || !res.done) return;
+            final = pl;
+            tx.set(refDoc, {data: JSON.stringify(pl), savedAt: pl.savedAt, codeUE: (pl.adminMetadata && pl.adminMetadata.codeUE) || x.codeUE || "", courseTitle: pl.courseTitle || x.courseTitle || ""});
+          });
+        } catch (err) { console.warn("Inscription tardive : écriture impossible", err); return {done: 0, error: "écriture en ligne impossible, rien n'a été modifié"}; }
+      }
+      try {
+        const key = storageKeyFor(courseId);
+        if (!db) { const raw = localStorage.getItem(key); final = raw ? mutate(JSON.parse(raw)) : null; }
+        if (final) localStorage.setItem(key, JSON.stringify(final));
+      } catch (e) { /* ignoré */ }
+      return res;
+    }
 
     function escapeHtml(str) {
       if (!str) return '';
