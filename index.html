@@ -195,6 +195,8 @@
               <span class="admin-only hidden">•</span>
               <select id="yearSelect" onchange="switchYear(this.value)" title="Changer d'année scolaire" class="admin-only hidden text-xs border border-slate-300 rounded px-1 py-0.5 bg-white text-slate-700"></select>
               <button id="newYearBtn" onclick="openNewYearModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">➕ Nouvelle année</button>
+              <span class="admin-only hidden">•</span>
+              <button id="backupBtn" onclick="openBackupModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">💾 Sauvegarde</button>
               <span>•</span>
               <span id="userChip" class="inline-flex items-center gap-1.5">
                 <span id="userChipLabel" class="text-slate-700 font-semibold"></span>
@@ -601,6 +603,37 @@
           <button onclick="closeNewYearModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Fermer</button>
           <button id="newYearBtnGo" onclick="createNewYear()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Créer l'année</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODALE : SAUVEGARDE / RESTAURATION (admin) ================= -->
+  <div id="backupModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-lg max-h-[90vh] overflow-auto">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
+        <span>💾 Sauvegarde des données</span>
+        <button onclick="closeBackupModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+      <div class="p-4 space-y-3 text-xs text-slate-700">
+        <div>
+          <p>Télécharge <strong>toutes les données</strong> (registres de toutes les années, cours, locaux, enseignants) dans un fichier <code>.json</code>.</p>
+          <p class="mt-1 text-slate-500">Dernière sauvegarde faite ici : <strong id="backupLast"></strong></p>
+          <p class="mt-1 text-amber-700">⚠ Le fichier contient des données personnelles (étudiants, e-mails) : rangez-le dans un espace protégé.</p>
+          <button id="backupGo" onclick="doBackup()" class="mt-2 px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">💾 Télécharger la sauvegarde complète</button>
+        </div>
+        <hr class="border-slate-200">
+        <div>
+          <p class="font-semibold">Restaurer depuis un fichier</p>
+          <p class="text-slate-500">Rien n'est jamais supprimé. Vous voyez d'abord ce qui sera touché.</p>
+          <input type="file" id="backupFile" accept=".json,application/json" onchange="onBackupFile(this)" class="mt-1 text-xs">
+          <div id="backupRestoreBox" class="hidden mt-2 space-y-2">
+            <div id="backupPreview"></div>
+            <label class="flex items-start gap-2"><input type="radio" name="backupMode" id="backupModeAdd" checked class="mt-0.5"><span><strong>Ajouter seulement les documents absents</strong> (sûr : aucun document existant n'est modifié)</span></label>
+            <label class="flex items-start gap-2"><input type="radio" name="backupMode" id="backupModeReplace" class="mt-0.5"><span><strong>Aussi remplacer les documents différents</strong> par la version de la sauvegarde (une sauvegarde de l'état actuel est téléchargée avant)</span></label>
+            <button id="backupRestoreGo" onclick="doRestore()" class="px-4 py-1.5 text-xs font-bold bg-amber-600 text-white hover:bg-amber-700 rounded shadow">Restaurer</button>
+          </div>
+        </div>
+        <div id="backupStatus" class="text-xs"></div>
       </div>
     </div>
   </div>
@@ -6569,6 +6602,7 @@
       }
       YEAR_RO = ['archive', 'creation'].includes(yearState(YEAR));
       buildYearUI();
+      refreshBackupInfo();
       return true;
     }
 
@@ -6728,6 +6762,217 @@
       const bak = adminMetadata;
       adminMetadata = Object.assign(blankAdminMetadata(), p.adminMetadata || {});
       try { return fn(); } finally { adminMetadata = bak; }
+    }
+
+    // -------------------------------------------------------------
+    // SAUVEGARDE COMPLÈTE (admin) : télécharge toutes les données dans un fichier .json ; restauration prudente
+    //  - la restauration n'efface jamais rien : elle ajoute les documents absents (ou, au choix, remplace ceux qui existent)
+    // -------------------------------------------------------------
+    const BACKUP_FORMAT = "cesna-backup-v1";
+    const BACKUP_LAST_KEY = "CESNA_LAST_BACKUP";
+    const BACKUP_ROOTS = ["annuaire", "enseignants", "catalogue_ue", "cours", "meta", "locaux", "registres", "annees"];
+    let backupLoaded = null;   // fichier chargé pour la restauration
+
+    function colRefAt(path) {
+      const parts = path.split('/');
+      let r = db.collection(parts[0]);
+      for (let i = 1; i < parts.length; i += 2) r = r.doc(parts[i]).collection(parts[i + 1]);
+      return r;
+    }
+    function bkSer(v) {
+      if (v && typeof v === 'object') {
+        if (typeof v.toDate === 'function') return {__ts: v.toDate().toISOString()};
+        if (Array.isArray(v)) return v.map(bkSer);
+        const o = {};
+        Object.keys(v).forEach(k => { o[k] = bkSer(v[k]); });
+        return o;
+      }
+      return v;
+    }
+    function bkDeser(v) {
+      if (v && typeof v === 'object') {
+        if (Array.isArray(v)) return v.map(bkDeser);
+        if (Object.keys(v).length === 1 && typeof v.__ts === 'string') {
+          try { return firebase.firestore.Timestamp.fromDate(new Date(v.__ts)); } catch (e) { return v.__ts; }
+        }
+        const o = {};
+        Object.keys(v).forEach(k => { o[k] = bkDeser(v[k]); });
+        return o;
+      }
+      return v;
+    }
+    function bkSay(msg, cls) {
+      const el = document.getElementById('backupStatus');
+      if (!el) return;
+      el.textContent = msg;
+      el.className = 'text-xs ' + (cls || 'text-slate-600');
+    }
+
+    // Lit toutes les collections (racine + années) : { "registres": {id: données}, "annees/2027-2028/registres": {...}, ... }
+    async function readAllCollections() {
+      const paths = BACKUP_ROOTS.slice();
+      try {
+        const cs = await db.collection(YEARS_COLLECTION).doc('_config').get();
+        const ys = cs.exists ? Object.keys((cs.data() || {}).years || {}) : [];
+        ys.forEach(y => ['registres', 'catalogue_ue', 'locaux'].forEach(n => paths.push(`${YEARS_COLLECTION}/${y}/${n}`)));
+      } catch (e) { /* années non configurées */ }
+      const out = {};
+      let n = 0;
+      for (const path of paths) {
+        try {
+          const snap = await colRefAt(path).get();
+          const docs = {};
+          snap.forEach(d => { docs[d.id] = bkSer(d.data()); n++; });
+          if (Object.keys(docs).length) out[path] = docs;
+        } catch (e) {
+          console.warn("Sauvegarde : lecture impossible de " + path, e);
+          if (e && e.code === 'permission-denied' && path !== 'cours' && path !== 'meta') throw e;
+        }
+      }
+      return {collections: out, total: n};
+    }
+
+    function refreshBackupInfo() {
+      let last = '';
+      try { last = localStorage.getItem(BACKUP_LAST_KEY) || ''; } catch (e) { /* ignoré */ }
+      const el = document.getElementById('backupLast');
+      if (el) el.textContent = last ? new Date(last).toLocaleString('fr-BE') : 'jamais depuis ce navigateur';
+      const btn = document.getElementById('backupBtn');
+      if (btn) {
+        const old = !last || (Date.now() - new Date(last).getTime()) > 7 * 86400000;
+        btn.classList.toggle('text-amber-600', old);
+        btn.classList.toggle('text-slate-600', !old);
+        btn.title = old ? "Aucune sauvegarde depuis plus de 7 jours" : "Sauvegarde récente";
+      }
+    }
+
+    function openBackupModal() {
+      if (!isLoggedAdmin()) return;
+      backupLoaded = null;
+      document.getElementById('backupRestoreBox').classList.add('hidden');
+      document.getElementById('backupFile').value = '';
+      bkSay('');
+      refreshBackupInfo();
+      document.getElementById('backupModal').classList.remove('hidden');
+    }
+    function closeBackupModal() {
+      document.getElementById('backupModal').classList.add('hidden');
+    }
+
+    function downloadJson(obj, name) {
+      const blob = new Blob([JSON.stringify(obj)], {type: 'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    function backupFileName(prefix) {
+      const d = new Date(), z = n => String(n).padStart(2, '0');
+      return `${prefix || 'CESNA_sauvegarde'}_${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}h${z(d.getMinutes())}.json`;
+    }
+
+    async function makeBackup(prefix) {
+      const {collections, total} = await readAllCollections();
+      const file = {format: BACKUP_FORMAT, createdAt: new Date().toISOString(), year: YEAR, total, collections};
+      downloadJson(file, backupFileName(prefix));
+      return total;
+    }
+
+    async function doBackup() {
+      if (!isLoggedAdmin()) return;
+      if (!db) { alert("Firebase est indisponible : sauvegarde impossible."); return; }
+      const btn = document.getElementById('backupGo');
+      btn.disabled = true;
+      bkSay("Lecture de toutes les données…");
+      try {
+        const total = await makeBackup();
+        try { localStorage.setItem(BACKUP_LAST_KEY, new Date().toISOString()); } catch (e) { /* ignoré */ }
+        refreshBackupInfo();
+        bkSay(`✅ Sauvegarde téléchargée (${total} documents). Rangez le fichier dans un endroit sûr (OneDrive du CESNA).`, 'text-emerald-700 font-semibold');
+      } catch (e) {
+        console.warn("Sauvegarde impossible :", e);
+        bkSay("Sauvegarde impossible : " + (e && e.code === 'permission-denied' ? "accès refusé par les règles Firestore." : (e && e.message) || e), 'text-red-700 font-semibold');
+      } finally { btn.disabled = false; }
+    }
+
+    // --- Restauration : chargement du fichier + aperçu ---
+    function onBackupFile(input) {
+      const f = input.files && input.files[0];
+      backupLoaded = null;
+      document.getElementById('backupRestoreBox').classList.add('hidden');
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = async () => {
+        try {
+          const j = JSON.parse(rd.result);
+          if (!j || j.format !== BACKUP_FORMAT || !j.collections) throw new Error("Ce fichier n'est pas une sauvegarde CESNA.");
+          bkSay("Comparaison avec les données actuelles…");
+          const cur = (await readAllCollections()).collections;
+          const rows = [];
+          let missing = 0, differ = 0, same = 0;
+          Object.keys(j.collections).forEach(path => {
+            const docs = j.collections[path], now = cur[path] || {};
+            let m = 0, d = 0, s = 0;
+            Object.keys(docs).forEach(id => {
+              if (!(id in now)) m++;
+              else if (JSON.stringify(now[id]) !== JSON.stringify(docs[id])) d++;
+              else s++;
+            });
+            missing += m; differ += d; same += s;
+            rows.push(`<tr class="border-b border-slate-200"><td class="px-2 py-1 font-mono">${escapeHtml(path)}</td><td class="px-2 py-1 text-right">${m}</td><td class="px-2 py-1 text-right">${d}</td><td class="px-2 py-1 text-right text-slate-400">${s}</td></tr>`);
+          });
+          backupLoaded = {file: j, missing, differ};
+          document.getElementById('backupPreview').innerHTML = `<div class="mb-1">Sauvegarde du <strong>${new Date(j.createdAt).toLocaleString('fr-BE')}</strong> · ${j.total} documents</div>
+            <table class="w-full text-[11px] border border-slate-200"><thead class="bg-slate-100"><tr><th class="px-2 py-1 text-left">Collection</th><th class="px-2 py-1 text-right">Absents</th><th class="px-2 py-1 text-right">Différents</th><th class="px-2 py-1 text-right">Identiques</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+          document.getElementById('backupRestoreBox').classList.remove('hidden');
+          bkSay('');
+        } catch (e) {
+          bkSay("Fichier illisible : " + (e && e.message ? e.message : e), 'text-red-700 font-semibold');
+        }
+      };
+      rd.readAsText(f);
+    }
+
+    async function doRestore() {
+      if (!isLoggedAdmin() || !backupLoaded || !db) return;
+      const replace = document.getElementById('backupModeReplace').checked;
+      const {file, missing, differ} = backupLoaded;
+      const nbToWrite = replace ? missing + differ : missing;
+      if (!nbToWrite) { bkSay("Rien à restaurer : toutes les données du fichier sont déjà présentes."); return; }
+      const msg = replace
+        ? `Restaurer ${missing} document(s) absent(s) ET REMPLACER ${differ} document(s) existant(s) par la version de la sauvegarde ?\n\nAttention : les modifications faites depuis cette sauvegarde seront perdues pour ces documents. Une sauvegarde de l'état actuel est téléchargée d'abord.`
+        : `Ajouter ${missing} document(s) absent(s) ? Aucun document existant ne sera modifié ni supprimé.`;
+      if (!confirm(msg)) return;
+      const btn = document.getElementById('backupRestoreGo');
+      btn.disabled = true;
+      try {
+        const cur = (await readAllCollections()).collections;
+        if (replace) { bkSay("Sauvegarde de l'état actuel…"); await makeBackup('CESNA_avant_restauration'); }
+        const ops = [];
+        Object.keys(file.collections).forEach(path => {
+          const now = cur[path] || {};
+          Object.keys(file.collections[path]).forEach(id => {
+            const absent = !(id in now);
+            const diff = !absent && JSON.stringify(now[id]) !== JSON.stringify(file.collections[path][id]);
+            if (absent || (replace && diff)) ops.push([path, id, file.collections[path][id]]);
+          });
+        });
+        for (let i = 0; i < ops.length; i += 400) {
+          bkSay(`Restauration… ${Math.min(i + 400, ops.length)} / ${ops.length}`);
+          const batch = db.batch();
+          ops.slice(i, i + 400).forEach(([path, id, data]) => batch.set(colRefAt(path).doc(id), bkDeser(data)));
+          await batch.commit();
+        }
+        bkSay(`✅ ${ops.length} document(s) restauré(s). Rechargez la page pour voir les données.`, 'text-emerald-700 font-semibold');
+        backupLoaded = null;
+        document.getElementById('backupRestoreBox').classList.add('hidden');
+        ficheCache = {at: 0, payloads: null, online: false};
+      } catch (e) {
+        console.warn("Restauration impossible :", e);
+        bkSay("Restauration interrompue : " + (e && e.message ? e.message : e), 'text-red-700 font-semibold');
+      } finally { btn.disabled = false; }
     }
 
     function escapeHtml(str) {
