@@ -330,6 +330,8 @@
             tardive</span>
           <span class="px-2 py-0.5 bg-sky-200 text-sky-900 font-bold rounded text-[11px]">D = Dispensé</span>
           <span class="px-2 py-0.5 bg-amber-200 text-amber-950 font-bold rounded text-[11px]">CM = Certificat médical</span>
+          <span class="px-2 py-0.5 bg-orange-300 text-orange-950 font-bold rounded text-[11px]">E = Absence enseignant</span>
+          <span class="px-2 py-0.5 bg-teal-200 text-teal-950 font-bold rounded text-[11px]">J = Absence justifiée</span>
           <span class="px-2 py-0.5 bg-slate-300 text-slate-800 font-bold rounded text-[11px]">? = Non encodé</span>
         </div>
         <!-- Compteurs de l'encodage des points -->
@@ -650,9 +652,21 @@
             title="Certificat médical (non pénalisant)">
             <span class="absolute top-1 right-1.5 text-[11px] leading-none" title="Validation administrateur requise">🔒</span>CM
           </button>
+          <!-- E : Absence de l'enseignant (appliquée à toute la journée) -->
+          <button onclick="applyStatusAndClose('E')"
+            class="relative h-20 bg-[#fdba74] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#9a3412] transition shadow"
+            title="Absence de l'enseignant (appliquée à tous les étudiants de la journée)">
+            <span class="absolute top-1 right-1.5 text-[11px] leading-none" title="Validation administrateur requise">🔒</span>E
+          </button>
+          <!-- J : Absence justifiée -->
+          <button onclick="applyStatusAndClose('J')"
+            class="relative h-20 bg-[#99f6e4] hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black text-[#115e59] transition shadow"
+            title="Absence justifiée (non pénalisante)">
+            <span class="absolute top-1 right-1.5 text-[11px] leading-none" title="Validation administrateur requise">🔒</span>J
+          </button>
         </div>
 
-        <p class="mt-2 text-[10px] text-slate-500 text-center">🔒 T, D et CM : validation par un administrateur (code)</p>
+        <p class="mt-2 text-[10px] text-slate-500 text-center">🔒 T, D, CM, E et J : validation par un administrateur (code)</p>
 
         <!-- Volet déroulant des curseurs pour le statut R -->
         <div id="retardSlidersBox"
@@ -730,6 +744,14 @@
               <div class="flex items-center gap-2"><span
                   class="min-w-4 h-4 px-0.5 bg-[#fde68a] border border-black inline-block text-[10px] text-center font-bold">CM</span>
                 <span>Certificat médical</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#fdba74] border border-black inline-block text-[10px] text-center font-bold">E</span>
+                <span>Absence enseignant</span>
+              </div>
+              <div class="flex items-center gap-2"><span
+                  class="w-4 h-4 bg-[#99f6e4] border border-black inline-block text-[10px] text-center font-bold">J</span>
+                <span>Absence justifiée</span>
               </div>
               <div class="flex items-center gap-2"><span
                   class="w-4 h-4 bg-[#cbd5e1] border border-black inline-block text-[10px] text-center font-bold">?</span>
@@ -2832,7 +2854,7 @@
 
         if (!isSessionRealised(sess, status !== '?')) return;
         // T (inscription tardive), D (dispensé) et CM (certificat médical) : non pénalisants
-        if (status === 'T' || status === 'D' || status === 'CM') return;
+        if (status === 'T' || status === 'D' || status === 'CM' || status === 'E' || status === 'J') return;
 
         eligibleSessions++;
 
@@ -3023,6 +3045,12 @@
           } else if (status === 'CM') {
             tdCell.className += " bg-[#fde68a] text-[#92400e] hover:brightness-95";
             tdCell.title = "Certificat médical (non pénalisé)";
+          } else if (status === 'E') {
+            tdCell.className += " bg-[#fdba74] text-[#9a3412] hover:brightness-95";
+            tdCell.title = "Absence de l'enseignant (non pénalisé)";
+          } else if (status === 'J') {
+            tdCell.className += " bg-[#99f6e4] text-[#115e59] hover:brightness-95";
+            tdCell.title = "Absence justifiée (non pénalisé)";
           } else {
             tdCell.className += " text-slate-400 hover:bg-slate-200";
           }
@@ -3076,9 +3104,9 @@
     }
 
     // -------------------------------------------------------------
-    // VALIDATION ADMINISTRATEUR : T, D et CM ne peuvent être posés ou modifiés que par un administrateur connecté
+    // VALIDATION ADMINISTRATEUR : T, D, CM, E et J ne peuvent être posés ou modifiés que par un administrateur connecté
     // -------------------------------------------------------------
-    const ADMIN_STATUSES = ['T', 'D', 'CM'];
+    const ADMIN_STATUSES = ['T', 'D', 'CM', 'E', 'J'];
 
     function isAdminStatus(status) {
       return ADMIN_STATUSES.includes(status);
@@ -3095,12 +3123,12 @@
     }
 
     function fillEntireSession(sessionId, defaultStatus) {
-      // Les pointages T, D et CM (validés par l'admin) ne sont jamais écrasés par un « tous présents »
+      // Les pointages T, D, CM, E et J (validés par l'admin) ne sont jamais écrasés par un « tous présents »
       const keep = students.filter(s => {
         const r = attendanceData[`${s.id}_${sessionId}`];
         return r && isAdminStatus(r.status);
       }).length;
-      const note = keep > 0 ? `\n\n(${keep} pointage(s) T, D ou CM validé(s) par l'admin ne seront pas modifiés.)` : '';
+      const note = keep > 0 ? `\n\n(${keep} pointage(s) T, D, CM, E ou J validé(s) par l'admin ne seront pas modifiés.)` : '';
       if (confirm(`Voulez-vous marquer tous les étudiants comme '${defaultStatus}' pour cette séance ?${note}`)) {
         indicateSaving();
         students.forEach(s => {
@@ -3164,7 +3192,39 @@
       saveToStorage();
       closePointageModal();
       renderTable();
+      if (status === 'E') propagateTeacherAbsence(sessionId);   // absence de l'enseignant : tous les étudiants de la journée
       if (status === 'T') propagateLateEnrollment(studentId, sessionId);   // inscription tardive : aussi dans les autres cours
+    }
+
+    // E = absence de l'enseignant : s'applique à tous les étudiants du cours pour les séances de la même date
+    function propagateTeacherAbsence(sessionId) {
+      const ref = sessions.find(x => x.id === sessionId);
+      if (!ref) return;
+      const sameDay = sessions.filter(x => x.id === sessionId || x.date === ref.date);
+      let empty = 0, replace = 0;
+      const todo = [];
+      sameDay.forEach(se => students.forEach(st => {
+        const key = `${st.id}_${se.id}`;
+        const r = attendanceData[key];
+        const cur = r && r.status ? r.status : '?';
+        if (isAdminStatus(cur)) return;             // T, D, CM, E, J : jamais écrasés
+        todo.push(key);
+        if (cur === '?') empty++; else replace++;
+      }));
+      if (!todo.length) return;
+      let onlyEmpty = false;
+      if (replace > 0) {
+        onlyEmpty = !confirm(`Absence de l'enseignant le ${ref.date} : « E » sera appliqué à tous les étudiants.\n\n${replace} case(s) déjà pointée(s) (P, M, R, A) seront remplacées.\nLes T, D, CM et J existants sont conservés.\n\nOK = remplacer ; Annuler = ne remplir que les cases vides (${empty}).`);
+      }
+      indicateSaving();
+      const stamp = new Date().toISOString();
+      todo.forEach(key => {
+        const r = attendanceData[key];
+        if (onlyEmpty && r && r.status && r.status !== '?') return;
+        attendanceData[key] = {status: 'E', lateMin: 0, earlyMin: 0, quotite: 0, validatedAt: stamp};
+      });
+      saveToStorage();
+      renderTable();
     }
 
     function applyStatusAndClose(status) {
@@ -4489,7 +4549,7 @@
       ws.getRow(SUM).height = 20;
 
       const LEG = SIG + 4;
-      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)",
+      block(LEG, 1, LEG, LAST, "P = Présent  ·  M = À distance  ·  R = Arrivée tardive / départ anticipé  ·  A = Absent  ·  T = Inscription tardive (non pénalisante)  ·  D = Dispensé  ·  CM = Certificat médical (non pénalisant)  ·  E = Absence enseignant  ·  J = Absence justifiée",
         {font: {italic: true, size: 8}, alignment: {vertical: 'middle', horizontal: 'left'}, border: false});
 
       ws.views = [{state: 'frozen', xSplit: 2, ySplit: HEAD + 3, showGridLines: false}];
@@ -6059,13 +6119,13 @@
       const A = {c, p, year: anaYearOf(p, c), section: c.section || '(sans section)', teacher: c.enseignant || '(sans enseignant)',
         enrolled: all.length, abandons: all.length - active.length, active: active.length,
         sessions: sess.length, done: 0, due: 0, periodsDone: 0, periodsPlanned: parseInt(c.periodes, 10) || 0,
-        eligible: 0, presence: 0, st: {P: 0, M: 0, R: 0, A: 0, T: 0, D: 0, CM: 0},
+        eligible: 0, presence: 0, st: {P: 0, M: 0, R: 0, A: 0, T: 0, D: 0, CM: 0, E: 0, J: 0},
         expected: 0, encoded: 0, late: [], sessRows: [], presRows: [], studentRates: {}, aa: {ok: 0, ajourne: 0, echec: 0, enCours: 0}};
       sess.forEach(x => {
         const day = x.date.getTime();
         const endMin = timeToMin(x.s.end);
         const due = day < today || (day === today && endMin !== null && endMin <= nowMin);
-        const row = {s: x.s, date: x.date, due, done: false, enc: 0, miss: 0, P: 0, A: 0, R: 0, T: 0, D: 0, CM: 0, M: 0};
+        const row = {s: x.s, date: x.date, due, done: false, enc: 0, miss: 0, P: 0, A: 0, R: 0, T: 0, D: 0, CM: 0, M: 0, E: 0, J: 0};
         let anyEnc = false;
         active.forEach(st => {
           const rec = att[`${st.id}_${x.s.id}`];
@@ -6077,12 +6137,12 @@
         });
         row.done = day < today || (day === today && anyEnc);
         if (row.done) {
-          A.done++; A.periodsDone += sessionPeriods(x.s) || 0;
+          A.done++; if (!(row.E > 0 && row.E === row.enc)) A.periodsDone += sessionPeriods(x.s) || 0;   // séance entièrement en absence enseignant : périodes non données
           active.forEach(st => {
             const rec = att[`${st.id}_${x.s.id}`];
             const status = rec && rec.status ? rec.status : '?';
             if (status !== '?') A.st[status] = (A.st[status] || 0) + 1;
-            if (status === '?' || status === 'T' || status === 'D' || status === 'CM') return;   // taux calculé sur les cases pointées ; T, D, CM non pénalisants
+            if (status === '?' || status === 'T' || status === 'D' || status === 'CM' || status === 'E' || status === 'J') return;   // taux calculé sur les cases pointées ; T, D, CM, E, J non pénalisants
             const r = A.studentRates[st.id] || (A.studentRates[st.id] = {el: 0, pts: 0, abs: 0});
             r.el++; A.eligible++;
             if (status === 'P' || status === 'M') { r.pts += 1; A.presence += 1; }
@@ -6310,13 +6370,13 @@
         ue.push({Annee: a.year, Section: a.section, Bloc: c.bloc || '', CodeUE: c.codeUE, Intitule: c.titre || c.intituleUE || '', Enseignant: a.teacher, Local: c.localLabel || '',
           Inscrits: a.enrolled, Abandons: a.abandons, TauxAbandon: pct(a.abandons, a.enrolled), TauxPresence: pct(a.presence, a.eligible), TauxPointageAJour: pct(a.encoded, a.expected),
           SeancesPlanifiees: a.sessions, SeancesRealisees: a.done, SeancesAPointer: a.late.length, PeriodesPrevues: a.periodsPlanned || null, PeriodesDonnees: a.periodsDone,
-          Absences: a.st.A, Retards: a.st.R, T_InscriptionTardive: a.st.T, D_Dispense: a.st.D, CM_CertificatMedical: a.st.CM,
+          Absences: a.st.A, Retards: a.st.R, T_InscriptionTardive: a.st.T, D_Dispense: a.st.D, CM_CertificatMedical: a.st.CM, E_AbsenceEnseignant: a.st.E, J_AbsenceJustifiee: a.st.J,
           AA_Reussis: a.aa.ok, AA_Echecs: a.aa.echec, AA_Ajournes: a.aa.ajourne, AA_EnCours: a.aa.enCours});
         a.sessRows.forEach(r => {
           const loc = (c.localSessions && c.localSessions[r.s.id] && c.localSessions[r.s.id].label) || c.localLabel || '';
           seances.push({Annee: a.year, Section: a.section, CodeUE: c.codeUE, Enseignant: a.teacher, Date: dateKey(r.date), Jour: WD[r.date.getDay()], Debut: r.s.start || '', Fin: r.s.end || '',
             Moment: dayPartsOf(toMin(r.s.start, 0), toMin(r.s.end, 1440)).map(x => DAYPART_LABEL[x]).join(' + '), Periodes: sessionPeriods(r.s) || 0, Local: loc,
-            Inscrits: a.active, Presents: r.P + r.M, Retards: r.R, Absents: r.A, T: r.T, D: r.D, CM: r.CM, NonPointes: r.miss, Realisee: r.done ? 1 : 0, ADateDepassee: r.due ? 1 : 0});
+            Inscrits: a.active, Presents: r.P + r.M, Retards: r.R, Absents: r.A, T: r.T, D: r.D, CM: r.CM, E: r.E, J: r.J, NonPointes: r.miss, Realisee: r.done ? 1 : 0, ADateDepassee: r.due ? 1 : 0});
         });
         a.presRows.forEach(x => {
           const o = {Annee: a.year, CodeUE: c.codeUE, Date: dateKey(x.date), Etudiant: key(x.st), Statut: x.status === '?' ? '' : x.status, Quotite: x.status === '?' ? null : x.quotite};
