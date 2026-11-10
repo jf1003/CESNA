@@ -911,6 +911,39 @@
     </div>
   </div>
 
+  <!-- ================= MODALE : MODIFIER UNE SÉANCE (date et heures) ================= -->
+  <div id="editSessionModal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-sm overflow-hidden">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
+        <span>Modifier la séance</span>
+        <button onclick="closeEditSessionModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <input type="hidden" id="editSessionId">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Date</label>
+          <input type="date" id="editSessionDate" class="w-full text-sm p-2 border border-slate-300 rounded">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Heure début</label>
+            <input type="text" id="editSessionStart" placeholder="17:00" class="w-full text-sm p-2 border border-slate-300 rounded">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Heure fin</label>
+            <input type="text" id="editSessionEnd" placeholder="22:15" class="w-full text-sm p-2 border border-slate-300 rounded">
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-500">Les pointages déjà encodés pour cette séance sont conservés. Si la date change, la séance se replace dans l'ordre chronologique.</p>
+        <div class="pt-1 flex justify-end gap-2">
+          <button onclick="closeEditSessionModal()" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
+          <button onclick="saveEditedSession()" class="px-4 py-1.5 text-xs font-bold bg-[#0a3a60] text-white hover:bg-blue-900 rounded shadow">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= MODALE : AJOUTER / MODIFIER ÉTUDIANT (CRUD) ================= -->
   <div id="addStudentModal"
     class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -2850,14 +2883,24 @@
         delBtn.title = `Supprimer la séance du ${sess.date}`;
         delBtn.className = 'block mx-auto mt-0.5 text-[11px] leading-none opacity-60 hover:opacity-100 hover:scale-125 transition';
         delBtn.onclick = (e) => { e.stopPropagation(); deleteSession(sess.id); };
-        thHours.appendChild(delBtn);
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '✏';
+        editBtn.title = `Modifier la date et les heures de la séance du ${sess.date}`;
+        editBtn.className = 'text-[11px] leading-none opacity-60 hover:opacity-100 hover:scale-125 transition';
+        editBtn.onclick = (e) => { e.stopPropagation(); openEditSessionModal(sess.id); };
+        delBtn.className = 'text-[11px] leading-none opacity-60 hover:opacity-100 hover:scale-125 transition';
+        const btnRow = document.createElement('div');
+        btnRow.className = 'flex items-center justify-center gap-1.5 mt-0.5';
+        btnRow.appendChild(editBtn);
+        btnRow.appendChild(delBtn);
+        thHours.appendChild(btnRow);
         const locExc = sessionLocalException(sess.id);
         if (locExc) {
           const lb = document.createElement('div');
           lb.className = 'text-[9px] font-bold text-amber-300 leading-none mt-0.5';
           lb.textContent = '📍' + locExc.num;
           lb.title = 'Local de cette séance : ' + locExc.label;
-          thHours.insertBefore(lb, delBtn);
+          thHours.insertBefore(lb, btnRow);
         }
         hoursRow.appendChild(thHours);
       });
@@ -3206,6 +3249,47 @@
 
     function closeAddSessionModal() {
       document.getElementById('addSessionModal').classList.add('hidden');
+    }
+
+    // -------------------------------------------------------------
+    // MODIFIER UNE SÉANCE (date et heures) : l'identifiant de la séance ne change pas, les pointages sont conservés
+    // -------------------------------------------------------------
+    function openEditSessionModal(sessionId) {
+      const sess = sessions.find(x => x.id === sessionId);
+      if (!sess) return;
+      const d = parseSessionDate(sess.date);
+      const iso = d ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}` : '';
+      const hhmm = t => { const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? `${m[1].padStart(2, '0')}:${m[2]}` : String(t || ''); };
+      document.getElementById('editSessionId').value = sess.id;
+      document.getElementById('editSessionDate').value = iso;
+      document.getElementById('editSessionStart').value = hhmm(sess.start);
+      document.getElementById('editSessionEnd').value = hhmm(sess.end);
+      document.getElementById('editSessionModal').classList.remove('hidden');
+    }
+    function closeEditSessionModal() {
+      document.getElementById('editSessionModal').classList.add('hidden');
+    }
+    function saveEditedSession() {
+      const sess = sessions.find(x => x.id === document.getElementById('editSessionId').value);
+      if (!sess) { closeEditSessionModal(); return; }
+      const iso = document.getElementById('editSessionDate').value;
+      const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const start = document.getElementById('editSessionStart').value.trim();
+      const end = document.getElementById('editSessionEnd').value.trim();
+      if (!m) { alert("Choisissez une date valide."); return; }
+      if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) { alert("Les heures doivent être au format HH:MM (ex. 17:00)."); return; }
+      if (timeToMin(end) <= timeToMin(start)) { alert("L'heure de fin doit être après l'heure de début."); return; }
+      const newDate = normalizeSessionDate(`${parseInt(m[3], 10)}/${m[2]}/${m[1]}`);
+      const clash = sessions.some(x => x.id !== sess.id && x.date === newDate && x.start === start && x.end === end);
+      if (clash && !confirm("Une autre séance existe déjà à cette date et à ces heures. Enregistrer quand même ?")) return;
+      indicateSaving();
+      sess.date = newDate;
+      sess.start = start;
+      sess.end = end;
+      sortSessions();
+      saveToStorage();
+      closeEditSessionModal();
+      renderTable();
     }
 
     function confirmAddSessions() {
