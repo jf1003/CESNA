@@ -200,7 +200,6 @@
               <select id="yearSelect" onchange="switchYear(this.value)" title="Changer d'année scolaire" class="admin-only hidden tb-btn !font-medium"></select>
               <span class="tb-sep"></span>
               <button onclick="toggleDataPanel()" class="tb-btn" title="Informations administratives du cours">📋 <span>Infos &amp; données</span></button>
-              <button onclick="createNewCourse()" class="tb-btn" title="Vider le registre du cours affiché">＋ <span>Nouveau registre</span></button>
               <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden tb-btn">📊 <span>Analyses</span></button>
 
               <!-- Menu Administration (admins) -->
@@ -1211,6 +1210,10 @@
             <div>
               <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Chargé de cours / Prof.</label>
               <input type="text" id="cmEnseignant" class="w-full bg-white border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-600">
+              <select id="cmEnseignantPick" onchange="pickCourseTeacher(this)" title="Choisir dans la liste des enseignants (plusieurs possibles : ils sont séparés par « + »)"
+                class="w-full mt-1 bg-white border border-slate-300 rounded px-2 py-1 text-[11px] text-slate-600 outline-none focus:border-blue-600">
+                <option value="">➕ Choisir dans la liste des enseignants…</option>
+              </select>
             </div>
             <div>
               <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Nombre de périodes</label>
@@ -2447,8 +2450,39 @@
       });
     }
 
+    // Liste déroulante des enseignants (annuaire) dans « Gérer la liste des cours »
+    let courseTeacherChoices = [];
+    async function loadCourseTeacherChoices() {
+      const sel = document.getElementById('cmEnseignantPick');
+      if (!sel) return;
+      let list = [];
+      try {
+        if (db) {
+          const snap = await db.collection(DIRECTORY_COLLECTION).get();
+          snap.forEach(d => { const x = d.data(); if (x.actif !== false) list.push({email: d.id, nom: x.nom, prenom: x.prenom}); });
+        }
+      } catch (e) { console.warn("Annuaire illisible :", e); }
+      if (!list.length && typeof teachersList !== 'undefined') list = teachersList.filter(t => t.actif !== false);
+      if (!list.some(t => t.email === SUPER_ADMIN_EMAIL)) list.push({email: SUPER_ADMIN_EMAIL, nom: 'SMEERS', prenom: 'Jean-François'});
+      courseTeacherChoices = list.map(teacherLabel).filter(Boolean).sort((a, b) => a.localeCompare(b, 'fr'));
+      sel.innerHTML = '<option value="">➕ Choisir dans la liste des enseignants…</option>' +
+        courseTeacherChoices.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    }
+    // Choix dans la liste : remplace « À définir »/vide, sinon s'ajoute (co-enseignants séparés par « + »)
+    function pickCourseTeacher(sel) {
+      const name = sel.value;
+      sel.value = '';
+      if (!name) return;
+      const inp = document.getElementById('cmEnseignant');
+      const cur = inp.value.trim();
+      const parts = cur ? cur.split(/\s*\+\s*/).filter(x => x && !/^à définir$/i.test(x)) : [];
+      if (!parts.includes(name)) parts.push(name);
+      inp.value = parts.join(' + ');
+    }
+
     function openCoursesModal() {
       if (roBlock()) return;
+      loadCourseTeacherChoices();
       fillLocalSelect();
       renderCoursesList();
       resetCourseForm();
