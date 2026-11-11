@@ -441,7 +441,7 @@
 
   <!-- ================= VALIDATION DES ACQUIS D'APPRENTISSAGE (dossier pédagogique) ================= -->
   <!-- ================= FICHE ÉTUDIANT (administrateurs) ================= -->
-  <div id="studentCardModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-4">
+  <div id="studentCardModal" class="fixed inset-0 z-[60] bg-black/50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
       <div class="bg-[#0a3a60] text-white px-4 py-2 flex items-center justify-between gap-3">
         <div class="min-w-0">
@@ -4887,19 +4887,25 @@
       return withPayload(p, () => {
         const std = students.find(s => sameStudent(s, target));
         if (!std) return null;
-        let done = 0, absences = 0;
+        // Taux calculé sur les séances POINTÉES (comme dans les Analyses) ; T, D, CM, E, J ne pénalisent pas.
+        let done = 0, absences = 0, unpointed = 0, pts = 0;
         sessions.forEach(sess => {
           const r = attendanceData[`${std.id}_${sess.id}`];
           const st = r ? r.status : '?';
           if (!isSessionRealised(sess, st !== '?')) return;
+          if (st === '?') { unpointed++; return; }
+          if (['T', 'D', 'CM', 'E', 'J'].includes(st)) return;
           done++;
           if (st === 'A') absences++;
+          else if (st === 'P' || st === 'M') pts += 1;
+          else if (st === 'R') pts += (r.quotite !== undefined ? r.quotite : 1);
         });
         const nRaw = course ? parseInt(course.nbAA, 10) : NaN;
         const n = (nRaw >= 1 && nRaw <= MAX_AA) ? nRaw : 0;
         return {
           std, done, absences, n,
-          rate: calculateStudentRate(std.id),
+          rate: done ? Math.round(pts / done * 100) : null,
+          unpointed,
           abandoned: !!abandonedStudents[std.id],
           aa: n ? computeAA(std.id, n) : null,
           byName: !(matKey(std) && matKey(target))
@@ -4933,14 +4939,25 @@
       document.getElementById('studentCardModal').classList.add('hidden');
     }
 
+    let ficheTargetObj = null;
     function refreshStudentCard() {
-      if (ficheTargetId) openStudentCard(ficheTargetId, true);
+      if (ficheTargetObj) openStudentCard(ficheTargetObj.id, true, ficheTargetObj);
+      else if (ficheTargetId) openStudentCard(ficheTargetId, true);
+    }
+    // Depuis les Analyses : étudiant d'un autre cours que celui affiché
+    let anaStuView = [];
+    function openStudentCardFromAna(i) {
+      const e = anaStuView[i];
+      if (!e) return;
+      const t = Object.assign({}, e.s, {id: '__ana__' + (e.s.id || i)});
+      openStudentCard(t.id, false, t);
     }
 
-    async function openStudentCard(studentId, force) {
+    async function openStudentCard(studentId, force, targetObj) {
       if (!canOpenStudentCard()) return;
-      const target = students.find(s => s.id === studentId);
+      const target = targetObj || students.find(s => s.id === studentId);
       if (!target) return;
+      ficheTargetObj = targetObj || null;
       ficheTargetId = studentId;
       const body = document.getElementById('studentCardBody');
       document.getElementById('studentCardTitle').textContent = `${String(target.nom || '').toUpperCase()} ${target.prenom || ''}`.trim();
@@ -4992,7 +5009,8 @@
         rs.forEach((r, i) => {
           const title = r.c ? `${r.c.codeUE || ''} - ${r.c.titre || r.c.intituleUE || ''}` : (r.p.courseTitle || r.id);
           const res = r.res;
-          const det = res.done ? `${res.absences} abs. / ${res.done} séance${res.done > 1 ? 's' : ''}` : 'aucune séance réalisée';
+          const det = (res.done ? `${res.absences} abs. / ${res.done} séance${res.done > 1 ? 's' : ''} pointée${res.done > 1 ? 's' : ''}` : 'aucune séance pointée')
+            + (res.unpointed ? `<div class="text-amber-700">${res.unpointed} non pointée${res.unpointed > 1 ? 's' : ''}</div>` : '');
           h += `<tr class="${i % 2 ? 'bg-white' : 'bg-amber-50/40'} align-top border-b border-slate-200">
           <td class="px-2 py-1.5"><div class="font-bold text-slate-800">${escapeHtml(title)}</div>
             ${res.abandoned ? '<span class="px-1 rounded bg-red-100 text-red-700 font-bold text-[10px]">ABANDON</span>' : ''}
@@ -6482,6 +6500,7 @@
       const th = parseInt((document.getElementById('anaThreshold') || {}).value, 10) || 80;
       const rows = anaStudentRows(list);
       const risk = rows.filter(e => e.abandons || (e.rate !== null && e.rate < th && e.el >= 3)).sort((a, b) => (b.abandons - a.abandons) || ((a.rate === null ? 101 : a.rate) - (b.rate === null ? 101 : b.rate)));
+      anaStuView = risk;
       if (anaStuSort.key) {
         const k = anaStuSort.key, d = anaStuSort.dir;
         const val = e => k === 'rate' ? e.rate : k === 'abs' ? e.abs : k === 'abandons' ? e.abandons : normKey(`${e.s.nom || ''} ${e.s.prenom || ''}`);
@@ -6497,8 +6516,8 @@
         <input id="anaThreshold" type="number" min="1" max="100" value="${th}" onchange="renderAnalyses()" class="w-16 border border-slate-300 rounded px-2 py-1"> %
         <span class="text-slate-500">${risk.length} étudiant(s) sous le seuil (au moins 3 séances) ou ayant abandonné, sur ${rows.length}.</span></div>
         <div class="border border-slate-300 rounded overflow-auto max-h-[56vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>
-        ${anaStuTh('name', 'Étudiant', 'left')}<th class="text-left px-2 py-1.5">Matricule</th><th class="text-left px-2 py-1.5">UE</th>${anaStuTh('rate', 'Présence (toutes UE)', 'right')}${anaStuTh('abs', 'Absences', 'right')}${anaStuTh('abandons', 'Abandons', 'right')}</tr></thead><tbody class="divide-y divide-slate-200">` +
-        (risk.length ? risk.map(e => `<tr>${anaCell('<span class="font-semibold">' + escapeHtml((e.s.nom || '') + ' ' + (e.s.prenom || '')) + '</span>')}${anaCell('<span class="font-mono text-slate-500">' + escapeHtml(e.s.matricule || '–') + '</span>')}${anaCell(escapeHtml([...new Set(e.ues)].join(', ')))}${anaCell(anaBar(e.rate, presColor(e.rate)), 'text-right')}${anaCell(e.abs, 'text-right')}${anaCell(e.abandons || '–', 'text-right ' + (e.abandons ? 'text-red-700 font-bold' : ''))}</tr>`).join('') : '<tr><td colspan="6" class="px-2 py-6 text-center text-slate-400">Aucun étudiant sous le seuil.</td></tr>') + '</tbody></table></div>';
+        ${anaStuTh('name', 'Étudiant', 'left')}<th class="text-left px-2 py-1.5">Matricule</th><th class="text-left px-2 py-1.5">UE</th>${anaStuTh('rate', 'Présence (toutes UE) <span class="font-normal text-slate-500">= % de présent</span>', 'right')}${anaStuTh('abs', 'Absences <span class="font-normal text-slate-500">/ séances pointées</span>', 'right')}${anaStuTh('abandons', 'Abandons', 'right')}</tr></thead><tbody class="divide-y divide-slate-200">` +
+        (risk.length ? risk.map((e, i) => `<tr>${anaCell('<a href="javascript:void(0)" onclick="openStudentCardFromAna(' + i + ')" class="font-semibold text-blue-800 hover:underline cursor-pointer" title="Ouvrir la fiche : présences et points dans tous ses cours">' + escapeHtml((e.s.nom || '') + ' ' + (e.s.prenom || '')) + '</a>')}${anaCell('<span class="font-mono text-slate-500">' + escapeHtml(e.s.matricule || '–') + '</span>')}${anaCell(escapeHtml([...new Set(e.ues)].join(', ')))}${anaCell(anaBar(e.rate, presColor(e.rate)), 'text-right')}${anaCell(e.abs + ' <span class="text-slate-400">/ ' + e.el + '</span>', 'text-right')}${anaCell(e.abandons || '–', 'text-right ' + (e.abandons ? 'text-red-700 font-bold' : ''))}</tr>`).join('') : '<tr><td colspan="6" class="px-2 py-6 text-center text-slate-400">Aucun étudiant sous le seuil.</td></tr>') + '</tbody></table></div>';
     }
 
     // ----- Export Power BI -----
