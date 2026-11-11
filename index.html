@@ -68,6 +68,27 @@
     #attendanceTable tbody tr:hover > td:nth-child(-n+2):not(:only-child), #gradesTable tbody tr:hover > td:nth-child(-n+2):not(:only-child) { background-color: #fefce8; }
     #viewPointages { -webkit-overflow-scrolling: touch; }
 
+    /* ===== Barre d'outils (sous le titre du cours) ===== */
+    .tb-btn:not(.hidden) { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .6rem; border: 1px solid #e2e8f0; border-radius: .375rem; background: #fff; color: #334155; font-weight: 600; font-size: .75rem; line-height: 1.1rem; transition: background .15s, border-color .15s; cursor: pointer; }
+    .tb-btn:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .tb-btn[aria-expanded="true"] { background: #e0ecff; border-color: #3b82f6; color: #1e3a8a; }
+    .tb-sep { display: inline-block; width: 1px; height: 1.25rem; background: #e2e8f0; margin: 0 .15rem; }
+    .dd-wrap { position: relative; display: inline-block; }
+    .dd-wrap.hidden { display: none; }
+    .dd-menu { position: absolute; top: calc(100% + 4px); left: 0; min-width: 240px; background: #fff; border: 1px solid #cbd5e1; border-radius: .5rem; box-shadow: 0 10px 25px rgba(15, 23, 42, .18); padding: .25rem; z-index: 60; }
+    .dd-menu.right { left: auto; right: 0; }
+    .dd-item:not(.hidden) { display: flex; width: 100%; align-items: center; gap: .5rem; text-align: left; padding: .45rem .65rem; border-radius: .3rem; font-size: .75rem; font-weight: 600; color: #334155; cursor: pointer; }
+    .dd-item:hover { background: #eff6ff; color: #1e3a8a; }
+    .dd-sep { height: 1px; background: #e2e8f0; margin: .25rem 0; }
+    @media (max-width: 767px) {
+      #subBar { gap: .4rem; }
+      .tb-btn:not(.hidden) { padding: .45rem .7rem; font-size: .8rem; }
+      .tb-sep { display: none; }
+      .dd-wrap { display: block; width: 100%; }
+      .dd-wrap > .tb-btn { width: 100%; justify-content: space-between; }
+      .dd-menu, .dd-menu.right { position: static; min-width: 0; box-shadow: none; margin-top: 4px; background: #f8fafc; }
+      .dd-item:not(.hidden) { padding: .6rem .75rem; font-size: .85rem; }
+    }
     /* ===== Téléphone ===== */
     @media (max-width: 767px) {
       :root { --w1: 28px; }
@@ -78,6 +99,7 @@
       header#appHeader.mob-collapsed #quickActions,
       header#appHeader.mob-collapsed #legendRow,
       header#appHeader.mob-collapsed #courseDataPanel { display: none; }
+      header#appHeader .min-w-\[340px\] > .flex-1 { min-width: 0; max-width: 100%; }
       #courseSelector { max-width: none; width: auto; flex: 1 1 0; min-width: 0; }
       #courseTitleInput { width: 100%; flex-basis: 100%; }
       /* colonnes de gauche plus étroites */
@@ -167,41 +189,47 @@
               <span id="courseLocalBadge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800 whitespace-nowrap"></span>
             </div>
 
-            <!-- Sous-barre : État, Infos cours & Nouveau registre -->
-            <div id="subBar" class="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
-              <span id="saveStatusBadge" class="inline-flex items-center gap-1 text-emerald-700 font-medium">
-                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Sauvegardé
+            <!-- Barre d'outils : état, année, outils du cours, menu Administration, menu utilisateur -->
+            <div id="subBar" class="flex flex-wrap items-center gap-1.5 text-xs mt-1.5">
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-50 border border-slate-200">
+                <span id="saveStatusBadge" class="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Sauvegardé
+                </span>
               </span>
-              <span>•</span>
-              <button onclick="toggleDataPanel()"
-                class="text-blue-700 hover:underline font-semibold flex items-center gap-1">
-                <span>📋</span> Infos administratives & Données
-              </button>
-              <span>•</span>
-              <button onclick="createNewCourse()" class="text-slate-600 hover:text-slate-900 font-medium">+ Nouveau
-                registre</button>
-              <span class="admin-only hidden">•</span>
-              <button id="coursesBtn" onclick="openCoursesModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">⚙ Gérer les cours</button>
-              <span class="admin-only hidden">•</span>
-              <button id="teachersBtn" onclick="openTeachersModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">👥 Gérer les enseignants</button>
-              <span class="admin-only hidden">•</span>
-              <button id="locauxBtn" onclick="openLocauxModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">🏫 Locaux</button>
-              <span class="admin-only hidden">•</span>
-              <button id="bulkBtn" onclick="openBulkModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">📥 Import matricules</button>
-              <span class="admin-only hidden">•</span>
-              <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">📊 Analyses</button>
-              <span>•</span>
-              <span id="yearBadge" class="font-bold text-slate-700"></span>
-              <span class="admin-only hidden">•</span>
-              <select id="yearSelect" onchange="switchYear(this.value)" title="Changer d'année scolaire" class="admin-only hidden text-xs border border-slate-300 rounded px-1 py-0.5 bg-white text-slate-700"></select>
-              <button id="newYearBtn" onclick="openNewYearModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">➕ Nouvelle année</button>
-              <span class="admin-only hidden">•</span>
-              <button id="backupBtn" onclick="openBackupModal()" class="admin-only hidden text-slate-600 hover:text-slate-900 font-medium">💾 Sauvegarde</button>
-              <span>•</span>
-              <span id="userChip" class="inline-flex items-center gap-1.5">
-                <span id="userChipLabel" class="text-slate-700 font-semibold"></span>
-                <button id="changePwdBtn" onclick="changeMyPassword()" class="text-slate-600 hover:text-slate-900 underline">Changer mon mot de passe</button>
-                <button onclick="logout()" class="text-slate-600 hover:text-slate-900 underline">Se déconnecter</button>
+              <span id="yearBadge" class="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 font-bold text-slate-700" title="Année scolaire affichée"></span>
+              <select id="yearSelect" onchange="switchYear(this.value)" title="Changer d'année scolaire" class="admin-only hidden tb-btn !font-medium"></select>
+              <span class="tb-sep"></span>
+              <button onclick="toggleDataPanel()" class="tb-btn" title="Informations administratives du cours">📋 <span>Infos &amp; données</span></button>
+              <button onclick="createNewCourse()" class="tb-btn" title="Vider le registre du cours affiché">＋ <span>Nouveau registre</span></button>
+              <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden tb-btn">📊 <span>Analyses</span></button>
+
+              <!-- Menu Administration (admins) -->
+              <span class="dd-wrap admin-only hidden">
+                <button id="adminMenuBtn" data-dd="adminMenu" aria-haspopup="true" aria-expanded="false" onclick="toggleMenu('adminMenu', event)" class="tb-btn">
+                  ⚙ <span>Administration</span> <span class="text-slate-400">▾</span><span id="backupDot" class="hidden w-2 h-2 rounded-full bg-amber-500" title="Sauvegarde à faire"></span>
+                </button>
+                <div id="adminMenu" class="dd-menu hidden" role="menu">
+                  <button id="coursesBtn" onclick="openCoursesModal()" class="dd-item admin-only hidden" role="menuitem">⚙ Gérer les cours</button>
+                  <button id="teachersBtn" onclick="openTeachersModal()" class="dd-item admin-only hidden" role="menuitem">👥 Gérer les enseignants</button>
+                  <button id="locauxBtn" onclick="openLocauxModal()" class="dd-item admin-only hidden" role="menuitem">🏫 Locaux</button>
+                  <button id="bulkBtn" onclick="openBulkModal()" class="dd-item admin-only hidden" role="menuitem">📥 Import matricules</button>
+                  <div class="dd-sep"></div>
+                  <button id="newYearBtn" onclick="openNewYearModal()" class="dd-item admin-only hidden" role="menuitem">➕ Nouvelle année scolaire</button>
+                  <button id="backupBtn" onclick="openBackupModal()" class="dd-item admin-only hidden" role="menuitem">💾 Sauvegarde &amp; restauration</button>
+                </div>
+              </span>
+
+              <span class="flex-1"></span>
+
+              <!-- Menu utilisateur -->
+              <span id="userChip" class="dd-wrap">
+                <button id="userMenuBtn" data-dd="userMenu" aria-haspopup="true" aria-expanded="false" onclick="toggleMenu('userMenu', event)" class="tb-btn">
+                  👤 <span id="userChipLabel" class="max-w-[180px] truncate"></span> <span class="text-slate-400">▾</span>
+                </button>
+                <div id="userMenu" class="dd-menu right hidden" role="menu">
+                  <button id="changePwdBtn" onclick="changeMyPassword()" class="dd-item" role="menuitem">🔑 Changer mon mot de passe</button>
+                  <button onclick="logout()" class="dd-item" role="menuitem">⎋ Se déconnecter</button>
+                </div>
               </span>
             </div>
             <div id="yearBanner" class="hidden mt-1 text-xs px-2 py-1 rounded font-semibold"></div>
@@ -6394,6 +6422,67 @@
       else if (anaTab === 'teachers') body.innerHTML = anaTeachers(list);
       else if (anaTab === 'students') body.innerHTML = anaStudents(list);
       else body.innerHTML = anaExportPane();
+      anaMakeSortable(body);
+    }
+
+    // Tous les tableaux des Analyses : clic sur un en-tête = tri croissant, 2e clic = décroissant
+    // (l'onglet Étudiants a son propre tri ; dans « Sections », le détail des UE reste sous sa section)
+    let anaSortState = {};
+    function anaCellValue(cell) {
+      if (!cell) return null;
+      if (cell.dataset && cell.dataset.sort !== undefined) { const n = parseFloat(cell.dataset.sort); return isNaN(n) ? cell.dataset.sort : n; }
+      const t = (cell.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!t || /^[–—-]$/.test(t)) return null;
+      const d = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+      if (d) return new Date(d[3].length === 2 ? 2000 + +d[3] : +d[3], +d[2] - 1, +d[1]).getTime();
+      const n = t.match(/^-?\d+(?:[.,]\d+)?/);
+      if (n) return parseFloat(n[0].replace(',', '.'));
+      return t.toLowerCase();
+    }
+    function anaMakeSortable(body) {
+      if (anaTab === 'students' || anaTab === 'export') return;
+      body.querySelectorAll('table').forEach((tbl, ti) => {
+        const thead = tbl.querySelector('thead'), tbody = tbl.querySelector('tbody');
+        if (!thead || !tbody) return;
+        const ths = [...thead.querySelectorAll('th')];
+        const key = anaTab + ':' + ti;
+        const inds = ths.map(th => {
+          th.classList.add('cursor-pointer', 'select-none', 'hover:bg-slate-300');
+          th.title = 'Trier (clic : croissant, 2e clic : décroissant)';
+          const ind = document.createElement('span');
+          ind.className = 'ml-1 text-slate-400';
+          ind.textContent = '↕';
+          th.appendChild(ind);
+          return ind;
+        });
+        const apply = () => {
+          const st = anaSortState[key];
+          if (!st) return;
+          inds.forEach((ind, i) => { ind.textContent = i === st.col ? (st.dir === 1 ? '▲' : '▼') : '↕'; ind.className = 'ml-1 ' + (i === st.col ? 'text-[#0a3a60]' : 'text-slate-400'); });
+          // groupes : une ligne « parent » suivie de ses lignes de détail (retrait pl-4 ou cellule fusionnée)
+          const groups = [];
+          [...tbody.children].forEach(r => {
+            const child = groups.length && (r.cells.length < ths.length || r.querySelector('.pl-4'));
+            if (child) groups[groups.length - 1].kids.push(r); else groups.push({head: r, kids: []});
+          });
+          const cmp = (a, b) => {
+            const x = anaCellValue(a.cells[st.col]), y = anaCellValue(b.cells[st.col]);
+            if (x === null && y === null) return 0;
+            if (x === null) return 1;               // vide toujours en bas
+            if (y === null) return -1;
+            if (typeof x === 'number' && typeof y === 'number') return (x - y) * st.dir;
+            return String(x).localeCompare(String(y), 'fr') * st.dir;
+          };
+          groups.sort((g1, g2) => cmp(g1.head, g2.head));
+          groups.forEach(g => { g.kids.sort(cmp); tbody.appendChild(g.head); g.kids.forEach(k => tbody.appendChild(k)); });
+        };
+        ths.forEach((th, ci) => th.addEventListener('click', () => {
+          const st = anaSortState[key];
+          anaSortState[key] = st && st.col === ci ? {col: ci, dir: -st.dir} : {col: ci, dir: 1};
+          apply();
+        }));
+        apply();
+      });
     }
 
     function kpi(label, value, sub, cls) {
@@ -6649,9 +6738,17 @@
     function buildYearUI() {
       const st = yearState(YEAR);
       const badge = document.getElementById('yearBadge');
-      if (badge) badge.textContent = `📅 ${YEAR}`;
+      if (badge) {
+        badge.textContent = `📅 ${YEAR}`;
+        const tone = {actif: 'bg-emerald-50 border-emerald-200 text-emerald-800', prepa: 'bg-amber-50 border-amber-300 text-amber-900', creation: 'bg-red-50 border-red-300 text-red-800', archive: 'bg-red-50 border-red-300 text-red-800'}[st];
+        badge.className = `px-2 py-1 rounded-full border font-bold ${tone}`;
+        badge.classList.toggle('hidden', isLoggedAdmin());   // l'admin a déjà le sélecteur d'année
+      }
       const sel = document.getElementById('yearSelect');
       if (sel) {
+        sel.classList.toggle('!border-amber-400', st === 'prepa');
+        sel.classList.toggle('!border-red-400', st === 'archive' || st === 'creation');
+        sel.classList.toggle('!border-emerald-400', st === 'actif');
         sel.innerHTML = yearList().map(y => `<option value="${y}"${y === YEAR ? ' selected' : ''}>${y} (${yearStateLabel(y)})</option>`).join('');
       }
       const ban = document.getElementById('yearBanner');
@@ -6882,6 +6979,8 @@
         const old = !last || (Date.now() - new Date(last).getTime()) > 7 * 86400000;
         btn.classList.toggle('text-amber-600', old);
         btn.classList.toggle('text-slate-600', !old);
+        const dot = document.getElementById('backupDot');
+        if (dot) { dot.classList.toggle('hidden', !old); dot.classList.toggle('inline-block', old); }
         btn.title = old ? "Aucune sauvegarde depuis plus de 7 jours" : "Sauvegarde récente";
       }
     }
@@ -7014,6 +7113,28 @@
         bkSay("Restauration interrompue : " + (e && e.message ? e.message : e), 'text-red-700 font-semibold');
       } finally { btn.disabled = false; }
     }
+
+    // -------------------------------------------------------------
+    // MENUS DÉROULANTS DE LA BARRE D'OUTILS
+    // -------------------------------------------------------------
+    function closeMenus() {
+      document.querySelectorAll('.dd-menu').forEach(m => m.classList.add('hidden'));
+      document.querySelectorAll('[data-dd]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+    }
+    function toggleMenu(id, ev) {
+      if (ev) ev.stopPropagation();
+      const m = document.getElementById(id);
+      if (!m) return;
+      const wasClosed = m.classList.contains('hidden');
+      closeMenus();
+      if (wasClosed) {
+        m.classList.remove('hidden');
+        const b = document.querySelector(`[data-dd="${id}"]`);
+        if (b) b.setAttribute('aria-expanded', 'true');
+      }
+    }
+    document.addEventListener('click', e => { if (!e.target.closest('.dd-wrap') || e.target.closest('.dd-item')) closeMenus(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenus(); });
 
     function escapeHtml(str) {
       if (!str) return '';
