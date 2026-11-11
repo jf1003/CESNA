@@ -6468,15 +6468,36 @@
       });
       return Object.values(m).map(e => Object.assign(e, {rate: pct(e.pts, e.el)}));
     }
+    // Tri des colonnes du tableau « Étudiants » : clic = croissant, 2e clic = décroissant
+    let anaStuSort = {key: '', dir: 1};
+    function sortAnaStudents(key) {
+      anaStuSort = anaStuSort.key === key ? {key, dir: -anaStuSort.dir} : {key, dir: 1};
+      renderAnalyses();
+    }
+    function anaStuTh(key, label, align) {
+      const on = anaStuSort.key === key;
+      return `<th class="text-${align} px-2 py-1.5 cursor-pointer select-none hover:bg-slate-300 whitespace-nowrap" onclick="sortAnaStudents('${key}')" title="Trier (clic : croissant, 2e clic : décroissant)">${label} <span class="${on ? 'text-[#0a3a60]' : 'text-slate-400'}">${on ? (anaStuSort.dir === 1 ? '▲' : '▼') : '↕'}</span></th>`;
+    }
     function anaStudents(list) {
       const th = parseInt((document.getElementById('anaThreshold') || {}).value, 10) || 80;
       const rows = anaStudentRows(list);
       const risk = rows.filter(e => e.abandons || (e.rate !== null && e.rate < th && e.el >= 3)).sort((a, b) => (b.abandons - a.abandons) || ((a.rate === null ? 101 : a.rate) - (b.rate === null ? 101 : b.rate)));
+      if (anaStuSort.key) {
+        const k = anaStuSort.key, d = anaStuSort.dir;
+        const val = e => k === 'rate' ? e.rate : k === 'abs' ? e.abs : k === 'abandons' ? e.abandons : normKey(`${e.s.nom || ''} ${e.s.prenom || ''}`);
+        risk.sort((a, b) => {
+          const x = val(a), y = val(b);
+          if (x === null && y === null) return 0;
+          if (x === null) return 1;            // « pas de données » toujours en bas
+          if (y === null) return -1;
+          return (typeof x === 'string' ? x.localeCompare(y) : x - y) * d;
+        });
+      }
       return `<div class="flex flex-wrap items-center gap-2 mb-2"><label class="font-semibold text-slate-600">Seuil de présence</label>
         <input id="anaThreshold" type="number" min="1" max="100" value="${th}" onchange="renderAnalyses()" class="w-16 border border-slate-300 rounded px-2 py-1"> %
         <span class="text-slate-500">${risk.length} étudiant(s) sous le seuil (au moins 3 séances) ou ayant abandonné, sur ${rows.length}.</span></div>
         <div class="border border-slate-300 rounded overflow-auto max-h-[56vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>
-        <th class="text-left px-2 py-1.5">Étudiant</th><th class="text-left px-2 py-1.5">Matricule</th><th class="text-left px-2 py-1.5">UE</th><th class="text-right px-2 py-1.5">Présence (toutes UE)</th><th class="text-right px-2 py-1.5">Absences</th><th class="text-right px-2 py-1.5">Abandons</th></tr></thead><tbody class="divide-y divide-slate-200">` +
+        ${anaStuTh('name', 'Étudiant', 'left')}<th class="text-left px-2 py-1.5">Matricule</th><th class="text-left px-2 py-1.5">UE</th>${anaStuTh('rate', 'Présence (toutes UE)', 'right')}${anaStuTh('abs', 'Absences', 'right')}${anaStuTh('abandons', 'Abandons', 'right')}</tr></thead><tbody class="divide-y divide-slate-200">` +
         (risk.length ? risk.map(e => `<tr>${anaCell('<span class="font-semibold">' + escapeHtml((e.s.nom || '') + ' ' + (e.s.prenom || '')) + '</span>')}${anaCell('<span class="font-mono text-slate-500">' + escapeHtml(e.s.matricule || '–') + '</span>')}${anaCell(escapeHtml([...new Set(e.ues)].join(', ')))}${anaCell(anaBar(e.rate, presColor(e.rate)), 'text-right')}${anaCell(e.abs, 'text-right')}${anaCell(e.abandons || '–', 'text-right ' + (e.abandons ? 'text-red-700 font-bold' : ''))}</tr>`).join('') : '<tr><td colspan="6" class="px-2 py-6 text-center text-slate-400">Aucun étudiant sous le seuil.</td></tr>') + '</tbody></table></div>';
     }
 
