@@ -6418,13 +6418,40 @@
     const presColor = v => v === null ? 'bg-slate-300' : v >= 85 ? 'bg-emerald-500' : v >= 70 ? 'bg-amber-500' : 'bg-red-500';
     const daysBetween = (a, b) => Math.round((b - a) / 86400000);
 
+    // Identité d'un étudiant dans les Analyses : le matricule ; à défaut, le nom/prénom RATTACHÉ au matricule
+    // si ce même nom n'a qu'un seul matricule ailleurs (évite de compter deux fois un étudiant dont le matricule
+    // n'est pas encore importé dans toutes ses UE). Nom identique avec plusieurs matricules = personnes distinctes.
+    function anaNameMap() {
+      if (anaData.nameMap) return anaData.nameMap;
+      const by = {};
+      anaData.list.forEach(a => (a.p.students || []).forEach(st => {
+        const m = matKey(st);
+        if (!m) return;
+        (by[nameKey(st)] = by[nameKey(st)] || new Set()).add(m);
+      }));
+      const map = {};
+      Object.keys(by).forEach(k => { if (by[k].size === 1) map[k] = [...by[k]][0]; });
+      return (anaData.nameMap = map);
+    }
+    function anaKey(st) {
+      return matKey(st) || anaNameMap()[nameKey(st)] || nameKey(st);
+    }
+    function anaHasMat(st) {
+      return !!(matKey(st) || anaNameMap()[nameKey(st)]);
+    }
+
     function aggregate(list) {
-      const g = {n: list.length, enrolled: 0, abandons: 0, active: 0, eligible: 0, presence: 0, expected: 0, encoded: 0, pDone: 0, pPlanned: 0, aa: {ok: 0, ajourne: 0, echec: 0, enCours: 0}, keys: new Set(), A: 0, R: 0};
+      const g = {n: list.length, enrolled: 0, abandons: 0, active: 0, eligible: 0, presence: 0, expected: 0, encoded: 0, pDone: 0, pPlanned: 0, aa: {ok: 0, ajourne: 0, echec: 0, enCours: 0}, keys: new Set(), abKeys: new Set(), noMat: new Set(), A: 0, R: 0};
       list.forEach(a => {
         g.enrolled += a.enrolled; g.abandons += a.abandons; g.active += a.active; g.eligible += a.eligible; g.presence += a.presence;
         g.expected += a.expected; g.encoded += a.encoded; g.pDone += a.periodsDone; g.pPlanned += a.periodsPlanned; g.A += a.st.A; g.R += a.st.R;
         Object.keys(g.aa).forEach(k => g.aa[k] += a.aa[k]);
-        (a.p.students || []).forEach(s => g.keys.add(matKey(s) || nameKey(s)));
+        (a.p.students || []).forEach(s => {
+          const k = anaKey(s);
+          g.keys.add(k);
+          if (!anaHasMat(s)) g.noMat.add(k);
+          if ((a.p.abandonedStudents || {})[s.id]) g.abKeys.add(k);
+        });
       });
       g.rate = pct(g.presence, g.eligible); g.abandon = pct(g.abandons, g.enrolled); g.encRate = pct(g.encoded, g.expected);
       const resolved = g.aa.ok + g.aa.ajourne + g.aa.echec;
@@ -6534,9 +6561,9 @@
       const noSessU = list.filter(a => !a.sessions && a.started && !a.finished && a.enrolled);
       const emptyReg = anaData.noReg;
       let html = `<div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-        ${kpi('UE analysées', g.n, `${g.keys.size} étudiant(s) distinct(s)`)}
+        ${kpi('UE analysées', g.n, `${g.keys.size} étudiant(s) distinct(s)` + (g.noMat.size ? ` · dont ${g.noMat.size} sans matricule` : ''))}
         ${kpi('Taux de présence', fmtPct(g.rate), 'sur les cases pointées, T/D/CM non pénalisants', g.rate !== null && g.rate < 80 ? 'text-red-600' : 'text-emerald-700')}
-        ${kpi('Abandons', fmtPct(g.abandon), `${g.abandons} sur ${g.enrolled} inscriptions`, g.abandon > 15 ? 'text-red-600' : 'text-[#0a3a60]')}
+        ${kpi('Abandons d\'UE (par inscription)', fmtPct(g.abandon), `${g.abandons} sur ${g.enrolled} inscriptions · ${g.abKeys.size} étudiant(s) concerné(s) sur ${g.keys.size}`, g.abandon > 15 ? 'text-red-600' : 'text-[#0a3a60]')}
         ${kpi('Pointage à jour', fmtPct(g.encRate), `${g.encoded} cases encodées sur ${g.expected} dues`, g.encRate !== null && g.encRate < 95 ? 'text-amber-600' : 'text-emerald-700')}
         ${kpi('Périodes données', `${g.pDone}`, g.pPlanned ? `sur ${g.pPlanned} prévues (${fmtPct(pct(g.pDone, g.pPlanned))})` : '1 période = 50 min')}
       </div>`;
@@ -6589,8 +6616,8 @@
       }).sort((x, y) => (x.g.encRate === null) - (y.g.encRate === null) || (x.g.encRate - y.g.encRate) || x.t.localeCompare(y.t, 'fr'));
       if (!rows.length) return '<p class="py-8 text-center text-slate-500">Aucune donnée.</p>';
       return '<p class="text-[11px] text-slate-500 mb-2">Triés par pointage le moins à jour. Le délai exact de pointage n\'est pas enregistré aujourd\'hui : on mesure la complétude (cases encodées sur cases dues).</p><div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>' +
-        ['Enseignant', 'UE', 'Étudiants', 'Présence moyenne', 'Pointage à jour', 'Séances à compléter', 'Périodes données / prévues'].map((h, i) => `<th class="px-2 py-1.5 ${i > 0 ? 'text-right' : 'text-left'}">${h}</th>`).join('') + '</tr></thead><tbody class="divide-y divide-slate-200">' +
-        rows.map(r => `<tr class="${r.late ? 'bg-amber-50' : ''}">${anaCell('<span class="font-semibold">' + escapeHtml(r.t) + '</span><div class="text-[10px] text-slate-400">' + escapeHtml(r.codes.join(', ')) + '</div>')}${anaCell(r.n, 'text-right')}${anaCell(r.g.active, 'text-right')}${anaCell(anaBar(r.g.rate, presColor(r.g.rate)), 'text-right')}${anaCell(fmtPct(r.g.encRate), 'text-right font-semibold ' + (r.g.encRate !== null && r.g.encRate < 90 ? 'text-red-700' : ''))}${anaCell(r.late || '0', 'text-right')}${anaCell(r.g.pDone + (r.g.pPlanned ? ' / ' + r.g.pPlanned : ''), 'text-right')}</tr>`).join('') + '</tbody></table></div>';
+        ['Enseignant', 'UE', 'Étudiants distincts', 'Présence moyenne', 'Pointage à jour', 'Séances à compléter', 'Périodes données / prévues'].map((h, i) => `<th class="px-2 py-1.5 ${i > 0 ? 'text-right' : 'text-left'}">${h}</th>`).join('') + '</tr></thead><tbody class="divide-y divide-slate-200">' +
+        rows.map(r => `<tr class="${r.late ? 'bg-amber-50' : ''}">${anaCell('<span class="font-semibold">' + escapeHtml(r.t) + '</span><div class="text-[10px] text-slate-400">' + escapeHtml(r.codes.join(', ')) + '</div>')}${anaCell(r.n, 'text-right')}${anaCell(r.g.keys.size + (r.g.enrolled !== r.g.keys.size ? ' <span class="text-slate-400" title="Inscriptions : un étudiant inscrit à plusieurs UE de cet enseignant y compte plusieurs fois">(' + r.g.enrolled + ' insc.)</span>' : ''), 'text-right')}${anaCell(anaBar(r.g.rate, presColor(r.g.rate)), 'text-right')}${anaCell(fmtPct(r.g.encRate), 'text-right font-semibold ' + (r.g.encRate !== null && r.g.encRate < 90 ? 'text-red-700' : ''))}${anaCell(r.late || '0', 'text-right')}${anaCell(r.g.pDone + (r.g.pPlanned ? ' / ' + r.g.pPlanned : ''), 'text-right')}</tr>`).join('') + '</tbody></table></div>';
     }
 
     // ----- Étudiants (vue transversale, par matricule ou nom) -----
@@ -6598,7 +6625,7 @@
       const m = {};
       list.forEach(a => {
         (a.p.students || []).forEach(s => {
-          const k = matKey(s) || nameKey(s);
+          const k = anaKey(s);
           const e = m[k] || (m[k] = {s, ues: [], el: 0, pts: 0, abs: 0, abandons: 0});
           if (!e.s.matricule && s.matricule) e.s = s;
           e.ues.push(a.c.codeUE);
@@ -6656,7 +6683,7 @@
       const names = document.getElementById('anaWithNames').checked;
       const WD = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
       const anon = {};
-      const key = s => { const k = matKey(s) || nameKey(s); if (s.matricule) return s.matricule; return anon[k] || (anon[k] = 'SANS-MATRICULE-' + (Object.keys(anon).length + 1)); };
+      const key = s => { const k = anaKey(s); if (s.matricule) return s.matricule; return anon[k] || (anon[k] = 'SANS-MATRICULE-' + (Object.keys(anon).length + 1)); };
       const ue = [], seances = [], pres = [], etu = [];
       const secAgg = {};
       anaData.list.forEach(a => {
