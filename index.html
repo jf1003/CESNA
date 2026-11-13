@@ -6453,6 +6453,15 @@
           if ((a.p.abandonedStudents || {})[s.id]) g.abKeys.add(k);
         });
       });
+      // Abandon rapporté au nombre d'ÉTUDIANTS (distincts) : au moins une UE abandonnée / abandon de toutes ses UE
+      const per = {};
+      list.forEach(a => (a.p.students || []).forEach(st => {
+        const k = anaKey(st), e = per[k] || (per[k] = {n: 0, ab: 0});
+        e.n++; if ((a.p.abandonedStudents || {})[st.id]) e.ab++;
+      }));
+      g.abStudents = g.abKeys.size;
+      g.fullAb = Object.values(per).filter(e => e.n > 0 && e.ab === e.n).length;
+      g.abStudentRate = pct(g.abStudents, g.keys.size);
       g.rate = pct(g.presence, g.eligible); g.abandon = pct(g.abandons, g.enrolled); g.encRate = pct(g.encoded, g.expected);
       const resolved = g.aa.ok + g.aa.ajourne + g.aa.echec;
       g.aaRate = resolved ? pct(g.aa.ok, resolved) : null;
@@ -6560,10 +6569,11 @@
       }).sort((x, y) => y.days - x.days || y.cells - x.cells);
       const noSessU = list.filter(a => !a.sessions && a.started && !a.finished && a.enrolled);
       const emptyReg = anaData.noReg;
-      let html = `<div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+      let html = `<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 mb-3">
         ${kpi('UE analysées', g.n, `${g.keys.size} étudiant(s) distinct(s)` + (g.noMat.size ? ` · dont ${g.noMat.size} sans matricule` : ''))}
         ${kpi('Taux de présence', fmtPct(g.rate), 'sur les cases pointées, T/D/CM non pénalisants', g.rate !== null && g.rate < 80 ? 'text-red-600' : 'text-emerald-700')}
-        ${kpi('Abandons d\'UE (par inscription)', fmtPct(g.abandon), `${g.abandons} sur ${g.enrolled} inscriptions · ${g.abKeys.size} étudiant(s) concerné(s) sur ${g.keys.size}`, g.abandon > 15 ? 'text-red-600' : 'text-[#0a3a60]')}
+        ${kpi('Abandons d\'UE (par inscription)', fmtPct(g.abandon), `${g.abandons} sur ${g.enrolled} inscriptions (étudiant × UE)`, g.abandon > 15 ? 'text-red-600' : 'text-[#0a3a60]')}
+        ${kpi('Étudiants ayant abandonné', fmtPct(g.abStudentRate), `${g.abStudents} sur ${g.keys.size} étudiants (au moins une UE) · dont ${g.fullAb} ont abandonné toutes leurs UE`, g.abStudentRate > 15 ? 'text-red-600' : 'text-[#0a3a60]')}
         ${kpi('Pointage à jour', fmtPct(g.encRate), `${g.encoded} cases encodées sur ${g.expected} dues`, g.encRate !== null && g.encRate < 95 ? 'text-amber-600' : 'text-emerald-700')}
         ${kpi('Périodes données', `${g.pDone}`, g.pPlanned ? `sur ${g.pPlanned} prévues (${fmtPct(pct(g.pDone, g.pPlanned))})` : '1 période = 50 min')}
       </div>`;
@@ -6594,13 +6604,13 @@
       const keys = Object.keys(by).sort((x, y) => x.split('||')[0].localeCompare(y.split('||')[0], 'fr') || y.split('||')[1].localeCompare(x.split('||')[1]));
       if (!keys.length) return '<p class="py-8 text-center text-slate-500">Aucune donnée.</p>';
       let html = '<p class="text-[11px] text-slate-500 mb-2">Une ligne par section et par année académique, avec le détail des UE en dessous. L\'année est lue dans chaque registre (champ « Année académique »).</p><div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>' +
-        ['Section', 'Année', 'UE', 'Étudiants', 'Présence', 'Abandon', 'Pointage à jour', 'Réussite des AA', 'Périodes données / prévues'].map((h, i) => `<th class="px-2 py-1.5 ${i > 1 ? 'text-right' : 'text-left'}">${h}</th>`).join('') + '</tr></thead><tbody class="divide-y divide-slate-200">';
+        ['Section', 'Année', 'UE', 'Étudiants', 'Présence', 'Abandon (par inscription)', 'Étudiants ayant abandonné', 'Pointage à jour', 'Réussite des AA', 'Périodes données / prévues'].map((h, i) => `<th class="px-2 py-1.5 ${i > 1 ? 'text-right' : 'text-left'}">${h}</th>`).join('') + '</tr></thead><tbody class="divide-y divide-slate-200">';
       keys.forEach(k => {
         const [sec, yr] = k.split('||'), l = by[k], g = aggregate(l);
-        html += `<tr class="bg-white font-semibold">${anaCell(escapeHtml(sec))}${anaCell(yr)}${anaCell(g.n, 'text-right')}${anaCell(g.keys.size, 'text-right')}${anaCell(anaBar(g.rate, presColor(g.rate)), 'text-right')}${anaCell(fmtPct(g.abandon), 'text-right ' + (g.abandon > 15 ? 'text-red-700' : ''))}${anaCell(fmtPct(g.encRate), 'text-right')}${anaCell(fmtPct(g.aaRate), 'text-right')}${anaCell(g.pDone + (g.pPlanned ? ' / ' + g.pPlanned : ''), 'text-right')}</tr>`;
+        html += `<tr class="bg-white font-semibold">${anaCell(escapeHtml(sec))}${anaCell(yr)}${anaCell(g.n, 'text-right')}${anaCell(g.keys.size, 'text-right')}${anaCell(anaBar(g.rate, presColor(g.rate)), 'text-right')}${anaCell(fmtPct(g.abandon), 'text-right ' + (g.abandon > 15 ? 'text-red-700' : ''))}${anaCell(g.abStudents + ' <span class="text-slate-400">/ ' + g.keys.size + '</span> · ' + fmtPct(g.abStudentRate), 'text-right ' + (g.abStudentRate > 15 ? 'text-red-700' : ''))}${anaCell(fmtPct(g.encRate), 'text-right')}${anaCell(fmtPct(g.aaRate), 'text-right')}${anaCell(g.pDone + (g.pPlanned ? ' / ' + g.pPlanned : ''), 'text-right')}</tr>`;
         l.slice().sort((a, b) => String(a.c.codeUE).localeCompare(String(b.c.codeUE), 'fr', {numeric: true})).forEach(a => {
           const r = pct(a.presence, a.eligible);
-          html += `<tr class="text-slate-600">${anaCell('<span class="pl-4">' + escapeHtml(a.c.codeUE) + ' <span class="text-slate-400">' + escapeHtml(a.c.titre || a.c.intituleUE || '') + '</span></span>')}${anaCell(a.year)}${anaCell('')}${anaCell(a.active + (a.abandons ? ' <span class="text-red-600">(+' + a.abandons + ' abandon)</span>' : ''), 'text-right')}${anaCell(anaBar(r, presColor(r)), 'text-right')}${anaCell(fmtPct(pct(a.abandons, a.enrolled)), 'text-right')}${anaCell(fmtPct(pct(a.encoded, a.expected)), 'text-right')}${anaCell(a.aa.ok + a.aa.ajourne + a.aa.echec ? fmtPct(pct(a.aa.ok, a.aa.ok + a.aa.ajourne + a.aa.echec)) : '–', 'text-right')}${anaCell(a.periodsDone + (a.periodsPlanned ? ' / ' + a.periodsPlanned : ''), 'text-right')}</tr>`;
+          html += `<tr class="text-slate-600">${anaCell('<span class="pl-4">' + escapeHtml(a.c.codeUE) + ' <span class="text-slate-400">' + escapeHtml(a.c.titre || a.c.intituleUE || '') + '</span></span>')}${anaCell(a.year)}${anaCell('')}${anaCell(a.active + (a.abandons ? ' <span class="text-red-600">(+' + a.abandons + ' abandon)</span>' : ''), 'text-right')}${anaCell(anaBar(r, presColor(r)), 'text-right')}${anaCell(fmtPct(pct(a.abandons, a.enrolled)), 'text-right')}${anaCell(a.abandons + ' <span class="text-slate-400">/ ' + a.enrolled + '</span>', 'text-right')}${anaCell(fmtPct(pct(a.encoded, a.expected)), 'text-right')}${anaCell(a.aa.ok + a.aa.ajourne + a.aa.echec ? fmtPct(pct(a.aa.ok, a.aa.ok + a.aa.ajourne + a.aa.echec)) : '–', 'text-right')}${anaCell(a.periodsDone + (a.periodsPlanned ? ' / ' + a.periodsPlanned : ''), 'text-right')}</tr>`;
         });
       });
       return html + '</tbody></table></div>';
@@ -6707,7 +6717,7 @@
         const k = a.section + '||' + a.year; (secAgg[k] = secAgg[k] || []).push(a);
       });
       const secRows = Object.keys(secAgg).map(k => { const [s, y] = k.split('||'), g = aggregate(secAgg[k]);
-        return {Annee: y, Section: s, NbUE: g.n, EtudiantsDistincts: g.keys.size, Inscriptions: g.enrolled, Abandons: g.abandons, TauxAbandon: g.abandon, TauxPresence: g.rate, TauxPointageAJour: g.encRate, TauxReussiteAA: g.aaRate, PeriodesDonnees: g.pDone, PeriodesPrevues: g.pPlanned || null}; });
+        return {Annee: y, Section: s, NbUE: g.n, EtudiantsDistincts: g.keys.size, Inscriptions: g.enrolled, Abandons: g.abandons, TauxAbandon: g.abandon, EtudiantsAbandonnes: g.abStudents, TauxEtudiantsAbandonnes: g.abStudentRate, EtudiantsToutAbandonne: g.fullAb, TauxPresence: g.rate, TauxPointageAJour: g.encRate, TauxReussiteAA: g.aaRate, PeriodesDonnees: g.pDone, PeriodesPrevues: g.pPlanned || null}; });
       anaStudentRows(anaData.list).forEach(e => {
         const o = {Etudiant: key(e.s), NbUE: new Set(e.ues).size, SeancesEligibles: e.el, TauxPresence: e.rate, Absences: e.abs, Abandons: e.abandons};
         if (names) { o.Nom = e.s.nom || ''; o.Prenom = e.s.prenom || ''; }
