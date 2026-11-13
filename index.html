@@ -200,6 +200,7 @@
               <select id="yearSelect" onchange="switchYear(this.value)" title="Changer d'année scolaire" class="admin-only hidden tb-btn !font-medium"></select>
               <span class="tb-sep"></span>
               <button onclick="toggleDataPanel()" class="tb-btn" title="Informations administratives du cours">📋 <span>Infos &amp; données</span></button>
+              <button id="tasksBtn" onclick="openTasksModal()" class="hidden tb-btn" title="Séances passées que vous n'avez pas encore pointées">🔔 <span>À pointer</span> <span id="tasksCount" class="ml-0.5 min-w-[1.1rem] text-center px-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white">0</span></button>
               <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden tb-btn">📊 <span>Analyses</span></button>
 
               <!-- Menu Administration (admins) -->
@@ -688,6 +689,20 @@
           <button onclick="closeCalendarModal()" class="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded">Fermer</button>
           <button onclick="calSave()" class="px-4 py-1.5 font-bold bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow">Enregistrer le calendrier</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODALE : MES POINTAGES À FAIRE ================= -->
+  <div id="tasksModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
+        <span>🔔 Mes pointages à faire</span>
+        <button onclick="closeTasksModal()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+      <div class="p-4 overflow-auto text-xs text-slate-700">
+        <p class="mb-3 text-slate-500">Séances déjà passées pour lesquelles au moins un étudiant n'a pas de statut. Cliquez sur une séance pour ouvrir le registre à cette date.</p>
+        <div id="tasksBody"></div>
       </div>
     </div>
   </div>
@@ -1923,7 +1938,7 @@
       sessionUser = profile;
       hideLogin();
       setLoginMsg('');
-      document.getElementById('userChipLabel').textContent = `👤 ${teacherLabel(profile)}${profile.role === 'admin' ? ' (admin)' : ''}`;
+      document.getElementById('userChipLabel').textContent = `${teacherLabel(profile)}${profile.role === 'admin' ? ' (admin)' : ''}`;
       document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', profile.role !== 'admin'));
       const anon = !!(fbAuth && fbAuth.currentUser && fbAuth.currentUser.isAnonymous);
       const pwdBtn = document.getElementById('changePwdBtn');
@@ -1934,6 +1949,7 @@
       }
       buildCourseSelector();
       renderTable();
+      setTimeout(() => refreshMyTasks(true), 2500);   // après le chargement du catalogue
     }
 
     // --- Connexion par le nom (mode pause du mot de passe) ---
@@ -2270,7 +2286,7 @@
         await saveTeacherDocs({nom, prenom, email, role, actif, courseIds});
         if (editEmail === sessionUser.email) {
           sessionUser.nom = nom; sessionUser.prenom = prenom;
-          document.getElementById('userChipLabel').textContent = `👤 ${teacherLabel(sessionUser)} (admin)`;
+          document.getElementById('userChipLabel').textContent = `${teacherLabel(sessionUser)} (admin)`;
         }
         let msg = isNew ? "Enseignant créé." : "Modifications enregistrées.";
         if (isNew && actif && LOGIN_MODE === 'name') {
@@ -7402,6 +7418,89 @@
       ta.value = dates.join(' ');
       previewParsedDates(ta.value);
       out.innerHTML = `<strong>${dates.length}</strong> date(s) générée(s)` + (skipped.length ? ` · ignorée(s) : <span class="text-slate-500">${escapeHtml(skipped.join(', '))}</span>` : '') + `. Vérifiez la liste ci-dessus, puis « Créer les séances ».`;
+    }
+
+    // -------------------------------------------------------------
+    // « MES POINTAGES À FAIRE » : séances passées non (entièrement) pointées, pour les UE de l'utilisateur
+    // -------------------------------------------------------------
+    let myTasks = [];
+    async function payloadOfCourse(id) {
+      if (id === currentCourseId) return buildPayload();
+      if (db) {
+        try {
+          const snap = await yc(REMOTE_COLLECTION).doc(id).get();
+          if (snap.exists) { const x = snap.data(); return typeof x.data === 'string' ? JSON.parse(x.data) : x.data; }
+        } catch (e) { /* copie locale ci-dessous */ }
+      }
+      try { const raw = localStorage.getItem(storageKeyFor(id)); if (raw) return JSON.parse(raw); } catch (e) { /* ignoré */ }
+      return null;
+    }
+    async function loadMyTasks() {
+      if (!sessionUser) return [];
+      const ids = (sessionUser.courseIds || []).filter(id => courses.some(c => c.id === id));
+      const now = anaNow(), out = [];
+      for (const id of ids) {
+        const c = courses.find(x => x.id === id);
+        const p = await payloadOfCourse(id);
+        if (!p) continue;
+        const a = analyseCourse(c, p, now);
+        if (a.late.length) out.push({c, rows: a.late.map(r => ({sid: r.s.id, date: r.date, start: r.s.start, end: r.s.end, miss: r.miss})), students: a.active});
+      }
+      out.sort((x, y) => x.rows[0].date - y.rows[0].date);
+      return out;
+    }
+    function updateTasksBadge() {
+      const btn = document.getElementById('tasksBtn');
+      if (!btn) return;
+      const n = myTasks.reduce((s, t) => s + t.rows.length, 0);
+      const has = !!(sessionUser && (sessionUser.courseIds || []).length);
+      btn.classList.toggle('hidden', !has);
+      const b = document.getElementById('tasksCount');
+      if (b) { b.textContent = n; b.className = 'ml-0.5 min-w-[1.1rem] text-center px-1 rounded-full text-[10px] font-bold ' + (n ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'); }
+    }
+    async function refreshMyTasks(autoOpen) {
+      try { myTasks = await loadMyTasks(); } catch (e) { console.warn("Pointages à faire :", e); myTasks = []; }
+      updateTasksBadge();
+      if (autoOpen && myTasks.length) {
+        let seen = false;
+        try { seen = sessionStorage.getItem('CESNA_TASKS_SEEN') === '1'; sessionStorage.setItem('CESNA_TASKS_SEEN', '1'); } catch (e) { /* ignoré */ }
+        if (!seen) openTasksModal();
+      }
+    }
+    function openTasksModal() {
+      renderTasks();
+      document.getElementById('tasksModal').classList.remove('hidden');
+      refreshMyTasks(false).then(renderTasks);
+    }
+    function closeTasksModal() { document.getElementById('tasksModal').classList.add('hidden'); }
+    function renderTasks() {
+      const box = document.getElementById('tasksBody');
+      if (!box) return;
+      if (!myTasks.length) { box.innerHTML = '<div class="rounded border border-emerald-200 bg-emerald-50 text-emerald-800 font-semibold px-3 py-3">✔ Tous vos pointages sont à jour.</div>'; return; }
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const fr = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      box.innerHTML = myTasks.map(t => `<div class="mb-3">
+        <div class="font-bold text-[#0a3a60] text-sm">${escapeHtml(t.c.codeUE || '')} <span class="font-normal text-slate-600">${escapeHtml(t.c.titre || t.c.intituleUE || '')}</span></div>
+        ${t.rows.map(r => { const days = Math.round((today - r.date) / 86400000);
+          return `<button onclick="goToSession('${t.c.id}','${r.sid}')" class="w-full text-left flex items-center justify-between gap-2 px-2 py-1.5 mt-1 rounded border ${days > 7 ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'} hover:brightness-95">
+            <span class="font-semibold">${fr(r.date)} <span class="font-normal text-slate-500">${escapeHtml(r.start || '')}–${escapeHtml(r.end || '')}</span></span>
+            <span class="text-xs ${days > 7 ? 'text-red-700' : 'text-amber-700'}">${r.miss} étudiant(s) à pointer${days > 0 ? ' · ' + days + ' j de retard' : ''}</span></button>`; }).join('')}
+      </div>`).join('');
+    }
+    // ouvre l'UE et met la colonne de la séance en évidence
+    function goToSession(courseId, sessionId) {
+      closeTasksModal();
+      if (courseId !== currentCourseId) {
+        const sel = document.getElementById('courseSelector');
+        if (sel) sel.value = courseId;
+        onSelectOfficialCourse(courseId);
+      }
+      setTimeout(() => {
+        const sess = sessions.find(x => x.id === sessionId);
+        if (!sess) return;
+        const th = [...document.querySelectorAll('#attendanceTable thead th')].find(x => x.textContent.trim().startsWith(sess.date));
+        if (th && th.scrollIntoView) { th.scrollIntoView({behavior: 'smooth', inline: 'center', block: 'nearest'}); th.classList.add('ring-4', 'ring-amber-400'); setTimeout(() => th.classList.remove('ring-4', 'ring-amber-400'), 3500); }
+      }, 250);
     }
 
     function escapeHtml(str) {
