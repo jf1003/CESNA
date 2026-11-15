@@ -461,12 +461,18 @@
       </details>
 
       <div class="flex-1 min-h-0 overflow-auto pb-3">
+        <div class="flex flex-col lg:flex-row items-start gap-3">
         <div class="bg-white rounded shadow border border-slate-300 inline-block">
           <table id="gradesTable" class="border-collapse table-fixed text-xs text-left">
             <colgroup id="gradesCols"></colgroup>
             <thead id="gradesHead"></thead>
             <tbody id="gradesTableBody"></tbody>
           </table>
+        </div>
+        <div class="w-full lg:w-72 shrink-0 bg-white rounded shadow border border-slate-300">
+          <div class="px-3 py-1.5 bg-slate-100 border-b border-slate-300 text-xs font-bold text-[#0a3a60] rounded-t">📝 Informations <span class="font-normal text-slate-500">(note interne, non reprise dans l'export)</span></div>
+          <textarea id="gradesNoteInput" oninput="onGradesNoteInput(this)" rows="10" maxlength="4000" placeholder="Renseignements sur cette UE : remarques, décisions, rappels…" class="w-full p-2 text-xs text-slate-800 resize-y outline-none rounded-b"></textarea>
+        </div>
         </div></div>
       </div>
     </div>
@@ -1633,6 +1639,7 @@
         grades,
         aaGrades,
         cdeValidation,
+        gradesNote,
         savedAt: new Date().toISOString()
       };
     }
@@ -1706,6 +1713,7 @@
         grades = remote.grades || {};
         aaGrades = remote.aaGrades || {};
         cdeValidation = remote.cdeValidation || null;
+        gradesNote = remote.gradesNote || "";
         lastSavedAt = remoteTs;
         applyCurrentCourseToMetadata();
         try { localStorage.setItem(storageKeyFor(courseId), JSON.stringify(remote)); } catch (e) {}
@@ -1749,6 +1757,7 @@
       grades = {};
       aaGrades = {};
       cdeValidation = null;
+      gradesNote = "";
     }
 
     // Reprend l'ancienne sauvegarde unique et la range dans le bon cours (si reconnu par son code UE)
@@ -2839,6 +2848,7 @@
           grades = parsed.grades || {};
           aaGrades = parsed.aaGrades || {};
           cdeValidation = parsed.cdeValidation || null;
+          gradesNote = parsed.gradesNote || "";
           lastSavedAt = parsed.savedAt || "";
           return true;
         }
@@ -2907,6 +2917,7 @@
         grades,
         aaGrades,
         cdeValidation,
+        gradesNote,
         exportedAt: new Date().toISOString()
       };
 
@@ -2956,6 +2967,7 @@
           grades = parsed.grades || {};
           aaGrades = parsed.aaGrades || {};
           cdeValidation = parsed.cdeValidation || null;
+          gradesNote = parsed.gradesNote || "";
 
           document.getElementById('courseTitleInput').value = courseTitle;
           syncMetadataInputs();
@@ -4321,6 +4333,7 @@
       const table = document.getElementById('gradesTable');
       if (!tbody) return;
       renderCdeBar();
+      renderGradesNote();
       tbody.innerHTML = '';
       thead.innerHTML = '';
       cols.innerHTML = '';
@@ -7528,6 +7541,20 @@
     const CDE_MAX_ROWS = 68;             // lignes d'étudiants prévues par le modèle (13 à 80)
     const CDE_MAX_AA = 6;                // colonnes AA1 à AA6 du modèle
 
+    // Champ « Informations » à droite de l'encodage des points : note interne de l'UE, jamais reprise dans l'export Excel
+    let gradesNote = "";
+    function onGradesNoteInput(el) {
+      if (roBlock()) { el.value = gradesNote; return; }
+      gradesNote = el.value;
+      indicateSaving();
+      clearTimeout(gradeSaveTimer);
+      gradeSaveTimer = setTimeout(() => { gradeSaveTimer = null; saveGrades(); }, 800);
+    }
+    function renderGradesNote() {
+      const el = document.getElementById('gradesNoteInput');
+      if (el && el.value !== gradesNote) el.value = gradesNote;
+    }
+
     function gradeLocked() {
       if (!cdeValidation) return false;
       showGradeNotice("Points validés par le conseil des études : encodage verrouillé. Un administrateur peut annuler la validation.");
@@ -7641,7 +7668,7 @@
         unhideCols(min) {
           for (const c of Array.from(doc.getElementsByTagNameNS(NS, 'col'))) if (c.getAttribute('min') === String(min)) c.removeAttribute('hidden');
         },
-        xml() { return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + new XMLSerializer().serializeToString(doc.documentElement); }
+        xml() { for (const r of Array.from(sd.children)) r.removeAttribute('spans'); return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + new XMLSerializer().serializeToString(doc.documentElement); }
       };
     }
 
@@ -7660,7 +7687,7 @@
       dn.set('D2', ctx.teacher);
       dn.set('E2', ctx.year);
       ctx.rows.forEach((r, i) => { dn.set('G' + (i + 2), r.name); dn.set('H' + (i + 2), r.mat); });
-      zip.file('xl/worksheets/sheet1.xml', dn.xml());
+      zip.file('xl/worksheets/sheet1.xml', dn.xml(), {createFolders: false});
 
       // feuille EBUS : acquis et notes (/100) des deux sessions
       const eb = xlSheet(await zip.file('xl/worksheets/sheet2.xml').async('string'));
@@ -7671,7 +7698,8 @@
         eb.set('N' + row, r.n1 === null ? '' : r.n1);
         eb.set('AA' + row, r.n2 === null ? '' : r.n2);
       });
-      zip.file('xl/worksheets/sheet2.xml', eb.xml());
+      zip.file('xl/worksheets/sheet2.xml', eb.xml(), {createFolders: false});
+      zip.remove('xl/worksheets/_rels/sheet1.xml.rels');   // fichier de relations vide : inutile
 
       return zip.generateAsync({type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     }
