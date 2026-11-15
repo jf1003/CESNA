@@ -7758,6 +7758,7 @@
       const dn = xlSheet(await zip.file('xl/worksheets/sheet1.xml').async('string'));
       dn.set('A2', `${ctx.codeUE} ${ctx.titre.toLocaleUpperCase('fr')}`.trim());
       dn.set('B2', `${ctx.titre} / ${Array.from({length: ctx.n}, (_, i) => 'AA' + (i + 1)).join(' ')}`);
+      if (ctx.s2Date) dn.set('B3', `2ème session : ${ctx.s2Date}`);   // reprise (ligne sous le titre) dans les feuilles d'affichage
       dn.set('C2', ctx.periods);
       dn.set('D2', ctx.teacher);
       dn.set('E2', ctx.year);
@@ -7767,7 +7768,6 @@
       // feuille EBUS : acquis et notes (/100) des deux sessions
       const eb = xlSheet(await zip.file('xl/worksheets/sheet2.xml').async('string'));
       eb.aaCols(4, ctx.n); eb.aaCols(18, ctx.n);   // seulement les colonnes d'AA de l'UE
-      if (ctx.s2Date) eb.set('R8', `2ème session : ${ctx.s2Date}`);
       ctx.rows.forEach((r, i) => {
         const row = 13 + i;
         for (let k = 0; k < ctx.n; k++) { eb.set(aaCols1[k] + row, r.s1[k]); eb.set(aaCols2[k] + row, r.s2[k]); }
@@ -7779,7 +7779,7 @@
       for (const [file, s1, s2] of [['sheet6', true, false], ['sheet7', false, true], ['sheet8', true, true]]) {
         const sh = xlSheet(await zip.file('xl/worksheets/' + file + '.xml').async('string'));
         if (s1) sh.aaCols(5, ctx.n);
-        if (s2) { sh.aaCols(19, ctx.n); if (ctx.s2Date) sh.set('S8', `2ème session : ${ctx.s2Date}`); }
+        if (s2) { sh.aaCols(19, ctx.n); }
         zip.file('xl/worksheets/' + file + '.xml', sh.xml(), {createFolders: false});
       }
       zip.remove('xl/worksheets/_rels/sheet1.xml.rels');   // fichier de relations vide : inutile
