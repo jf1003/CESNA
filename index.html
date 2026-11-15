@@ -7584,7 +7584,7 @@
         bar.className = 'shrink-0 mb-2 flex flex-wrap items-center gap-2 border border-emerald-400 bg-emerald-50 text-emerald-900 rounded px-3 py-2 text-xs';
         bar.innerHTML = `<span class="font-bold">✅ Points validés par le conseil des études</span>
           <span>${when ? 'le ' + escapeHtml(when) : ''}${cdeValidation.byName ? ' par ' + escapeHtml(cdeValidation.byName) : ''} — encodage verrouillé.</span>
-          ${admin ? `<button onclick="downloadCdeExcel()" class="ml-auto px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-semibold">⬇ Télécharger l'Excel</button>
+          ${admin ? `<button onclick="downloadCdeExcel()" class="ml-auto px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-semibold">⬇ Affichage des points</button>
           <button onclick="exportGips()" class="px-2.5 py-1 bg-[#0a3a60] hover:bg-[#082d4a] text-white rounded font-semibold" title="Fichier d'import pour le programme de gestion des étudiants">📤 Export GIPS</button>
           <button onclick="cancelCdeValidation()" class="px-2.5 py-1 bg-white border border-slate-400 hover:bg-slate-100 text-slate-800 rounded font-semibold">↩ Annuler la validation</button>` : ''}`;
       } else if (admin) {
