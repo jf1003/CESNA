@@ -444,6 +444,7 @@
       </div>
 
       <div id="cdeBar" class="hidden"></div>
+      <div id="s2DateBar" class="hidden"></div>
 
       <div id="dossierDrop" class="admin-only hidden shrink-0 mb-2 flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
         <span class="text-lg">📄</span>
@@ -1637,6 +1638,7 @@
         aaGrades,
         cdeValidation,
         studentNotes,
+        session2Date,
         savedAt: new Date().toISOString()
       };
     }
@@ -1711,6 +1713,7 @@
         aaGrades = remote.aaGrades || {};
         cdeValidation = remote.cdeValidation || null;
         studentNotes = remote.studentNotes || {};
+        session2Date = remote.session2Date || '';
         lastSavedAt = remoteTs;
         applyCurrentCourseToMetadata();
         try { localStorage.setItem(storageKeyFor(courseId), JSON.stringify(remote)); } catch (e) {}
@@ -1755,6 +1758,7 @@
       aaGrades = {};
       cdeValidation = null;
       studentNotes = {};
+      session2Date = '';
     }
 
     // Reprend l'ancienne sauvegarde unique et la range dans le bon cours (si reconnu par son code UE)
@@ -2846,6 +2850,7 @@
           aaGrades = parsed.aaGrades || {};
           cdeValidation = parsed.cdeValidation || null;
           studentNotes = parsed.studentNotes || {};
+          session2Date = parsed.session2Date || '';
           lastSavedAt = parsed.savedAt || "";
           return true;
         }
@@ -2915,6 +2920,7 @@
         aaGrades,
         cdeValidation,
         studentNotes,
+        session2Date,
         exportedAt: new Date().toISOString()
       };
 
@@ -2965,6 +2971,7 @@
           aaGrades = parsed.aaGrades || {};
           cdeValidation = parsed.cdeValidation || null;
           studentNotes = parsed.studentNotes || {};
+          session2Date = parsed.session2Date || '';
 
           document.getElementById('courseTitleInput').value = courseTitle;
           syncMetadataInputs();
@@ -7543,6 +7550,33 @@
 
     // Colonne « Remarques » : une note interne par étudiant (jamais reprise dans l'export Excel du conseil)
     let studentNotes = {};   // { studentId: "texte" }
+
+    // Date de la 2ᵉ session (AAAA-MM-JJ) : saisie par l'enseignant, reprise dans l'Excel du conseil
+    let session2Date = '';
+    function fmtDateFr(iso) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+    }
+    function hasSession2() {
+      try { return students.some(s => computeAA(s.id, currentNbAA()).s2.state === 'open'); } catch (e) { return false; }
+    }
+    function onSession2Date(el) {
+      if (YEAR_RO || cdeValidation) { el.value = session2Date; return; }
+      session2Date = /^\d{4}-\d{2}-\d{2}$/.test(el.value) ? el.value : '';
+      indicateSaving();
+      clearTimeout(gradeSaveTimer);
+      gradeSaveTimer = setTimeout(() => { gradeSaveTimer = null; saveGrades(); }, 800);
+    }
+    function renderS2DateBar() {
+      const bar = document.getElementById('s2DateBar');
+      if (!bar) return;
+      if (!session2Date && !hasSession2()) { bar.className = 'hidden'; bar.innerHTML = ''; return; }
+      const ro = !!(YEAR_RO || cdeValidation);
+      bar.className = 'shrink-0 mb-2 flex flex-wrap items-center gap-2 border border-amber-300 bg-amber-50 text-amber-900 rounded px-3 py-2 text-xs';
+      bar.innerHTML = `<span class="font-bold">📅 Date de la 2ᵉ session</span>
+        <input type="date" value="${escapeHtml(session2Date)}" ${ro ? 'disabled' : ''} onchange="onSession2Date(this)" class="border border-amber-400 rounded px-2 py-1 bg-white text-slate-900">
+        <span class="text-amber-800">Reprise dans le fichier Excel du conseil (« Affichage des points »).</span>`;
+    }
     function onStudentNote(stdId, el) {
       if (YEAR_RO) { el.value = studentNotes[stdId] || ''; return; }
       const v = el.value;
@@ -7575,6 +7609,7 @@
     }
 
     function renderCdeBar() {
+      renderS2DateBar();
       const bar = document.getElementById('cdeBar');
       if (!bar) return;
       const admin = isLoggedAdmin();
@@ -7632,7 +7667,7 @@
         }
         return r;
       });
-      return {codeUE, titre, periods, n, teacher: String(m.teacher || c.enseignant || '').trim(), year: String(m.academicYear || YEAR || '').trim(), rows: out, incomplete, noMat};
+      return {codeUE, titre, periods, n, teacher: String(m.teacher || c.enseignant || '').trim(), year: String(m.academicYear || YEAR || '').trim(), s2Date: fmtDateFr(session2Date), rows: out, incomplete, noMat};
     }
 
     // --- petit outillage XML (feuilles du modèle)
@@ -7686,6 +7721,25 @@
           else cell.setAttribute('t', 'str');
           const v = doc.createElementNS(NS, 'v'); v.textContent = (val === null || val === undefined) ? '' : String(val); cell.appendChild(v);
         },
+        aaCols(first, n) {   // n colonnes d'AA visibles à partir de la colonne « first » (4 visibles par défaut dans le modèle)
+          const colsEl = doc.getElementsByTagNameNS(NS, 'cols')[0];
+          if (!colsEl) return;
+          const setHidden = (idx, hide) => {
+            const c = Array.from(colsEl.children).find(x => +x.getAttribute('min') <= idx && idx <= +x.getAttribute('max'));
+            if (!c || (c.hasAttribute('hidden') === hide)) return;
+            const mn = +c.getAttribute('min'), mx = +c.getAttribute('max');
+            const mk = (a, b) => { const e = c.cloneNode(false); e.setAttribute('min', a); e.setAttribute('max', b); return e; };
+            const one = mk(idx, idx);
+            if (hide) one.setAttribute('hidden', '1'); else one.removeAttribute('hidden');
+            const parts = [];
+            if (mn < idx) parts.push(mk(mn, idx - 1));
+            parts.push(one);
+            if (mx > idx) parts.push(mk(idx + 1, mx));
+            for (const e of parts) colsEl.insertBefore(e, c);
+            colsEl.removeChild(c);
+          };
+          for (let k = 0; k < 6; k++) { if (k < 4 && k >= n) setHidden(first + k, true); if (k >= 4 && k < n) setHidden(first + k, false); }
+        },
         unhideCols(min) {
           for (const c of Array.from(doc.getElementsByTagNameNS(NS, 'col'))) if (c.getAttribute('min') === String(min)) c.removeAttribute('hidden');
         },
@@ -7712,7 +7766,8 @@
 
       // feuille EBUS : acquis et notes (/100) des deux sessions
       const eb = xlSheet(await zip.file('xl/worksheets/sheet2.xml').async('string'));
-      if (ctx.n > 4) { eb.unhideCols(8); eb.unhideCols(22); }
+      eb.aaCols(4, ctx.n); eb.aaCols(18, ctx.n);   // seulement les colonnes d'AA de l'UE
+      if (ctx.s2Date) eb.set('R8', `2ème session : ${ctx.s2Date}`);
       ctx.rows.forEach((r, i) => {
         const row = 13 + i;
         for (let k = 0; k < ctx.n; k++) { eb.set(aaCols1[k] + row, r.s1[k]); eb.set(aaCols2[k] + row, r.s2[k]); }
@@ -7720,6 +7775,13 @@
         eb.set('AA' + row, r.n2 === null ? '' : r.n2);
       });
       zip.file('xl/worksheets/sheet2.xml', eb.xml(), {createFolders: false});
+      // feuilles d'affichage et récapitulatif : colonnes d'AA de l'UE (+ date de la 2e session)
+      for (const [file, s1, s2] of [['sheet6', true, false], ['sheet7', false, true], ['sheet8', true, true]]) {
+        const sh = xlSheet(await zip.file('xl/worksheets/' + file + '.xml').async('string'));
+        if (s1) sh.aaCols(5, ctx.n);
+        if (s2) { sh.aaCols(19, ctx.n); if (ctx.s2Date) sh.set('S8', `2ème session : ${ctx.s2Date}`); }
+        zip.file('xl/worksheets/' + file + '.xml', sh.xml(), {createFolders: false});
+      }
       zip.remove('xl/worksheets/_rels/sheet1.xml.rels');   // fichier de relations vide : inutile
 
       return zip.generateAsync({type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
