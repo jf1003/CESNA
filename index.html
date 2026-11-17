@@ -547,6 +547,7 @@
         <!-- Onglet attribution -->
         <div id="locPane_assign" class="hidden">
           <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Unité d'enseignement</label>
+          <input id="laSearch" type="search" autocomplete="off" placeholder="🔍 Rechercher une UE (code, nom, local…)" oninput="onLocAssignSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();onLocAssignSearch(true)}" class="w-full max-w-2xl bg-white border border-slate-300 rounded px-2 py-1.5 text-xs mb-1.5 block">
           <select id="laCourse" onchange="loadLocAssign()" class="w-full max-w-2xl bg-white border border-slate-300 rounded px-2 py-1.5 text-xs mb-3"></select>
           <div id="laBody"></div>
         </div>
@@ -5564,9 +5565,23 @@
       const sel = document.getElementById('laCourse');
       if (!sel) return;
       const keep = locAssignCourseId || sel.value;
-      sel.innerHTML = '<option value="">— choisissez une UE —</option>' + sortedCourses().map(c =>
+      const q = locSearchNorm((document.getElementById('laSearch') || {}).value || '');
+      const list = sortedCourses().filter(c => !q || c.id === keep ||
+        locSearchNorm([c.codeUE, c.titre, c.intituleUE, c.localLabel, c.section, c.bloc].join(' ')).includes(q));
+      sel.innerHTML = `<option value="">${q ? `— ${list.filter(c => c.id !== keep).length} UE trouvée(s) —` : '— choisissez une UE —'}</option>` + list.map(c =>
         `<option value="${c.id}">${escapeHtml(c.codeUE + ' - ' + (c.titre || c.intituleUE))}${c.localLabel ? escapeHtml('  →  ' + c.localLabel) : ''}</option>`).join('');
       sel.value = keep || '';
+    }
+    function locSearchNorm(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+    // Recherche d'UE : filtre la liste ; Entrée (ou une seule UE trouvée) sélectionne directement
+    function onLocAssignSearch(enter) {
+      const sel = document.getElementById('laCourse'), inp = document.getElementById('laSearch');
+      if (!sel || !inp) return;
+      renderLocAssignSelect();
+      const opts = Array.from(sel.options).filter(o => o.value);
+      const hit = opts.filter(o => o.value !== locAssignCourseId);
+      const pick = opts.length === 1 ? opts[0] : (enter && hit.length ? hit[0] : null);
+      if (pick && pick.value !== locAssignCourseId) { sel.value = pick.value; loadLocAssign(); }
     }
     function sessionsOfPayload(p) {
       return (p && Array.isArray(p.sessions) ? p.sessions : []).map(s => ({s, d: parseDateInPayload(p, s.date)}))
