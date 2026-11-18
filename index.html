@@ -512,7 +512,7 @@
               <div class="flex items-center gap-2 mb-2">
                 <label class="font-semibold text-slate-600">Implantation</label>
                 <select id="locFilterImp" onchange="renderLocauxList()" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs">
-                  <option value="">Toutes</option><option>Jambes</option><option>Masson</option>
+                  <option value="">Toutes</option><option>Jambes</option><option>Masson</option><option>Hôpital</option>
                 </select>
               </div>
               <div class="border border-slate-300 rounded overflow-auto max-h-[60vh]">
@@ -529,7 +529,7 @@
               <input type="hidden" id="lrEditId">
               <h3 id="roomFormTitle" class="font-bold text-[#0a3a60] mb-2">Nouveau local</h3>
               <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Implantation *</label>
-              <select id="lrImplantation" class="w-full bg-white border border-slate-300 rounded px-2 py-1 mb-2"><option>Jambes</option><option>Masson</option></select>
+              <select id="lrImplantation" class="w-full bg-white border border-slate-300 rounded px-2 py-1 mb-2"><option>Jambes</option><option>Masson</option><option>Hôpital</option></select>
               <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Étage</label>
               <input type="text" id="lrEtage" placeholder="Ex: 0, 1, 2" class="w-full bg-white border border-slate-300 rounded px-2 py-1 mb-2">
               <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Numéro du local *</label>
@@ -561,7 +561,7 @@
               <button onclick="lgMonthStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold" title="Mois suivant">›</button>
             </span>
             <select id="lgYear" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"></select>
-            <select id="lgImp" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"><option value="">Toutes les implantations</option><option>Jambes</option><option>Masson</option></select>
+            <select id="lgImp" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"><option value="">Toutes les implantations</option><option>Jambes</option><option>Masson</option><option>Hôpital</option></select>
             <select id="lgEtage" onchange="renderLocAgenda()" class="bg-white border border-slate-300 rounded px-2 py-1"><option value="">Tous les étages</option></select>
             <button onclick="refreshLocPayloads(true)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100">↻ Actualiser</button>
             <span id="lgSummary" class="ml-auto text-slate-600"></span>
@@ -5223,7 +5223,7 @@
     // -------------------------------------------------------------
     const LOCAUX_LS_KEY = "CESNA_LOCAUX_V1" + YEAR_SUFFIX;
     const LOCAUX_COLLECTION = "locaux";
-    const IMPLANTATIONS = ["Jambes", "Masson"];
+    const IMPLANTATIONS = ["Jambes", "Masson", "Hôpital"];
     let locaux = [];
     let locauxSyncStarted = false;
     let locPayloads = {};
