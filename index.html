@@ -735,6 +735,21 @@
     </div>
   </div>
 
+  <!-- ================= POPUP D'ENCODAGE D'UN AA (même présentation que le pointage) ================= -->
+  <div id="aaPickModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4" onclick="if(event.target===this)closeAAPicker()">
+    <div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-sm overflow-hidden">
+      <div class="bg-[#f59e0b] px-3 py-2 flex items-center justify-between text-[#003366] font-bold text-sm select-none">
+        <span id="aaPickTitle">AA</span>
+        <button onclick="closeAAPicker()" class="w-6 h-6 flex items-center justify-center rounded bg-[#78350f] text-white hover:bg-red-700 transition font-black text-xs">✕</button>
+      </div>
+      <div class="p-4 bg-slate-200 flex flex-col items-center">
+        <div id="aaPickName" class="text-xs font-bold text-slate-800 text-center uppercase tracking-wide mb-3"></div>
+        <div id="aaPickGrid" class="grid grid-cols-3 gap-2 w-full max-w-[280px]"></div>
+        <p class="mt-2 text-[10px] text-slate-500 text-center">✓ acquis · ✕ non acquis · PP pas présenté (compte comme non acquis) · ? effacer<br>🔒 D : validation par un administrateur</p>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= POPUP DE POINTAGE INSTANTANÉ (CLIC UNIQUE) ================= -->
   <div id="pointageModal"
     class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -4184,6 +4199,59 @@
       }
     }
 
+    // Clic sur une case AA : fenêtre de choix (même présentation que le pointage) ; D reste réservé aux administrateurs
+    let aaPick = null;   // { stdId, k, i }
+    function openAAPicker(stdId, k, i) {
+      if (roBlock() || gradeLocked()) return;
+      const n = currentNbAA();
+      if (!n) return;
+      const ss = k === 1 ? computeAA(stdId, n).s1 : computeAA(stdId, n).s2;
+      if (ss.state !== 'open' || (ss.fixed && ss.fixed[i])) return;
+      const cur = ss.cells[i];
+      const std = students.find(s => s.id === stdId);
+      aaPick = {stdId, k, i};
+      document.getElementById('aaPickTitle').textContent = `AA ${i + 1} — ${k === 1 ? '1ʳᵉ' : '2ᵉ'} session`;
+      document.getElementById('aaPickName').textContent = std ? `${std.nom} ${std.prenom || ''}`.trim() : '';
+      const tile = (val, txt, cls, title, locked) =>
+        `<button onclick="applyAAChoice(${val === null ? 'null' : `'${val}'`})" title="${title}"
+          class="relative h-20 ${cls} hover:brightness-105 active:scale-95 border-2 border-slate-600 rounded flex items-center justify-center text-3xl font-black transition shadow${cur === val ? ' ring-4 ring-blue-600' : ''}">
+          ${locked ? '<span class="absolute top-1 right-1.5 text-[11px] leading-none">🔒</span>' : ''}${txt}</button>`;
+      document.getElementById('aaPickGrid').innerHTML =
+        tile('v', '✓', AA_GREEN, 'Acquis') +
+        tile('n', '✕', k === 1 ? AA_ORANGE : AA_RED, 'Non acquis') +
+        tile('p', 'PP', AA_PP, 'Pas présenté (info interne : compté comme non acquis, exporté « NA »)') +
+        tile('d', 'D', AA_DISP, 'Dispensé (validation administrateur)', !isLoggedAdmin()) +
+        tile(null, '?', 'bg-[#cbd5e1] text-slate-600', 'Effacer (non encodé)');
+      document.getElementById('aaPickModal').classList.remove('hidden');
+    }
+    function closeAAPicker() {
+      document.getElementById('aaPickModal').classList.add('hidden');
+      aaPick = null;
+    }
+    function applyAAChoice(val) {
+      if (!aaPick) return;
+      const {stdId, k, i} = aaPick;
+      if (roBlock() || gradeLocked()) { closeAAPicker(); return; }
+      const n = currentNbAA();
+      const ss = k === 1 ? computeAA(stdId, n).s1 : computeAA(stdId, n).s2;
+      const cur = ss.cells[i];
+      const doIt = () => {
+        closeAAPicker();
+        if (val === cur) return;
+        setAA(stdId, k, i, val);
+        saveGrades();
+        refreshGradeRow(stdId);
+        updateGradeCounters();
+      };
+      if ((val === 'd' || cur === 'd') && val !== cur && !isLoggedAdmin()) {
+        closeAAPicker();
+        requireAdmin(val === 'd' ? "Le statut « D » (dispensé) ne peut être posé que par un administrateur."
+          : "Ce statut « D » a été validé par un administrateur : seul un administrateur peut le modifier.", doIt);
+        return;
+      }
+      doIt();
+    }
+
     // Clic sur « AA n » dans l'en-tête : marque l'AA acquis pour toutes les cases encore vides
     function fillAAColumn(k, i) {
       if (roBlock() || gradeLocked()) return;
@@ -4289,7 +4357,7 @@
           const b = document.createElement('button');
           b.type = 'button';
           b.className = "block w-full h-8 font-black text-sm leading-none";
-          b.onclick = () => cycleAA(std.id, k, i);
+          b.onclick = () => openAAPicker(std.id, k, i);
           td.appendChild(b);
           sess.btns.push(b);
           sess.tds.push(td);
