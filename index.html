@@ -3133,6 +3133,7 @@
     }
 
     function deleteSession(sessionId) {
+      if (!isLoggedAdmin()) return;   // réservé aux admins
       if (roBlock()) return;
       const sess = sessions.find(x => x.id === sessionId);
       if (!sess) return;
@@ -3235,14 +3236,14 @@
         btnRow.className = 'flex items-center justify-center gap-1.5 mt-0.5';
         btnRow.appendChild(editBtn);
         btnRow.appendChild(delBtn);
-        thHours.appendChild(btnRow);
+        if (isLoggedAdmin()) thHours.appendChild(btnRow);   // modifier / supprimer une séance : réservé aux admins
         const locExc = sessionLocalException(sess.id);
         if (locExc) {
           const lb = document.createElement('div');
           lb.className = 'text-[9px] font-bold text-amber-300 leading-none mt-0.5';
           lb.textContent = '📍' + locExc.num;
           lb.title = 'Local de cette séance : ' + locExc.label;
-          thHours.insertBefore(lb, btnRow);
+          if (btnRow.parentNode === thHours) thHours.insertBefore(lb, btnRow); else thHours.appendChild(lb);
         }
         hoursRow.appendChild(thHours);
       });
@@ -3639,6 +3640,7 @@
     // MODIFIER UNE SÉANCE (date et heures) : l'identifiant de la séance ne change pas, les pointages sont conservés
     // -------------------------------------------------------------
     function openEditSessionModal(sessionId) {
+      if (!isLoggedAdmin()) return;   // réservé aux admins
       if (roBlock()) return;
       const sess = sessions.find(x => x.id === sessionId);
       if (!sess) return;
@@ -4029,7 +4031,7 @@
     //  - ajourné en 1re session : les AA déjà acquis restent verts d'office en 2e session
     //  - réussi en 1re session : la 2e session est grisée
     //  - étudiant en abandon : tout en rouge, « Refus », dans les deux sessions
-    // Données : aaGrades[studentId] = { a1: ['v','n','d',null,...]  (v acquis, n non acquis, d dispensé), n1: note, a2: [...], n2: note }
+    // Données : aaGrades[studentId] = { a1: ['v','n','p','d',null,...]  (v acquis, n non acquis, p pas présenté = non acquis + info interne, d dispensé), n1: note, a2: [...], n2: note }
     // -------------------------------------------------------------
     const PASS_MARK = 50;               // note minimale (en %)
     const MAX_AA = 20;                  // nombre maximum d'AA par cours
@@ -4064,7 +4066,7 @@
 
       // --- 1re session
       const c1 = Array.from({length: n}, (_, i) => get(g.a1, i));
-      const anyN1 = c1.includes('n');
+      const anyN1 = c1.some(c => c === 'n' || c === 'p');   // « p » (pas présenté) compte comme non acquis
       const allV1 = c1.every(c => c === 'v' || c === 'd');      // acquis ou dispensé
       const note1 = validNote(g.n1);
       let r1 = 'pending';
@@ -4081,7 +4083,7 @@
       } else {
         const fixed = c1.map(c => c === 'v' || c === 'd');                       // AA déjà acquis en 1re : d'office
         const c2 = c1.map((c, i) => (c === 'v' || c === 'd') ? c : get(g.a2, i));
-        const anyN2 = c2.includes('n');
+        const anyN2 = c2.some(c => c === 'n' || c === 'p');
         const allV2 = c2.every(c => c === 'v' || c === 'd');
         const note2 = validNote(g.n2);
         let r2 = 'pending';
@@ -4143,8 +4145,8 @@
       if (row) row.refresh();
     }
 
-    // Clic sur une case AA : vide -> acquis -> non acquis -> vide (enseignant)
-    // Admin : vide -> acquis -> non acquis -> dispensé -> vide
+    // Clic sur une case AA : vide -> acquis -> non acquis -> pas présenté (PP) -> vide (enseignant)
+    // Admin : vide -> acquis -> non acquis -> PP -> dispensé -> vide
     function cycleAA(stdId, k, i) {
       if (roBlock() || gradeLocked()) return;
       const n = currentNbAA();
@@ -4166,7 +4168,9 @@
       } else if (cur === 'v') {
         applyNextVal('n');
       } else if (cur === 'n') {
-        // Admin : n -> d (dispensé). Enseignant : le D lui est interdit, on revient simplement à vide.
+        applyNextVal('p');   // pas présenté (info interne : exporté comme NA)
+      } else if (cur === 'p') {
+        // Admin : p -> d (dispensé). Enseignant : le D lui est interdit, on revient simplement à vide.
         applyNextVal(isLoggedAdmin() ? 'd' : null);
       } else if (cur === 'd') {
         // La modification ou suppression d'un statut 'd' existant requiert également l'admin
@@ -4255,6 +4259,7 @@
     const AA_GREEN = "bg-[#3f8a24] text-white";
     const AA_DISP = "bg-[#bae6fd] text-[#075985]";   // D = dispensé (même couleur que dans les pointages)
     const AA_ORANGE = "bg-[#ffc000] text-[#5c3d00]";
+    const AA_PP = "bg-orange-500 hover:bg-orange-600 text-white";   // PP = pas présenté (info interne)
     const AA_RED = "bg-[#ff0000] text-white";
     const AA_GREY = "bg-[#d9d9d9]";
 
@@ -4342,6 +4347,9 @@
           } else if (v === 'n') {
             cls += (k === 1 ? AA_ORANGE : AA_RED); txt = '✕';
             title = "Non acquis (cliquer pour changer)";
+          } else if (v === 'p') {
+            cls += AA_PP; txt = 'PP';
+            title = "Pas présenté (info interne : compté comme non acquis et exporté « NA ») — cliquer pour changer";
           } else {
             cls += "bg-white hover:bg-slate-100 text-slate-300";
             title = "Cliquer : acquis";
@@ -5156,6 +5164,7 @@
       if (v === 'v') return `<span class="${base} bg-[#3f8a24] text-white${fixed ? ' opacity-70' : ''}" title="Acquis">✓</span>`;
       if (v === 'd') return `<span class="${base} bg-[#bae6fd] text-[#075985]${fixed ? ' opacity-70' : ''}" title="Dispensé">D</span>`;
       if (v === 'n') return `<span class="${base} ${k === 2 ? 'bg-red-600 text-white' : 'bg-[#ffc000] text-[#5c3d00]'}" title="Non acquis">✕</span>`;
+      if (v === 'p') return `<span class="${base} bg-orange-500 text-white !text-[9px]" title="Pas présenté">PP</span>`;
       if (v === 'x') return `<span class="${base} bg-red-600 text-white" title="Abandon">✕</span>`;
       return `<span class="${base} bg-slate-100 text-slate-400 border border-slate-200">·</span>`;
     }
@@ -7744,7 +7753,7 @@
       if (students.length > CDE_MAX_ROWS) return {error: `Le modèle du conseil prévoit au maximum ${CDE_MAX_ROWS} étudiants ; cette UE en a ${students.length}.`};
       const rows = students.slice().sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', {sensitivity: 'base'}) ||
         String(a.prenom || '').localeCompare(String(b.prenom || ''), 'fr', {sensitivity: 'base'}));
-      const map = {v: 'A', n: 'NA', d: 'D'};
+      const map = {v: 'A', n: 'NA', p: 'NA', d: 'D'};   // PP (pas présenté) = info interne : exporté comme NA
       const incomplete = [], noMat = [];
       const out = rows.map(s => {
         const name = `${s.nom || ''} ${s.prenom || ''}`.replace(/\s+/g, ' ').trim();
