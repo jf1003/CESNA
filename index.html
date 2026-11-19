@@ -3255,9 +3255,9 @@
         const locExc = sessionLocalException(sess.id);
         if (locExc) {
           const lb = document.createElement('div');
-          lb.className = 'text-[9px] font-bold text-amber-300 leading-none mt-0.5';
-          lb.textContent = '📍' + locExc.num;
-          lb.title = 'Local de cette séance : ' + locExc.label;
+          lb.className = 'inline-block max-w-full truncate text-[12px] font-black text-red-700 bg-yellow-300 border-2 border-red-600 rounded px-1.5 py-0.5 leading-none mt-1 shadow';
+          lb.textContent = '📍 ' + locExc.num;
+          lb.title = 'ATTENTION, changement de local pour cette séance : ' + locExc.label;
           if (btnRow.parentNode === thHours) thHours.insertBefore(lb, btnRow); else thHours.appendChild(lb);
         }
         hoursRow.appendChild(thHours);
