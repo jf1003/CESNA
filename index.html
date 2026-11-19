@@ -185,6 +185,9 @@
                 <option value="">-- Sélectionner un cours dans la liste --</option>
                 <!-- Rempli dynamiquement -->
               </select>
+              <!-- Recherche d'UE (alternative au menu déroulant) -->
+              <input type="search" id="courseSearch" autocomplete="off" placeholder="🔍 Rechercher une UE…" oninput="onCourseSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();onCourseSearch(true)}"
+                class="bg-white border border-slate-300 text-slate-800 text-xs rounded px-2 py-1 outline-none hover:border-blue-500 focus:border-blue-700 w-44 max-w-full">
 
               <!-- Intitulé affiché / modifiable -->
               <input type="text" id="courseTitleInput" placeholder="Intitulé du cours (ex: Programmation Web)"
@@ -2501,10 +2504,12 @@
     function buildCourseSelector() {
       const select = document.getElementById('courseSelector');
       const keep = currentCourseId || "";
+      const q = courseSearchNorm((document.getElementById('courseSearch') || {}).value || '');
       select.innerHTML = '<option value="">-- Sélectionner un cours dans la liste --</option>';
       const groups = {};
       const order = [];
-      sortedCourses().filter(c => canAccessCourse(c.id)).forEach(c => {
+      sortedCourses().filter(c => canAccessCourse(c.id) && (!q || c.id === keep ||
+        courseSearchNorm([c.codeUE, c.titre, c.intituleUE, c.section, c.bloc, c.enseignant].join(' ')).includes(q))).forEach(c => {
         const label = (c.bloc && c.bloc !== c.section) ? `${c.section} · ${c.bloc}` : (c.section || c.bloc || 'Autres');
         if (!groups[label]) { groups[label] = []; order.push(label); }
         groups[label].push(c);
@@ -2521,6 +2526,28 @@
         select.appendChild(optgroup);
       });
       select.value = keep;
+    }
+
+    // Recherche d'UE (champ à côté du menu déroulant) : filtre la liste ; Entrée, ou une seule UE trouvée, ouvre l'UE
+    function courseSearchNorm(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+    let courseSearchTimer = null;
+    function onCourseSearch(enter) {
+      clearTimeout(courseSearchTimer);
+      buildCourseSelector();
+      const inp = document.getElementById('courseSearch'), select = document.getElementById('courseSelector');
+      const hits = Array.from(select.options).filter(o => o.value && o.value !== currentCourseId);
+      const pick = () => {
+        if (!inp.value.trim()) return;
+        const cur = Array.from(select.options).filter(o => o.value && o.value !== currentCourseId);
+        if (!cur.length) return;
+        const id = cur[0].value;
+        inp.value = '';
+        buildCourseSelector();
+        select.value = id;
+        onSelectOfficialCourse(id);
+      };
+      if (enter) { if (hits.length) pick(); return; }
+      if (hits.length === 1) courseSearchTimer = setTimeout(pick, 700);   // une seule UE trouvée : ouverture automatique
     }
 
     function onCoursesChanged() {
