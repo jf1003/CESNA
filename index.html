@@ -131,6 +131,8 @@
 </head>
 
 <body class="bg-slate-100 text-slate-800 h-screen overflow-hidden flex flex-col font-sans">
+  <!-- Bannière « Voir en tant que » (administrateurs) -->
+  <div id="viewAsBanner" class="hidden shrink-0 bg-fuchsia-700 text-white text-xs font-semibold px-3 py-1.5 flex flex-wrap items-center gap-2 z-50"></div>
 
   <!-- ================= BARRE SUPÉRIEURE & EN-TÊTE ================= -->
   <header id="appHeader" class="bg-white border-b border-slate-300 shadow-sm shrink-0 relative z-40">
@@ -1814,6 +1816,53 @@
       return `${String(t.nom || '').toUpperCase()} ${t.prenom || ''}`.trim() || t.email || '';
     }
 
+    // ----- « Voir en tant que » (administrateurs) : l'application s'affiche comme chez l'enseignant choisi, en LECTURE SEULE -----
+    //  Rien n'est écrit pendant ce mode (même verrou que les années archivées) ; « Reprendre mon identité » rétablit tout.
+    let viewAs = null;   // { real: profil admin réel, prevRO: état de YEAR_RO avant, email }
+    function applyIdentityUI() {
+      const u = sessionUser;
+      document.getElementById('userChipLabel').textContent = viewAs ? `👁 ${teacherLabel(u)}` : `${teacherLabel(u)}${u.role === 'admin' ? ' (admin)' : ''}`;
+      document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', u.role !== 'admin'));
+      const anon = !!(fbAuth && fbAuth.currentUser && fbAuth.currentUser.isAnonymous);
+      const pwdBtn = document.getElementById('changePwdBtn');
+      if (pwdBtn) pwdBtn.classList.toggle('hidden', anon || !!viewAs);
+      const ban = document.getElementById('viewAsBanner');
+      if (ban) {
+        ban.classList.toggle('hidden', !viewAs);
+        ban.innerHTML = viewAs ? `<span>👁 Vue en tant que <strong>${escapeHtml(teacherLabel(u))}</strong> — lecture seule : rien ne peut être modifié.</span>
+          <button onclick="stopViewAs()" class="px-2 py-0.5 rounded bg-white text-fuchsia-800 font-bold hover:bg-fuchsia-50">↩ Reprendre mon identité</button>` : '';
+      }
+      buildCourseSelector();
+      if (currentCourseId && !canAccessCourse(currentCourseId)) onSelectOfficialCourse('');
+      else if (currentCourseId) { try { renderTable(); } catch (e) { /* ignoré */ } }
+      try { buildYearUI(); } catch (e) { /* ignoré */ }
+      try { renderCoursesList(); } catch (e) { /* ignoré */ }
+      try { refreshMyTasks(false); } catch (e) { /* ignoré */ }
+    }
+    async function startViewAs(email) {
+      if (viewAs || !isLoggedAdmin()) return;
+      const t = teachersList.find(x => x.email === email);
+      if (!t || t.role === 'admin') return;
+      try { flushGradeSave(); } catch (e) { /* ignoré */ }
+      if (remoteSaveTimer && currentCourseId) {   // ce qui est en attente est envoyé AVANT de passer en lecture seule
+        clearTimeout(remoteSaveTimer); remoteSaveTimer = null;
+        try { await pushRemote(currentCourseId, buildPayload()); } catch (e) { /* ignoré */ }
+      }
+      viewAs = {real: sessionUser, prevRO: YEAR_RO, email};
+      sessionUser = {email: t.email, nom: t.nom || '', prenom: t.prenom || '', role: 'teacher', actif: t.actif !== false,
+        courseIds: Array.isArray(t.courseIds) ? t.courseIds.slice() : []};
+      YEAR_RO = true;
+      try { closeTeachersModal(); } catch (e) { /* ignoré */ }
+      applyIdentityUI();
+    }
+    function stopViewAs() {
+      if (!viewAs) return;
+      sessionUser = viewAs.real;
+      YEAR_RO = viewAs.prevRO;
+      viewAs = null;
+      applyIdentityUI();
+    }
+
     function isLoggedAdmin() {
       return !!sessionUser && sessionUser.role === 'admin';
     }
@@ -1909,6 +1958,7 @@
 
     async function handleAuthChange(user) {
       if (!user) {
+        if (viewAs) { YEAR_RO = viewAs.prevRO; viewAs = null; const vb = document.getElementById('viewAsBanner'); if (vb) vb.classList.add('hidden'); }
         sessionUser = null;
         showLogin();
         return;
@@ -2202,6 +2252,7 @@
           <td class="px-2 py-1">${t.actif === false ? '<span class="text-rose-700 font-bold">⛔ Bloqué</span>' : '<span class="text-emerald-700 font-bold">✔ Actif</span>'}</td>
           <td class="px-2 py-1 text-right whitespace-nowrap">
             <button class="px-1.5 py-0.5 text-blue-700 hover:bg-blue-100 rounded font-semibold" onclick="editTeacher(decodeURIComponent('${q}'))">Modifier</button>
+            ${isAdmin || t.actif === false ? '' : `<button class="px-1.5 py-0.5 text-fuchsia-700 hover:bg-fuchsia-100 rounded font-semibold" onclick="startViewAs(decodeURIComponent('${q}'))" title="Voir l'application comme cet enseignant (lecture seule)">👁 Voir</button>`}
             <button class="px-1.5 py-0.5 text-slate-700 hover:bg-slate-200 rounded" onclick="resendTeacherInvite(decodeURIComponent('${q}'))" title="Renvoyer le mail de création / réinitialisation du mot de passe">✉</button>
             ${locked ? '' : `<button class="px-1.5 py-0.5 text-rose-700 hover:bg-rose-100 rounded font-semibold" onclick="deleteTeacher(decodeURIComponent('${q}'))" title="Supprimer">🗑</button>`}
           </td>`;
@@ -6865,6 +6916,7 @@
     }
     function roBlock() {
       if (!YEAR_RO) return false;
+      if (viewAs) { alert(`Mode « voir en tant que ${teacherLabel(sessionUser)} » : lecture seule.\n\nCliquez sur « Reprendre mon identité » (bandeau violet) pour modifier des données.`); return true; }
       alert(`L'année ${YEAR} est archivée : lecture seule.\n\nChoisissez l'année en cours dans la liste 📅 pour modifier des données.`);
       return true;
     }
