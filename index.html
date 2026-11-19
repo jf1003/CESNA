@@ -203,7 +203,7 @@
               <span id="yearBadge" class="px-2 py-1 rounded-full bg-slate-100 border border-slate-200 font-bold text-slate-700" title="Année scolaire affichée"></span>
               <select id="yearSelect" onchange="switchYear(this.value)" title="Changer d'année scolaire" class="admin-only hidden tb-btn !font-medium"></select>
               <span class="tb-sep"></span>
-              <button onclick="toggleDataPanel()" class="tb-btn" title="Informations administratives du cours">📋 <span>Infos &amp; données</span></button>
+              <button onclick="toggleDataPanel()" class="tb-btn admin-only hidden" title="Informations administratives du cours">📋 <span>Infos &amp; données</span></button>
               <button id="tasksBtn" onclick="openTasksModal()" class="hidden tb-btn" title="Séances passées que vous n'avez pas encore pointées">🔔 <span>À pointer</span> <span id="tasksCount" class="ml-0.5 min-w-[1.1rem] text-center px-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white">0</span></button>
               <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden tb-btn">📊 <span>Analyses</span></button>
 
@@ -248,16 +248,16 @@
             <span>+</span> Séance(s)
           </button>
           <button onclick="openAddStudentModal()"
-            class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
+            class="admin-only hidden px-2.5 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition">
             <span>+</span> Étudiant
           </button>
           <button onclick="openImportModal()"
-            class="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition"
+            class="admin-only hidden px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1 transition"
             title="Importer le fichier donnees.xls ou coller une liste">
             <span>📄</span> Importer Données/Excel
           </button>
           <button onclick="exportToExcel()"
-            class="pointage-only px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1 transition"
+            class="admin-only hidden pointage-only px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-sm flex items-center gap-1 transition"
             title="Exporter les présences + les données administratives">
             <span>📊</span> Exporter Excel (.xlsx)
           </button>
@@ -1823,6 +1823,7 @@
       const u = sessionUser;
       document.getElementById('userChipLabel').textContent = viewAs ? `👁 ${teacherLabel(u)}` : `${teacherLabel(u)}${u.role === 'admin' ? ' (admin)' : ''}`;
       document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', u.role !== 'admin'));
+      if (u.role !== 'admin') { const dp = document.getElementById('courseDataPanel'); if (dp) dp.classList.add('hidden'); }   // « Infos & données » : réservé aux admins
       const anon = !!(fbAuth && fbAuth.currentUser && fbAuth.currentUser.isAnonymous);
       const pwdBtn = document.getElementById('changePwdBtn');
       if (pwdBtn) pwdBtn.classList.toggle('hidden', anon || !!viewAs);
@@ -2010,6 +2011,7 @@
       setLoginMsg('');
       document.getElementById('userChipLabel').textContent = `${teacherLabel(profile)}${profile.role === 'admin' ? ' (admin)' : ''}`;
       document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', profile.role !== 'admin'));
+      if (profile.role !== 'admin') { const dp = document.getElementById('courseDataPanel'); if (dp) dp.classList.add('hidden'); }
       const anon = !!(fbAuth && fbAuth.currentUser && fbAuth.currentUser.isAnonymous);
       const pwdBtn = document.getElementById('changePwdBtn');
       if (pwdBtn) pwdBtn.classList.toggle('hidden', anon);   // pas de mot de passe en connexion par le nom
@@ -3240,10 +3242,10 @@
         emptyTr.innerHTML = `
           <td colspan="${totalCols}" class="py-12 px-4 text-center text-slate-400 bg-white">
             <p class="font-bold text-slate-700 text-sm mb-1">Aucun étudiant dans ce registre</p>
-            <p class="text-xs text-slate-500 mb-2">Importez le fichier de données <strong>donnees.xls</strong> ou collez votre liste d'étudiants.</p>
+            ${isLoggedAdmin() ? `<p class="text-xs text-slate-500 mb-2">Importez le fichier de données <strong>donnees.xls</strong> ou collez votre liste d'étudiants.</p>
             <button onclick="openImportModal()" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded shadow transition">
               Importer Données / Excel
-            </button>
+            </button>` : `<p class="text-xs text-slate-500 mb-2">La liste des étudiants est encodée par l'administration.</p>`}
           </td>
         `;
         tbody.appendChild(emptyTr);
