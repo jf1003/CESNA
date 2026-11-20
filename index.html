@@ -219,6 +219,7 @@
                   <button id="coursesBtn" onclick="openCoursesModal()" class="dd-item admin-only hidden" role="menuitem">⚙ Gérer les cours</button>
                   <button id="teachersBtn" onclick="openTeachersModal()" class="dd-item admin-only hidden" role="menuitem">👥 Gérer les enseignants</button>
                   <button id="locauxBtn" onclick="openLocauxModal()" class="dd-item admin-only hidden" role="menuitem">🏫 Locaux</button>
+                  <button id="teacherAgendaBtn" onclick="openTeacherAgendaMenu()" class="dd-item admin-only hidden" role="menuitem">👤 Horaire enseignant</button>
                   <button id="calBtn" onclick="openCalendarModal()" class="dd-item admin-only hidden" role="menuitem">📆 Calendrier académique</button>
                   <button id="bulkBtn" onclick="openBulkModal()" class="dd-item admin-only hidden" role="menuitem">📥 Import matricules</button>
                   <div class="dd-sep"></div>
@@ -2280,7 +2281,6 @@
           <td class="px-2 py-1">${t.actif === false ? '<span class="text-rose-700 font-bold">⛔ Bloqué</span>' : '<span class="text-emerald-700 font-bold">✔ Actif</span>'}</td>
           <td class="px-2 py-1 text-right whitespace-nowrap">
             <button class="px-1.5 py-0.5 text-blue-700 hover:bg-blue-100 rounded font-semibold" onclick="editTeacher(decodeURIComponent('${q}'))">Modifier</button>
-            <button class="px-1.5 py-0.5 text-sky-700 hover:bg-sky-100 rounded font-semibold" onclick="openTeacherSchedule(decodeURIComponent('${q}'))" title="Voir l'horaire de cet enseignant (calendrier)">📅 Horaire</button>
             ${isAdmin || t.actif === false ? '' : `<button class="px-1.5 py-0.5 text-fuchsia-700 hover:bg-fuchsia-100 rounded font-semibold" onclick="startViewAs(decodeURIComponent('${q}'))" title="Voir l'application comme cet enseignant (lecture seule)">👁 Voir</button>`}
             <button class="px-1.5 py-0.5 text-slate-700 hover:bg-slate-200 rounded" onclick="resendTeacherInvite(decodeURIComponent('${q}'))" title="Renvoyer le mail de création / réinitialisation du mot de passe">✉</button>
             ${locked ? '' : `<button class="px-1.5 py-0.5 text-rose-700 hover:bg-rose-100 rounded font-semibold" onclick="deleteTeacher(decodeURIComponent('${q}'))" title="Supprimer">🗑</button>`}
@@ -6060,6 +6060,9 @@
         }
       }
       renderTeacherAgenda();
+    }
+    function openTeacherAgendaMenu() {
+      openLocauxModal().then(() => showLocTab('teacher'));
     }
     function openTeacherSchedule(email) {
       closeTeachersModal();
