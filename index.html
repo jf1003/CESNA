@@ -506,6 +506,7 @@
         <button id="locTab_rooms" onclick="showLocTab('rooms')" class="px-3 py-1 rounded text-xs font-bold">Locaux</button>
         <button id="locTab_assign" onclick="showLocTab('assign')" class="px-3 py-1 rounded text-xs font-bold">Attribution par UE</button>
         <button id="locTab_agenda" onclick="showLocTab('agenda')" class="px-3 py-1 rounded text-xs font-bold">Agenda d'occupation</button>
+        <button id="locTab_teacher" onclick="showLocTab('teacher')" class="px-3 py-1 rounded text-xs font-bold">👤 Horaire enseignant</button>
         <button onclick="closeLocauxModal()" class="ml-2 text-white/80 hover:text-white text-lg leading-none" title="Fermer">✕</button>
       </div>
       <div id="locMsg" class="hidden bg-amber-100 text-amber-900 text-xs font-semibold px-4 py-1.5"></div>
@@ -555,6 +556,13 @@
           <input id="laSearch" type="search" autocomplete="off" placeholder="🔍 Rechercher une UE (code, nom, local…)" oninput="onLocAssignSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();onLocAssignSearch(true)}" class="w-full max-w-2xl bg-white border border-slate-300 rounded px-2 py-1.5 text-xs mb-1.5 block">
           <select id="laCourse" onchange="loadLocAssign()" class="w-full max-w-2xl bg-white border border-slate-300 rounded px-2 py-1.5 text-xs mb-3"></select>
           <div id="laBody"></div>
+        </div>
+        <!-- Onglet horaire d'un enseignant -->
+        <div id="locPane_teacher" class="hidden">
+          <label class="block text-slate-600 font-semibold mb-0.5 text-[11px]">Enseignant</label>
+          <input id="lhSearch" type="search" autocomplete="off" placeholder="🔍 Rechercher un enseignant (nom, prénom, UE…)" oninput="onTeacherAgendaSearch()" onkeydown="if(event.key==='Enter'){event.preventDefault();onTeacherAgendaSearch(true)}" class="w-full max-w-2xl bg-white border border-slate-300 rounded px-2 py-1.5 text-xs mb-1.5 block">
+          <select id="lhTeacher" onchange="onTeacherPick()" class="w-full max-w-2xl bg-white border border-slate-300 rounded px-2 py-1.5 text-xs mb-3"></select>
+          <div id="lhBody"></div>
         </div>
         <!-- Onglet agenda -->
         <div id="locPane_agenda" class="hidden">
@@ -2272,6 +2280,7 @@
           <td class="px-2 py-1">${t.actif === false ? '<span class="text-rose-700 font-bold">⛔ Bloqué</span>' : '<span class="text-emerald-700 font-bold">✔ Actif</span>'}</td>
           <td class="px-2 py-1 text-right whitespace-nowrap">
             <button class="px-1.5 py-0.5 text-blue-700 hover:bg-blue-100 rounded font-semibold" onclick="editTeacher(decodeURIComponent('${q}'))">Modifier</button>
+            <button class="px-1.5 py-0.5 text-sky-700 hover:bg-sky-100 rounded font-semibold" onclick="openTeacherSchedule(decodeURIComponent('${q}'))" title="Voir l'horaire de cet enseignant (calendrier)">📅 Horaire</button>
             ${isAdmin || t.actif === false ? '' : `<button class="px-1.5 py-0.5 text-fuchsia-700 hover:bg-fuchsia-100 rounded font-semibold" onclick="startViewAs(decodeURIComponent('${q}'))" title="Voir l'application comme cet enseignant (lecture seule)">👁 Voir</button>`}
             <button class="px-1.5 py-0.5 text-slate-700 hover:bg-slate-200 rounded" onclick="resendTeacherInvite(decodeURIComponent('${q}'))" title="Renvoyer le mail de création / réinitialisation du mot de passe">✉</button>
             ${locked ? '' : `<button class="px-1.5 py-0.5 text-rose-700 hover:bg-rose-100 rounded font-semibold" onclick="deleteTeacher(decodeURIComponent('${q}'))" title="Supprimer">🗑</button>`}
@@ -5498,7 +5507,7 @@
       document.getElementById('locauxModal').classList.add('hidden');
     }
     function showLocTab(tab) {
-      ['rooms', 'assign', 'agenda'].forEach(t => {
+      ['rooms', 'assign', 'agenda', 'teacher'].forEach(t => {
         document.getElementById('locPane_' + t).classList.toggle('hidden', t !== tab);
         const b = document.getElementById('locTab_' + t);
         b.classList.toggle('bg-white', t === tab);
@@ -5508,12 +5517,14 @@
       });
       if (tab === 'agenda') renderLocAgenda();
       if (tab === 'assign') loadLocAssign();
+      if (tab === 'teacher') openTeacherAgendaTab();
     }
     async function refreshLocPayloads(force) {
       try { locPayloads = await fetchAllPayloads(!!force); } catch (e) { locPayloads = {}; }
-      const pane = ['rooms', 'assign', 'agenda'].find(t => !document.getElementById('locPane_' + t).classList.contains('hidden'));
+      const pane = ['rooms', 'assign', 'agenda', 'teacher'].find(t => !document.getElementById('locPane_' + t).classList.contains('hidden'));
       if (pane === 'agenda') renderLocAgenda();
       if (pane === 'assign') loadLocAssign();
+      if (pane === 'teacher') renderTeacherAgenda();
     }
     function onLocauxChanged() {
       renderLocauxList();
@@ -5522,7 +5533,7 @@
       const m = document.getElementById('locauxModal');
       if (m && !m.classList.contains('hidden')) {
         renderLocAssignSelect();
-        const pane = ['rooms', 'assign', 'agenda'].find(t => !document.getElementById('locPane_' + t).classList.contains('hidden'));
+        const pane = ['rooms', 'assign', 'agenda', 'teacher'].find(t => !document.getElementById('locPane_' + t).classList.contains('hidden'));
         if (pane === 'agenda') renderLocAgenda();
       }
     }
@@ -5975,6 +5986,193 @@
       }));
       document.getElementById('lgConflicts').innerHTML = lines.length
         ? `<details class="mt-2 text-xs"><summary class="cursor-pointer font-bold text-red-700">Voir les ${lines.length} conflit(s)</summary><ul class="mt-1 space-y-0.5">${lines.slice(0, 200).map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul></details>` : '';
+    }
+    // ----- onglet « Horaire enseignant » (admins) : agenda de toutes les séances des UE d'un enseignant -----
+    let lhAnchor = null;      // date de repère (une date de la semaine ou du mois affiché)
+    let lhMode = 'week';      // 'week' | 'month'
+    function teacherCourses(t) {
+      const ids = new Set((Array.isArray(t.courseIds) ? t.courseIds : []).filter(id => courses.some(c => c.id === id)));
+      const nom = locSearchNorm(t.nom), pre = locSearchNorm(t.prenom);
+      if (nom) courses.forEach(c => {
+        const e = locSearchNorm(c.enseignant);
+        if (e && e.includes(nom) && (!pre || e.includes(pre))) ids.add(c.id);
+      });
+      return courses.filter(c => ids.has(c.id));
+    }
+    function teacherEntries(t) {
+      const out = [];
+      teacherCourses(t).forEach(c => {
+        const p = locPayloads[c.id];
+        if (!p || !Array.isArray(p.sessions)) return;
+        p.sessions.forEach(s => {
+          const dd = parseDateInPayload(p, s.date);
+          if (!dd) return;
+          const exc = c.localSessions && c.localSessions[s.id];
+          const r = locaux.find(x => x.id === ((exc && exc.id) || c.localId));
+          const st = toMin(s.start, 480);
+          out.push({courseId: c.id, code: c.codeUE || '', title: c.titre || c.intituleUE || '', date: new Date(dd.year, dd.month - 1, dd.day),
+            start: st, end: Math.max(st + 30, toMin(s.end, st + 60)), startTxt: s.start || '', endTxt: s.end || '',
+            room: r ? roomShort(r) : '', roomNum: r ? String(r.numero) : '', exc: !!(exc && exc.id), periods: sessionPeriods(s) || 0});
+        });
+      });
+      return out.sort((a, b) => a.date - b.date || a.start - b.start);
+    }
+    async function openTeacherAgendaTab() {
+      if (!teachersList.length) { try { await loadTeachers(); } catch (e) { /* ignoré */ } }
+      renderTeacherSelect();
+      renderTeacherAgenda();
+    }
+    function renderTeacherSelect() {
+      const sel = document.getElementById('lhTeacher');
+      if (!sel) return;
+      const keep = sel.value;
+      const q = locSearchNorm((document.getElementById('lhSearch') || {}).value || '');
+      const list = teachersList.filter(t => t.actif !== false || t.email === keep).filter(t => {
+        if (!q || t.email === keep) return true;
+        const ues = teacherCourses(t).map(c => `${c.codeUE} ${c.titre || c.intituleUE || ''}`).join(' ');
+        return locSearchNorm(`${teacherLabel(t)} ${t.email} ${ues}`).includes(q);
+      });
+      sel.innerHTML = `<option value="">${q ? `— ${list.filter(t => t.email !== keep).length} enseignant(s) trouvé(s) —` : '— choisissez un enseignant —'}</option>` +
+        list.map(t => `<option value="${escapeHtml(t.email)}"${t.email === keep ? ' selected' : ''}>${escapeHtml(teacherLabel(t))} — ${teacherCourses(t).length} UE</option>`).join('');
+      sel.value = list.some(t => t.email === keep) ? keep : '';
+    }
+    function onTeacherAgendaSearch(enter) {
+      renderTeacherSelect();
+      const sel = document.getElementById('lhTeacher');
+      const opts = Array.from(sel.options).filter(o => o.value);
+      const hit = opts.filter(o => o.value !== sel.dataset.cur);
+      const pick = opts.length === 1 ? opts[0] : (enter && hit.length ? hit[0] : null);
+      if (pick && sel.value !== pick.value) { sel.value = pick.value; }
+      if (pick) onTeacherPick(); else renderTeacherAgenda();
+    }
+    function onTeacherPick() {
+      const sel = document.getElementById('lhTeacher');
+      sel.dataset.cur = sel.value;
+      const t = teachersList.find(x => x.email === sel.value);
+      lhAnchor = new Date();
+      if (t) {   // se place sur la semaine en cours si elle contient des séances, sinon sur la prochaine séance (ou la dernière)
+        const ents = teacherEntries(t);
+        const mon = mondayOf(lhAnchor).getTime(), nxt = mon + 7 * 86400000;
+        if (ents.length && !ents.some(e => e.date.getTime() >= mon && e.date.getTime() < nxt)) {
+          const today0 = new Date(lhAnchor.getFullYear(), lhAnchor.getMonth(), lhAnchor.getDate()).getTime();
+          const future = ents.find(e => e.date.getTime() >= today0);
+          lhAnchor = (future || ents[ents.length - 1]).date;
+        }
+      }
+      renderTeacherAgenda();
+    }
+    function openTeacherSchedule(email) {
+      closeTeachersModal();
+      openLocauxModal().then(() => {
+        showLocTab('teacher');
+        const sel = document.getElementById('lhTeacher');
+        document.getElementById('lhSearch').value = '';
+        renderTeacherSelect();
+        if (Array.from(sel.options).some(o => o.value === email)) { sel.value = email; onTeacherPick(); }
+      });
+    }
+    function lhStep(n) {
+      lhAnchor = lhAnchor || new Date();
+      if (lhMode === 'month') lhAnchor = new Date(lhAnchor.getFullYear(), lhAnchor.getMonth() + n, 1);
+      else lhAnchor = new Date(lhAnchor.getFullYear(), lhAnchor.getMonth(), lhAnchor.getDate() + 7 * n);
+      renderTeacherAgenda();
+    }
+    function lhToday() { lhAnchor = new Date(); renderTeacherAgenda(); }
+    function lhSetMode(m) { lhMode = m; renderTeacherAgenda(); }
+    function lhGoDay(key) {
+      const [y, m, d] = key.split('-').map(Number);
+      lhAnchor = new Date(y, m - 1, d); lhMode = 'week'; renderTeacherAgenda();
+    }
+    function renderTeacherAgenda() {
+      const box = document.getElementById('lhBody');
+      if (!box) return;
+      const sel = document.getElementById('lhTeacher');
+      const t = teachersList.find(x => x.email === (sel && sel.value));
+      if (!t) { box.innerHTML = '<p class="text-xs text-slate-500 py-6 text-center">Choisissez un enseignant pour voir son horaire.</p>'; return; }
+      const ucs = teacherCourses(t);
+      if (!ucs.length) { box.innerHTML = `<p class="text-xs text-slate-500 border border-dashed border-slate-300 rounded p-3">Aucune UE n'est attribuée à ${escapeHtml(teacherLabel(t))}.</p>`; return; }
+      const ents = teacherEntries(t);
+      lhAnchor = lhAnchor || new Date();
+      const MONTHS_L = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+      const WD = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
+      const todayKey = dateKey(new Date());
+      const tip = e => `${e.code} ${e.title}\n${fmtDM(e.date)} ${e.startTxt}-${e.endTxt}${e.periods ? ' (' + e.periods + ' p)' : ''}${e.room ? '\n' + e.room : '\nLocal non défini'}`;
+      let label, grid, nShown;
+      if (lhMode === 'month') {
+        const y = lhAnchor.getFullYear(), m = lhAnchor.getMonth();
+        label = `${MONTHS_L[m]} ${y}`;
+        const first = mondayOf(new Date(y, m, 1));
+        const byDay = {};
+        ents.forEach(e => { (byDay[dateKey(e.date)] = byDay[dateKey(e.date)] || []).push(e); });
+        let rows = '', cur = new Date(first);
+        nShown = ents.filter(e => e.date.getFullYear() === y && e.date.getMonth() === m).length;
+        for (let w = 0; w < 6; w++) {
+          if (w >= 5 && cur.getMonth() !== m) break;
+          let tds = '';
+          for (let i = 0; i < 7; i++) {
+            const k = dateKey(cur), list = byDay[k] || [], inM = cur.getMonth() === m;
+            tds += `<td onclick="lhGoDay('${k}')" class="align-top border border-slate-200 p-1 cursor-pointer min-w-[110px] h-24 ${inM ? (k === todayKey ? 'bg-amber-50' : 'bg-white') : 'bg-slate-100 text-slate-400'}">
+              <div class="text-[10px] font-bold ${k === todayKey ? 'text-amber-700' : ''}">${cur.getDate()}</div>` +
+              list.slice(0, 3).map(e => `<div title="${escapeHtml(tip(e))}" class="mt-0.5 px-1 rounded text-[9px] leading-4 text-white truncate" style="background:${courseColor(e.courseId)}">${escapeHtml(e.startTxt)} ${escapeHtml(e.code)}${e.roomNum ? ' · ' + escapeHtml(e.roomNum) : ''}</div>`).join('') +
+              (list.length > 3 ? `<div class="text-[9px] text-slate-500">+ ${list.length - 3} autre(s)</div>` : '') + '</td>';
+            cur.setDate(cur.getDate() + 1);
+          }
+          rows += `<tr>${tds}</tr>`;
+        }
+        grid = `<div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="w-full text-xs border-collapse"><thead class="bg-[#0a3a60] text-white"><tr>${WD.map(d => `<th class="px-1 py-1 text-center">${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      } else {
+        const mon = mondayOf(lhAnchor), sun = new Date(mon); sun.setDate(sun.getDate() + 6);
+        label = `Semaine du ${fmtDM(mon)}/${mon.getFullYear()} au ${fmtDM(sun)}/${sun.getFullYear()}`;
+        const days = Array.from({length: 7}, (_, i) => { const d = new Date(mon); d.setDate(d.getDate() + i); return d; });
+        const wk = ents.filter(e => e.date >= mon && e.date <= sun);
+        nShown = wk.length;
+        const showSun = wk.some(e => e.date.getDay() === 0);
+        const cols = days.slice(0, showSun ? 7 : 6);
+        const h0 = Math.min(8, ...wk.map(e => Math.floor(e.start / 60))), h1 = Math.max(20, ...wk.map(e => Math.ceil(e.end / 60)));
+        const PX = 46, H = (h1 - h0) * PX;
+        const hours = Array.from({length: h1 - h0}, (_, i) => `<div class="text-[10px] text-slate-500 text-right pr-1 border-t border-slate-200" style="height:${PX}px">${String(h0 + i).padStart(2, '0')}:00</div>`).join('');
+        const colHtml = cols.map(d => {
+          const k = dateKey(d);
+          const list = wk.filter(e => dateKey(e.date) === k).sort((a, b) => a.start - b.start || a.end - b.end);
+          // colonnes côte à côte pour les séances qui se chevauchent
+          let clusterEnd = -1, cluster = [];
+          const place = () => { const n = Math.max(...cluster.map(c => c.col)) + 1; cluster.forEach(c => { c.n = n; }); cluster = []; };
+          list.forEach(e => {
+            if (cluster.length && e.start >= clusterEnd) { place(); clusterEnd = -1; }
+            const used = cluster.filter(c => c.e.end > e.start).map(c => c.col);
+            let col = 0; while (used.includes(col)) col++;
+            cluster.push({e, col}); clusterEnd = Math.max(clusterEnd, e.end);
+            e._c = cluster[cluster.length - 1];
+          });
+          if (cluster.length) place();
+          const blocks = list.map(e => {
+            const c = e._c, bad = c.n > 1;
+            return `<div title="${escapeHtml(tip(e) + (bad ? '\n⚠ Chevauchement avec une autre séance' : ''))}" class="absolute rounded text-white overflow-hidden px-1 py-0.5 shadow ${bad ? 'outline outline-2 outline-red-600' : ''}" style="top:${(e.start - h0 * 60) / 60 * PX}px;height:${Math.max(22, (e.end - e.start) / 60 * PX - 2)}px;left:calc(${c.col / c.n * 100}% + 1px);width:calc(${100 / c.n}% - 2px);background:${courseColor(e.courseId)}">
+              <div class="text-[10px] font-bold leading-tight">${escapeHtml(e.startTxt)}-${escapeHtml(e.endTxt)} ${escapeHtml(e.code)}</div>
+              <div class="text-[9px] leading-tight truncate">${escapeHtml(e.title)}</div>
+              <div class="text-[9px] leading-tight font-semibold ${e.exc ? 'text-yellow-200' : ''}">${e.room ? '📍 ' + escapeHtml(e.room) : 'local ?'}</div></div>`;
+          }).join('');
+          return `<div class="flex-1 min-w-[120px] border-l border-slate-300"><div class="text-center text-[11px] font-bold py-1 ${k === todayKey ? 'bg-amber-400 text-slate-900' : 'bg-[#0a3a60] text-white'}">${WD[(d.getDay() + 6) % 7]} ${fmtDM(d)}</div>
+            <div class="relative" style="height:${H}px;background-image:repeating-linear-gradient(to bottom,#e2e8f0 0,#e2e8f0 1px,transparent 1px,transparent ${PX}px)">${blocks}</div></div>`;
+        }).join('');
+        grid = `<div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><div class="flex min-w-[820px]"><div class="w-12 shrink-0"><div class="py-1 text-[11px]">&nbsp;</div>${hours}</div>${colHtml}</div></div>`;
+      }
+      const legend = ucs.map(c => {
+        const n = ents.filter(e => e.courseId === c.id).length;
+        return `<span class="inline-flex items-center gap-1 mr-3"><span class="inline-block w-3 h-3 rounded" style="background:${courseColor(c.id)}"></span><strong>${escapeHtml(c.codeUE || '')}</strong> ${escapeHtml(c.titre || c.intituleUE || '')} <span class="text-slate-500">(${n} séance${n > 1 ? 's' : ''})</span></span>`;
+      }).join('');
+      const sansSeance = ucs.filter(c => !ents.some(e => e.courseId === c.id));
+      box.innerHTML = `<div class="flex flex-wrap items-center gap-2 mb-2">
+          <button onclick="lhStep(-1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold" title="Précédent">‹</button>
+          <button onclick="lhToday()" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-semibold">Aujourd'hui</button>
+          <button onclick="lhStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold" title="Suivant">›</button>
+          <span class="font-bold text-[#0a3a60] text-sm">${escapeHtml(label)}</span>
+          <select onchange="lhSetMode(this.value)" class="bg-white border border-slate-300 rounded px-2 py-1 font-semibold"><option value="week"${lhMode === 'week' ? ' selected' : ''}>Vue semaine</option><option value="month"${lhMode === 'month' ? ' selected' : ''}>Vue mois</option></select>
+          <span class="ml-auto text-slate-600">${escapeHtml(teacherLabel(t))} · ${nShown} séance(s) affichée(s) · ${ents.length} au total</span></div>
+        ${grid}
+        <div class="mt-2 leading-6">${legend}</div>
+        ${sansSeance.length ? `<p class="mt-1 text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">Aucune séance encodée pour : ${sansSeance.map(c => escapeHtml(c.codeUE || c.titre || '')).join(', ')}.</p>` : ''}
+        <p class="mt-1 text-[11px] text-slate-500">Lecture seule. Survolez une séance pour le détail ; en vue mois, cliquez sur un jour pour ouvrir sa semaine. Séances en contour rouge : chevauchement d'horaire. 📍 en jaune : local différent de celui de l'UE.</p>`;
     }
     function lgMonthStep(n) {
       const sel = document.getElementById('lgMonth');
