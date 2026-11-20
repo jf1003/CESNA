@@ -208,6 +208,7 @@
               <span class="tb-sep"></span>
               <button onclick="toggleDataPanel()" class="tb-btn admin-only hidden" title="Informations administratives du cours">📋 <span>Infos &amp; données</span></button>
               <button id="tasksBtn" onclick="openTasksModal()" class="hidden tb-btn" title="Séances passées que vous n'avez pas encore pointées">🔔 <span>À pointer</span> <span id="tasksCount" class="ml-0.5 min-w-[1.1rem] text-center px-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white">0</span></button>
+              <button id="myAgendaBtn" onclick="openMyAgenda()" class="hidden tb-btn" title="Consulter votre horaire (toutes vos UE)">📅 <span>Mon horaire</span></button>
               <button id="anaBtn" onclick="openAnalysesModal()" class="admin-only hidden tb-btn">📊 <span>Analyses</span></button>
 
               <!-- Menu Administration (admins) -->
@@ -716,6 +717,16 @@
   </div>
 
   <!-- ================= MODALE : MES POINTAGES À FAIRE ================= -->
+  <div id="myAgendaModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
+        <span>📅 Mon horaire</span>
+        <button onclick="closeMyAgenda()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+      <div class="p-4 overflow-auto text-xs text-slate-700"><div id="mhBody"></div></div>
+    </div>
+  </div>
+
   <div id="tasksModal" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
       <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
@@ -5495,6 +5506,7 @@
     // ----- fenêtre -----
     async function openLocauxModal() {
       if (!isLoggedAdmin()) return;
+      lhSelf = false;
       ensureLocauxSync();
       document.getElementById('locauxModal').classList.remove('hidden');
       resetRoomForm();
@@ -5989,8 +6001,10 @@
     }
     // ----- onglet « Horaire enseignant » (admins) : agenda de toutes les séances des UE d'un enseignant -----
     let lhAnchor = null;      // date de repère (une date de la semaine ou du mois affiché)
+    let lhSelf = false;       // true : « Mon horaire » (enseignant connecté, uniquement ses propres UE)
     let lhMode = 'week';      // 'week' | 'month'
     function teacherCourses(t) {
+      if (lhSelf) return courses.filter(c => (sessionUser.courseIds || []).includes(c.id));
       const ids = new Set((Array.isArray(t.courseIds) ? t.courseIds : []).filter(id => courses.some(c => c.id === id)));
       const nom = locSearchNorm(t.nom), pre = locSearchNorm(t.prenom);
       if (nom) courses.forEach(c => {
@@ -6002,7 +6016,7 @@
     function teacherEntries(t) {
       const out = [];
       teacherCourses(t).forEach(c => {
-        const p = locPayloads[c.id];
+        const p = (lhSelf ? myAgendaPayloads : locPayloads)[c.id];
         if (!p || !Array.isArray(p.sessions)) return;
         p.sessions.forEach(s => {
           const dd = parseDateInPayload(p, s.date);
@@ -6017,7 +6031,30 @@
       });
       return out.sort((a, b) => a.date - b.date || a.start - b.start);
     }
+    let myAgendaPayloads = {};
+    async function openMyAgenda() {
+      if (!sessionUser) return;
+      lhSelf = true; lhAnchor = new Date();
+      try { ensureLocauxSync(); } catch (e) { /* ignoré */ }
+      document.getElementById('myAgendaModal').classList.remove('hidden');
+      renderTeacherAgenda();
+      const out = {};
+      for (const c of teacherCourses(sessionUser)) {
+        try { const p = await payloadOfCourse(c.id); if (p) out[c.id] = p; } catch (e) { /* ignoré */ }
+      }
+      myAgendaPayloads = out;
+      if (lhSelf) {
+        const ents = teacherEntries(sessionUser), mon = mondayOf(lhAnchor).getTime();
+        if (ents.length && !ents.some(e => e.date.getTime() >= mon && e.date.getTime() < mon + 7 * 86400000)) {
+          const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+          lhAnchor = (ents.find(e => e.date.getTime() >= t0.getTime()) || ents[ents.length - 1]).date;
+        }
+        renderTeacherAgenda();
+      }
+    }
+    function closeMyAgenda() { document.getElementById('myAgendaModal').classList.add('hidden'); lhSelf = false; }
     async function openTeacherAgendaTab() {
+      lhSelf = false;
       if (!teachersList.length) { try { await loadTeachers(); } catch (e) { /* ignoré */ } }
       renderTeacherSelect();
       renderTeacherAgenda();
@@ -6087,10 +6124,10 @@
       lhAnchor = new Date(y, m - 1, d); lhMode = 'week'; renderTeacherAgenda();
     }
     function renderTeacherAgenda() {
-      const box = document.getElementById('lhBody');
+      const box = document.getElementById(lhSelf ? 'mhBody' : 'lhBody');
       if (!box) return;
       const sel = document.getElementById('lhTeacher');
-      const t = teachersList.find(x => x.email === (sel && sel.value));
+      const t = lhSelf ? sessionUser : teachersList.find(x => x.email === (sel && sel.value));
       if (!t) { box.innerHTML = '<p class="text-xs text-slate-500 py-6 text-center">Choisissez un enseignant pour voir son horaire.</p>'; return; }
       const ucs = teacherCourses(t);
       if (!ucs.length) { box.innerHTML = `<p class="text-xs text-slate-500 border border-dashed border-slate-300 rounded p-3">Aucune UE n'est attribuée à ${escapeHtml(teacherLabel(t))}.</p>`; return; }
@@ -7863,6 +7900,8 @@
       const n = myTasks.reduce((s, t) => s + t.rows.length, 0);
       const has = !!(sessionUser && (sessionUser.courseIds || []).length);
       btn.classList.toggle('hidden', !has);
+      const mb = document.getElementById('myAgendaBtn');
+      if (mb) mb.classList.toggle('hidden', !has || sessionUser.role === 'admin');
       const b = document.getElementById('tasksCount');
       if (b) { b.textContent = n; b.className = 'ml-0.5 min-w-[1.1rem] text-center px-1 rounded-full text-[10px] font-bold ' + (n ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'); }
     }
