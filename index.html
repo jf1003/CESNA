@@ -4804,13 +4804,16 @@
     function gridScan(sheetXml, sst) {
       const doc = new DOMParser().parseFromString(sheetXml, 'application/xml');
       if (doc.getElementsByTagName('parsererror').length) throw new Error("Grille Excel illisible");
-      const info = {name: null, aaRows: {}, c1: null, c2: null, decRow: null, totCol: null};
+      const info = {name: null, aaRows: {}, critRows: [], c1: null, c2: null, decRow: null, totCol: null};
       const merges = Array.from(doc.getElementsByTagName('mergeCell')).map(m => m.getAttribute('ref'));
       const split = ref => { const m = ref.match(/^([A-Z]+)(\d+)$/); return {col: m[1], row: +m[2]}; };
-      let hdrRow = null;
+      let hdrRow = null, ueRow = null;
+      const filled = new Set();
       for (const c of Array.from(doc.getElementsByTagName('c'))) {
         const ref = c.getAttribute('r'), {col, row} = split(ref), tx = gridNorm(gridCellText(c, sst));
         if (!tx) continue;
+        filled.add(ref);
+        if (col === 'A' && tx === 'ue' && ueRow === null) ueRow = row;
         if (!info.name && /nom.*etudiant/.test(tx) && col === 'A') {
           const mg = merges.map(r => r.split(':')).find(([a]) => a === ref);
           const endCol = mg ? split(mg[1]).col : col;
@@ -4819,11 +4822,18 @@
         }
         const m = col === 'A' && tx.match(/^acquis d.?apprentissage\s*(\d+)/);
         if (m && !info.aaRows[+m[1]]) info.aaRows[+m[1]] = row;
+        if (col === 'A' && /^criteres?\s*\d+/.test(tx)) info.critRows.push(row);
         if (/reussite ou ajournement/.test(tx)) { info.c1 = col; hdrRow = row; }
         if (/reussite ou refus/.test(tx)) info.c2 = col;
         if (tx === 'total' && hdrRow === row) info.totCol = col;
       }
       if (hdrRow) info.decRow = hdrRow + 1;
+      // en-tête « UE | numéro | intitulé » : complété seulement si les cases sont vides
+      if (ueRow !== null) { if (!filled.has('B' + ueRow)) info.ueNum = 'B' + ueRow; if (!filled.has('C' + ueRow)) info.ueTitle = 'C' + ueRow; }
+      // chaque ligne « Critère » appartient à l'AA qui la précède
+      const aaSorted = Object.entries(info.aaRows).map(([k, r]) => ({k: +k, r})).sort((a, b) => a.r - b.r);
+      info.crit = {};
+      info.critRows.forEach(r => { const a = aaSorted.filter(x => x.r < r).pop(); if (a) (info.crit[a.k] = info.crit[a.k] || []).push(r); });
       // « TOTAL » placé après les colonnes de décision (même ligne d'en-tête)
       if (hdrRow && !info.totCol) for (const c of Array.from(doc.getElementsByTagName('c'))) { const {col, row} = split(c.getAttribute('r')); if (row === hdrRow && gridNorm(gridCellText(c, sst)) === 'total') info.totCol = col; }
       return info;
@@ -4858,6 +4868,57 @@
         if (!info.name) throw new Error("Cellule « Nom et prénom de l'étudiant » introuvable dans la grille.");
         const files = {};
         for (const [nm, f] of Object.entries(src.files)) if (!f.dir) files[nm] = await f.async('uint8array');
+        // style « NA » : fond orange (copie des styles des cellules concernées, bordures conservées)
+        const tplSheet = xlSheet(sheetXml);
+        let orangeOf = null;
+        if (files['xl/styles.xml']) {
+          const sdoc = new DOMParser().parseFromString(new TextDecoder().decode(files['xl/styles.xml']), 'application/xml');
+          const q = n => sdoc.getElementsByTagName(n)[0];
+          const fills = q('fills'), fonts = q('fonts'), xfs = q('cellXfs');
+          if (fills && fonts && xfs) {
+            const NSs = sdoc.documentElement.namespaceURI;
+            const fill = sdoc.createElementNS(NSs, 'fill'), pf = sdoc.createElementNS(NSs, 'patternFill'), fg = sdoc.createElementNS(NSs, 'fgColor'), bg = sdoc.createElementNS(NSs, 'bgColor');
+            pf.setAttribute('patternType', 'solid'); fg.setAttribute('rgb', 'FFFFC000'); bg.setAttribute('indexed', '64');
+            pf.appendChild(fg); pf.appendChild(bg); fill.appendChild(pf); fills.appendChild(fill);
+            const fillId = fills.children.length - 1; fills.setAttribute('count', String(fills.children.length));
+            const cache = {};
+            const aa0 = Object.values(info.aaRows)[0], refSt = info.c1 && aa0 ? parseInt(tplSheet.getStyle(info.c1 + aa0), 10) || 0 : 0;
+            const refFont = parseInt(xfs.children[refSt].getAttribute('fontId'), 10) || 0;   // police des cases A/NA de la ligne AA
+            orangeOf = (s, orange) => {   // même case (bordures conservées) : centrée, police de la ligne AA ; fond orange pour NA
+              s = parseInt(s, 10) || 0;
+              const key = s + '|' + (orange ? 1 : 0);
+              if (cache[key] !== undefined) return cache[key];
+              const xf = xfs.children[s].cloneNode(true);
+              let fontId = refFont;
+              if (orange) {   // texte brun foncé gras, lisible sur l'orange
+                const font = fonts.children[refFont].cloneNode(true);
+                Array.from(font.children).filter(e => e.localName === 'color').forEach(e => font.removeChild(e));
+                const col = sdoc.createElementNS(NSs, 'color'); col.setAttribute('rgb', 'FF5C3D00');
+                const szEl = Array.from(font.children).find(e => e.localName === 'sz');
+                font.insertBefore(col, szEl ? szEl.nextSibling : font.firstChild);
+                if (!Array.from(font.children).some(e => e.localName === 'b')) font.insertBefore(sdoc.createElementNS(NSs, 'b'), font.firstChild);
+                fonts.appendChild(font); fonts.setAttribute('count', String(fonts.children.length));
+                fontId = fonts.children.length - 1;
+                xf.setAttribute('fillId', String(fillId)); xf.setAttribute('applyFill', '1');
+              }
+              xf.setAttribute('fontId', String(fontId)); xf.setAttribute('applyFont', '1');
+              let al = Array.from(xf.children).find(e => e.localName === 'alignment');
+              if (!al) { al = sdoc.createElementNS(NSs, 'alignment'); xf.insertBefore(al, xf.firstChild); }
+              al.setAttribute('horizontal', 'center'); al.setAttribute('vertical', 'center'); xf.setAttribute('applyAlignment', '1');
+              xfs.appendChild(xf); xfs.setAttribute('count', String(xfs.children.length));
+              return (cache[key] = xfs.children.length - 1);
+            };
+            // préparer tous les styles utiles avant de figer styles.xml
+            const refs = [];
+            [info.c1, info.c2].forEach(c => { if (c) { Object.values(info.aaRows).forEach(r => refs.push(c + r)); info.critRows.forEach(r => refs.push(c + r)); } });
+            refs.forEach(r => { orangeOf(tplSheet.getStyle(r), true); orangeOf(tplSheet.getStyle(r), false); });
+            files['xl/styles.xml'] = new TextEncoder().encode(new XMLSerializer().serializeToString(sdoc));
+          }
+        }
+        const setRes = (sh, ref, val) => {   // « A » / « D » simples ; « NA » sur fond orange
+          sh.set(ref, val);
+          if (orangeOf) sh.setStyle(ref, orangeOf(tplSheet.getStyle(ref), val === 'NA'));
+        };
         const n = currentNbAA(), c = currentCourse() || {}, m = adminMetadata || {};
         const codeUE = String(m.codeUE || c.codeUE || '').trim();
         const num = (codeUE.match(/^\d+/) || [codeUE.replace(/[^\w]+/g, '') || 'UE'])[0];
@@ -4870,13 +4931,16 @@
           const nomAff = `${String(s.nom || '').toLocaleUpperCase('fr')} ${s.prenom || ''}`.replace(/\s+/g, ' ').trim();
           const sh = xlSheet(sheetXml);
           sh.set(info.name, nomAff);
+          if (info.ueNum && /^\d+$/.test(num)) sh.set(info.ueNum, parseInt(num, 10));
+          if (info.ueTitle && (courseTitle || c.intituleUE)) sh.set(info.ueTitle, String(courseTitle || c.intituleUE || '').trim());
           const st = n ? computeAA(s.id, n) : null;
           if (st && st.s1.state !== 'abandon') {
             Object.entries(info.aaRows).forEach(([k, row]) => {
               const i = +k - 1;
               if (i >= n) return;
-              if (info.c1 && map[st.s1.cells[i]]) sh.set(info.c1 + row, map[st.s1.cells[i]]);
-              if (info.c2 && st.s2.state === 'open' && !st.s2.fixed[i] && map[st.s2.cells[i]]) sh.set(info.c2 + row, map[st.s2.cells[i]]);
+              const rowsAA = [row].concat(info.crit[+k] || []);   // la ligne de l'AA + ses critères : même résultat
+              if (info.c1 && map[st.s1.cells[i]]) rowsAA.forEach(r => setRes(sh, info.c1 + r, map[st.s1.cells[i]]));
+              if (info.c2 && st.s2.state === 'open' && !st.s2.fixed[i] && map[st.s2.cells[i]]) rowsAA.forEach(r => setRes(sh, info.c2 + r, map[st.s2.cells[i]]));
             });
           }
           if (st && info.decRow) {
@@ -8285,6 +8349,16 @@
             colsEl.removeChild(c);
           };
           for (let k = 0; k < 6; k++) { if (k < 4 && k >= n) setHidden(first + k, true); if (k >= 4 && k < n) setHidden(first + k, false); }
+        },
+        getStyle(ref) {
+          const row = rows.get(parseInt(ref.match(/\d+$/)[0], 10));
+          const cell = row && Array.from(row.children).find(x => x.getAttribute('r') === ref);
+          return cell ? cell.getAttribute('s') : null;
+        },
+        setStyle(ref, s) {
+          const row = rows.get(parseInt(ref.match(/\d+$/)[0], 10));
+          const cell = row && Array.from(row.children).find(x => x.getAttribute('r') === ref);
+          if (cell) cell.setAttribute('s', String(s));
         },
         unhideCols(min) {
           for (const c of Array.from(doc.getElementsByTagNameNS(NS, 'col'))) if (c.getAttribute('min') === String(min)) c.removeAttribute('hidden');
