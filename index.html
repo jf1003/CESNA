@@ -4820,12 +4820,15 @@
         if (!tx) continue;
         filled.add(ref);
         if (col === 'A' && tx === 'ue' && ueRow === null) ueRow = row;
-        if (!info.name && /nom.*etudiant/.test(tx) && col === 'A') {
+        const after = () => {   // cellule qui suit l'étiquette (et sa fusion éventuelle)
           const mg = merges.map(r => r.split(':')).find(([a]) => a === ref);
           const endCol = mg ? split(mg[1]).col : col;
           let n = xlColNum(endCol) + 1, L = ''; while (n > 0) { const r = (n - 1) % 26; L = String.fromCharCode(65 + r) + L; n = Math.floor((n - 1) / 26); }
-          info.name = L + row;
-        }
+          return L + row;
+        };
+        if (!info.name && /nom.*etudiant/.test(tx) && col === 'A') info.name = after();
+        if (!info.teacher && /^nom.*charge.*cours/.test(tx)) info.teacher = after();
+        if (!info.year && /^annee scolaire/.test(tx)) info.year = after();
         const m = col === 'A' && tx.match(/^acquis d.?apprentissage\s*(\d+)/);
         if (m && !info.aaRows[+m[1]]) info.aaRows[+m[1]] = row;
         if (col === 'A' && /^criteres?\s*\d+/.test(tx)) info.critRows.push(row);
@@ -4834,8 +4837,8 @@
         if (tx === 'total' && hdrRow === row) info.totCol = col;
       }
       if (hdrRow) info.decRow = hdrRow + 1;
-      // en-tête « UE | numéro | intitulé » : complété seulement si les cases sont vides
-      if (ueRow !== null) { if (!filled.has('B' + ueRow)) info.ueNum = 'B' + ueRow; if (!filled.has('C' + ueRow)) info.ueTitle = 'C' + ueRow; }
+      // en-tête « UE | numéro | intitulé »
+      if (ueRow !== null) { info.ueNum = 'B' + ueRow; info.ueTitle = 'C' + ueRow; }
       // chaque ligne « Critère » appartient à l'AA qui la précède
       const aaSorted = Object.entries(info.aaRows).map(([k, r]) => ({k: +k, r})).sort((a, b) => a.r - b.r);
       info.crit = {};
@@ -4921,9 +4924,9 @@
             files['xl/styles.xml'] = new TextEncoder().encode(new XMLSerializer().serializeToString(sdoc));
           }
         }
-        const setRes = (sh, ref, val) => {   // « A » / « D » simples ; « NA » sur fond orange
+        const setRes = (sh, ref, val, orange) => {   // « A » / « D » simples ; « NA » (ou case vide d'un critère) sur fond orange
           sh.set(ref, val);
-          if (orangeOf) sh.setStyle(ref, orangeOf(tplSheet.getStyle(ref), val === 'NA'));
+          if (orangeOf) sh.setStyle(ref, orangeOf(tplSheet.getStyle(ref), orange === undefined ? val === 'NA' : orange));
         };
         const n = currentNbAA(), c = currentCourse() || {}, m = adminMetadata || {};
         const codeUE = String(m.codeUE || c.codeUE || '').trim();
@@ -4937,16 +4940,27 @@
           const nomAff = `${String(s.nom || '').toLocaleUpperCase('fr')} ${s.prenom || ''}`.replace(/\s+/g, ' ').trim();
           const sh = xlSheet(sheetXml);
           sh.set(info.name, nomAff);
+          // identité de l'UE reprise du cours (une case vide dans l'application ne remplace rien)
           if (info.ueNum && /^\d+$/.test(num)) sh.set(info.ueNum, parseInt(num, 10));
-          if (info.ueTitle && (courseTitle || c.intituleUE)) sh.set(info.ueTitle, String(courseTitle || c.intituleUE || '').trim());
+          const ttl = String(m.intituleUE || c.intituleUE || courseTitle || c.titre || '').trim();
+          if (info.ueTitle && ttl) sh.set(info.ueTitle, ttl);
+          const tch = String(m.teacher || c.enseignant || '').trim();
+          if (info.teacher && tch && !/^[àa] d[ée]finir$/i.test(tch)) sh.set(info.teacher, tch);
+          const yr = String(m.academicYear || YEAR || '').trim();
+          if (info.year && yr) sh.set(info.year, yr);
           const st = n ? computeAA(s.id, n) : null;
           if (st && st.s1.state !== 'abandon') {
             Object.entries(info.aaRows).forEach(([k, row]) => {
               const i = +k - 1;
               if (i >= n) return;
-              const rowsAA = [row].concat(info.crit[+k] || []);   // la ligne de l'AA + ses critères : même résultat
-              if (info.c1 && map[st.s1.cells[i]]) rowsAA.forEach(r => setRes(sh, info.c1 + r, map[st.s1.cells[i]]));
-              if (info.c2 && st.s2.state === 'open' && !st.s2.fixed[i] && map[st.s2.cells[i]]) rowsAA.forEach(r => setRes(sh, info.c2 + r, map[st.s2.cells[i]]));
+              // ligne de l'AA : A / NA / D ; critères : « A » (ou D) si acquis ; cases vides sur fond orange si non acquis (l'enseignant précise lequel)
+              const doCol = (colL, v) => {
+                if (!colL || !map[v]) return;
+                setRes(sh, colL + row, map[v]);
+                (info.crit[+k] || []).forEach(r => setRes(sh, colL + r, map[v] === 'NA' ? '' : map[v], map[v] === 'NA'));
+              };
+              doCol(info.c1, st.s1.cells[i]);
+              if (st.s2.state === 'open' && !st.s2.fixed[i]) doCol(info.c2, st.s2.cells[i]);
             });
           }
           if (st && info.decRow) {
