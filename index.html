@@ -463,6 +463,15 @@
         </label>
         <button onclick="openAAModal()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold">✎ Modifier les AA</button>
       </div>
+      <div id="gridDrop" class="shrink-0 mb-2 flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
+        <span class="text-lg">📝</span>
+        <div class="text-xs text-slate-700 flex-1 min-w-[260px]">
+          <strong>Grilles d'évaluation individuelles</strong> : glissez-déposez ici la grille Excel vierge de l'UE. Vous recevez un ZIP avec une grille par étudiant du cours (nom inscrit, acquis A/NA et décision remplis selon l'encodage des points).
+        </div>
+        <label class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold cursor-pointer">
+          Choisir la grille…<input type="file" id="gridFileInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
+        </label>
+      </div>
       <details id="gradesAAList" open class="hidden shrink-0 mb-2 bg-white border border-slate-300 rounded px-3 py-1.5 text-xs">
         <summary class="cursor-pointer font-bold text-[#0a3a60]">Acquis d'apprentissage de l'UE <span id="gradesAAListCount" class="font-normal text-slate-500"></span></summary>
         <ol id="gradesAAListItems" class="mt-1 space-y-0.5 list-none"></ol>
@@ -4758,8 +4767,9 @@
       if (!zone || !bar) return;
       let depth = 0;
       const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
-      const on = () => bar.classList.add('ring-4', 'ring-blue-400', 'bg-blue-50');
-      const off = () => { depth = 0; bar.classList.remove('ring-4', 'ring-blue-400', 'bg-blue-50'); };
+      const gbar = document.getElementById('gridDrop');
+      const on = () => [bar, gbar].forEach(b => b && b.classList.add('ring-4', 'ring-blue-400', 'bg-blue-50'));
+      const off = () => { depth = 0; [bar, gbar].forEach(b => b && b.classList.remove('ring-4', 'ring-blue-400', 'bg-blue-50')); };
       zone.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); depth++; on(); });
       zone.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
       zone.addEventListener('dragleave', e => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) off(); });
@@ -4767,7 +4777,12 @@
         if (!hasFiles(e)) return;
         e.preventDefault();
         off();
-        handleDossierFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+        const f0 = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f0 && /\.xlsx$/i.test(f0.name)) handleGridFile(f0); else handleDossierFile(f0);
+      });
+      document.getElementById('gridFileInput').addEventListener('change', e => {
+        handleGridFile(e.target.files && e.target.files[0]);
+        e.target.value = '';
       });
       document.getElementById('dossierFileInput').addEventListener('change', e => {
         handleDossierFile(e.target.files && e.target.files[0]);
@@ -4775,6 +4790,124 @@
       });
     }
     initDossierDrop();
+
+    // ----- Grilles d'évaluation individuelles : une copie de la grille Excel de l'UE par étudiant (nom + acquis + décision) -----
+    function gridCellText(c, sst) {
+      const t = c.getAttribute('t');
+      if (t === 'inlineStr') return Array.from(c.getElementsByTagName('t')).map(x => x.textContent).join('');
+      const v = c.getElementsByTagName('v')[0];
+      if (!v) return '';
+      return t === 's' ? (sst[parseInt(v.textContent, 10)] || '') : v.textContent;
+    }
+    function gridNorm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+    // Repère dans la grille : cellule du nom, lignes des AA, colonnes des sessions, ligne de décision
+    function gridScan(sheetXml, sst) {
+      const doc = new DOMParser().parseFromString(sheetXml, 'application/xml');
+      if (doc.getElementsByTagName('parsererror').length) throw new Error("Grille Excel illisible");
+      const info = {name: null, aaRows: {}, c1: null, c2: null, decRow: null, totCol: null};
+      const merges = Array.from(doc.getElementsByTagName('mergeCell')).map(m => m.getAttribute('ref'));
+      const split = ref => { const m = ref.match(/^([A-Z]+)(\d+)$/); return {col: m[1], row: +m[2]}; };
+      let hdrRow = null;
+      for (const c of Array.from(doc.getElementsByTagName('c'))) {
+        const ref = c.getAttribute('r'), {col, row} = split(ref), tx = gridNorm(gridCellText(c, sst));
+        if (!tx) continue;
+        if (!info.name && /nom.*etudiant/.test(tx) && col === 'A') {
+          const mg = merges.map(r => r.split(':')).find(([a]) => a === ref);
+          const endCol = mg ? split(mg[1]).col : col;
+          let n = xlColNum(endCol) + 1, L = ''; while (n > 0) { const r = (n - 1) % 26; L = String.fromCharCode(65 + r) + L; n = Math.floor((n - 1) / 26); }
+          info.name = L + row;
+        }
+        const m = col === 'A' && tx.match(/^acquis d.?apprentissage\s*(\d+)/);
+        if (m && !info.aaRows[+m[1]]) info.aaRows[+m[1]] = row;
+        if (/reussite ou ajournement/.test(tx)) { info.c1 = col; hdrRow = row; }
+        if (/reussite ou refus/.test(tx)) info.c2 = col;
+        if (tx === 'total' && hdrRow === row) info.totCol = col;
+      }
+      if (hdrRow) info.decRow = hdrRow + 1;
+      // « TOTAL » placé après les colonnes de décision (même ligne d'en-tête)
+      if (hdrRow && !info.totCol) for (const c of Array.from(doc.getElementsByTagName('c'))) { const {col, row} = split(c.getAttribute('r')); if (row === hdrRow && gridNorm(gridCellText(c, sst)) === 'total') info.totCol = col; }
+      return info;
+    }
+    async function handleGridFile(file) {
+      if (!file) return;
+      if (!sessionUser) { showGradeNotice("Connectez-vous pour générer les grilles."); return; }
+      if (!ensureCourseSelected()) return;
+      if (!/\.xlsx$/i.test(file.name)) { showGradeNotice("Déposez la grille d'évaluation au format Excel (.xlsx)."); return; }
+      if (typeof JSZip === 'undefined') { showGradeNotice("La bibliothèque JSZip n'est pas chargée (connexion Internet nécessaire)."); return; }
+      if (!students.length) { showGradeNotice("Aucun étudiant dans cette UE."); return; }
+      showGradeNotice(`Création des grilles à partir de « ${file.name} »…`);
+      try {
+        const src = await JSZip.loadAsync(await file.arrayBuffer());
+        // feuille à remplir : la première du classeur
+        let sheetPath = 'xl/worksheets/sheet1.xml';
+        try {
+          const wb = new DOMParser().parseFromString(await src.file('xl/workbook.xml').async('string'), 'application/xml');
+          const rid = wb.getElementsByTagName('sheet')[0].getAttribute('r:id');
+          const rels = new DOMParser().parseFromString(await src.file('xl/_rels/workbook.xml.rels').async('string'), 'application/xml');
+          const rel = Array.from(rels.getElementsByTagName('Relationship')).find(r => r.getAttribute('Id') === rid);
+          if (rel) sheetPath = 'xl/' + rel.getAttribute('Target').replace(/^\/?(xl\/)?/, '');
+        } catch (e) { /* on garde sheet1 */ }
+        if (!src.file(sheetPath)) throw new Error("Feuille de la grille introuvable.");
+        const sheetXml = await src.file(sheetPath).async('string');
+        let sst = [];
+        if (src.file('xl/sharedStrings.xml')) {
+          const sd = new DOMParser().parseFromString(await src.file('xl/sharedStrings.xml').async('string'), 'application/xml');
+          sst = Array.from(sd.getElementsByTagName('si')).map(si => Array.from(si.getElementsByTagName('t')).map(t => t.textContent).join(''));
+        }
+        const info = gridScan(sheetXml, sst);
+        if (!info.name) throw new Error("Cellule « Nom et prénom de l'étudiant » introuvable dans la grille.");
+        const files = {};
+        for (const [nm, f] of Object.entries(src.files)) if (!f.dir) files[nm] = await f.async('uint8array');
+        const n = currentNbAA(), c = currentCourse() || {}, m = adminMetadata || {};
+        const codeUE = String(m.codeUE || c.codeUE || '').trim();
+        const num = (codeUE.match(/^\d+/) || [codeUE.replace(/[^\w]+/g, '') || 'UE'])[0];
+        const map = {v: 'A', n: 'NA', p: 'NA', d: 'D'};   // PP = info interne : NA
+        const sorted = students.slice().sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', {sensitivity: 'base'}) ||
+          String(a.prenom || '').localeCompare(String(b.prenom || ''), 'fr', {sensitivity: 'base'}));
+        const out = new JSZip(), used = new Set();
+        let filled = 0;
+        for (const s of sorted) {
+          const nomAff = `${String(s.nom || '').toLocaleUpperCase('fr')} ${s.prenom || ''}`.replace(/\s+/g, ' ').trim();
+          const sh = xlSheet(sheetXml);
+          sh.set(info.name, nomAff);
+          const st = n ? computeAA(s.id, n) : null;
+          if (st && st.s1.state !== 'abandon') {
+            Object.entries(info.aaRows).forEach(([k, row]) => {
+              const i = +k - 1;
+              if (i >= n) return;
+              if (info.c1 && map[st.s1.cells[i]]) sh.set(info.c1 + row, map[st.s1.cells[i]]);
+              if (info.c2 && st.s2.state === 'open' && !st.s2.fixed[i] && map[st.s2.cells[i]]) sh.set(info.c2 + row, map[st.s2.cells[i]]);
+            });
+          }
+          if (st && info.decRow) {
+            if (st.s1.state === 'abandon') { if (info.c2) sh.set(info.c2 + info.decRow, 'Refus'); }
+            else {
+              if (info.c1 && st.s1.result === 'reussite') sh.set(info.c1 + info.decRow, 'Réussite');
+              if (info.c1 && st.s1.result === 'ajourne') sh.set(info.c1 + info.decRow, 'Ajournement');
+              if (info.c2 && st.s2.result === 'acquis') sh.set(info.c2 + info.decRow, 'Réussite');
+              if (info.c2 && st.s2.result === 'refus') sh.set(info.c2 + info.decRow, 'Refus');
+              const tot = st.s2.result === 'acquis' ? st.s2.note : (st.s1.result === 'reussite' ? st.s1.note : null);
+              if (info.totCol && tot !== null) sh.set(info.totCol + info.decRow, tot);
+            }
+            if (st.s1.result !== 'pending' || st.s1.state === 'abandon') filled++;
+          }
+          const z = new JSZip();
+          for (const [nm, data] of Object.entries(files)) z.file(nm, nm === sheetPath ? sh.xml() : data, {createFolders: false});
+          const blob = await z.generateAsync({type: 'uint8array', compression: 'DEFLATE'});
+          let base = `Grille_${num}_${nomAff}`.replace(/[\\/:*?"<>|]+/g, '-').trim(), nm = base, k = 2;
+          while (used.has(nm.toLowerCase())) nm = `${base} (${k++})`;
+          used.add(nm.toLowerCase());
+          out.file(nm + '.xlsx', blob, {createFolders: false, compression: 'STORE'});
+        }
+        const zblob = await out.generateAsync({type: 'blob', mimeType: 'application/zip'});
+        const zname = `Grilles_${num}_${String(courseTitle || c.titre || 'UE').replace(/[\\/:*?"<>|]+/g, '-').trim()}.zip`;
+        saveBlobAs(zblob, zname);
+        showGradeNotice(`✔ ${sorted.length} grille(s) créée(s) dans « ${zname} »` + (info.aaRows && Object.keys(info.aaRows).length ? '' : ' — attention : lignes « Acquis d\'apprentissage » non reconnues, seuls les noms sont remplis') + `. Résultats encodés pour ${filled} étudiant(s).`);
+      } catch (e) {
+        console.error(e);
+        showGradeNotice("Impossible de créer les grilles : " + (e && e.message ? e.message : e));
+      }
+    }
 
     function paintTabs() {
       const base = "px-4 py-1.5 text-xs font-bold rounded-t border transition ";
