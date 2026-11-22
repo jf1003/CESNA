@@ -20,6 +20,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
   <style>
+    .rowpair { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; flex-shrink: 0; }
+    .rowpair > * { margin-bottom: 0 !important; flex: 1 1 380px; min-width: 0; }
     /* Styles institutionnels et hachures pour le statut R (Retard) */
     .bg-striped-retard {
       background: repeating-linear-gradient(45deg,
@@ -450,27 +452,31 @@
         <div id="gradesNotice" class="hidden text-xs font-semibold px-3 py-1.5 rounded bg-rose-100 text-rose-800 border border-rose-300 max-w-md"></div>
       </div>
 
-      <div id="cdeBar" class="hidden"></div>
-      <div id="s2DateBar" class="hidden"></div>
+      <div class="rowpair">
+        <div id="cdeBar" class="hidden"></div>
+        <div id="s2DateBar" class="hidden"></div>
+      </div>
 
-      <div id="dossierDrop" class="admin-only hidden shrink-0 mb-2 flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
+      <div class="rowpair">
+      <div id="dossierDrop" class="admin-only hidden flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
         <span class="text-lg">📄</span>
         <div class="text-xs text-slate-700 flex-1 min-w-[260px]">
-          <strong>Glissez-déposez ici le dossier pédagogique de l'UE (PDF)</strong> : les acquis d'apprentissage sont lus et deviennent les colonnes AA.
+          <strong>Glissez ici le dossier pédagogique de l'UE (PDF)</strong> : ses acquis d'apprentissage deviennent les colonnes AA.
         </div>
         <label class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold cursor-pointer">
           Choisir un fichier…<input type="file" id="dossierFileInput" accept="application/pdf,.pdf" class="hidden">
         </label>
         <button onclick="openAAModal()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold">✎ Modifier les AA</button>
       </div>
-      <div id="gridDrop" class="shrink-0 mb-2 flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
+      <div id="gridDrop" class="flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
         <span class="text-lg">📝</span>
         <div class="text-xs text-slate-700 flex-1 min-w-[260px]">
-          <strong>Grilles d'évaluation individuelles</strong> : glissez-déposez ici la grille Excel vierge de l'UE. Vous recevez un ZIP avec une grille par étudiant du cours (nom inscrit, acquis A/NA et décision remplis selon l'encodage des points).
+          <strong>Grilles d'évaluation individuelles</strong> : glissez ici la grille Excel vierge de l'UE → ZIP avec une grille par étudiant (nom, acquis, décision).
         </div>
         <label class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold cursor-pointer">
           Choisir la grille…<input type="file" id="gridFileInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
         </label>
+      </div>
       </div>
       <details id="gradesAAList" open class="hidden shrink-0 mb-2 bg-white border border-slate-300 rounded px-3 py-1.5 text-xs">
         <summary class="cursor-pointer font-bold text-[#0a3a60]">Acquis d'apprentissage de l'UE <span id="gradesAAListCount" class="font-normal text-slate-500"></span></summary>
