@@ -5667,8 +5667,8 @@
       box.innerHTML = `<h3 class="font-bold text-sm text-[#0a3a60] mb-1">${escapeHtml(teacherLabel(t))}</h3>
         <p class="mb-2 ${cfg ? 'text-emerald-700' : 'text-amber-700'}">${cfg ? "Les plages indisponibles sont bloquées dans le planning ; partout ailleurs l'enseignant reste disponible." : "Aucune indisponibilité : l'enseignant est disponible partout."}</p>
         <div class="flex flex-wrap gap-2 mb-2">
-          <button ${ro ? 'disabled' : ''} onclick="plOpenDEvent('', 'no')" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-bold shadow">⛔ Ajouter une indisponibilité</button></div>
-        ${rows || '<p class="text-slate-500 mb-2">Aucun événement.</p>'}
+          <button ${ro ? 'disabled' : ''} onclick="plOpenDEvent('', 'no')" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-bold shadow">⛔ Ajouter une période d'indisponibilité</button>
+          ${evs.length ? `<button ${ro ? 'disabled' : ''} onclick="plDispoWipe()" class="px-3 py-1.5 text-red-700 hover:bg-red-50 rounded font-semibold border border-red-200">🗑 Tout effacer (${evs.length})</button>` : ''}</div>
         ${old ? `<div class="flex items-center gap-2 border border-slate-200 rounded px-2 py-1.5 mb-1 bg-slate-50"><span class="flex-1">Ancien réglage hebdomadaire (toute l'année) : ${[1, 2, 3, 4, 5].map(d => PL_DAYS[d - 1].slice(0, 3) + ' ' + (old[d + 'm'] ? 'M' : '') + (old[d + 'a'] ? 'A' : '') ).join(' · ')}</span><button ${ro ? 'disabled' : ''} onclick="plDispoClear()" class="px-2 py-0.5 text-red-700 hover:bg-red-100 rounded font-semibold">🗑</button></div>` : ''}
         ${bad ? `<p class="mt-2 text-red-700 font-semibold">⚠ ${bad} planification(s) existante(s) ne respectent plus ces disponibilités (en rouge dans le planning).</p>` : ''}
         <h4 class="font-bold text-slate-700 mt-4 mb-1">Aperçu de l'année, semaine par semaine <span class="font-normal text-slate-500">(cliquez sur les cases pour basculer disponible / indisponible, ou glissez la souris pour en peindre plusieurs ; la date à gauche ouvre la fenêtre de la semaine)</span></h4>
@@ -5795,6 +5795,11 @@
       const e = plEm(plDispoSel); plan.avail[e] = (plan.avail[e] || []).filter(x => x.id !== id);
       if (!plan.avail[e].length) delete plan.avail[e];
       plPersist(); plClosePds(); plRenderDispo();
+    }
+    function plDispoWipe() {
+      if (YEAR_RO) { roBlock(); return; }
+      if (!confirm("Effacer TOUTES les indisponibilités de cet enseignant ?")) return;
+      delete plan.avail[plEm(plDispoSel)]; plPersist(); plRenderDispo();
     }
     function plDispoClear() {
       if (YEAR_RO) { roBlock(); return; }
