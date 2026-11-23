@@ -542,6 +542,7 @@
             <button onclick="plStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold">›</button>
             <input type="date" id="plGoto" onchange="plGoto(this.value)" class="border border-slate-300 rounded px-2 py-1 bg-white" title="Aller à une date">
             <span id="plWeekLbl" class="font-bold text-[#0a3a60] text-sm"></span>
+            <button onclick="plGenerate()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold shadow" title="Crée dans chaque UE les séances prévues au planning (sans toucher à ce qui existe déjà)">⚙ Générer les séances dans les UE</button>
           </div>
           <div class="flex flex-col lg:flex-row gap-3">
             <div id="plLeft" class="lg:w-80 shrink-0"></div>
@@ -564,7 +565,7 @@
   <div id="planChoiceModal" class="fixed inset-0 z-[70] bg-black/40 hidden flex items-center justify-center p-3">
     <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden">
       <div id="plcTitle" class="bg-[#0a3a60] text-white px-4 py-2 font-bold text-sm"></div>
-      <div id="plcMsg" class="px-4 pt-3 text-xs text-slate-700"></div>
+      <div id="plcMsg" class="px-4 pt-3 text-xs text-slate-700 whitespace-pre-line max-h-64 overflow-auto"></div>
       <div id="plcBtns" class="p-4 flex flex-col gap-2"></div>
     </div>
   </div>
@@ -5424,6 +5425,93 @@
       plPersist(); plCloseSlot(); plRender();
     }
 
+
+    // ----- génération des séances dans les UE à partir du planning (ajoute seulement ; ne supprime ni ne modifie rien) -----
+    function plWanted(c) {
+      const seen = new Set(), out = [];
+      plan.slots.filter(s => s.courseId === c.id).forEach(s => plOcc(s).forEach(iso => {
+        const k = iso + '|' + s.start + '|' + s.end;
+        if (seen.has(k)) return; seen.add(k);
+        out.push({iso, start: s.start, end: s.end, roomId: s.roomId || ''});
+      }));
+      return out.sort((a, b) => (a.iso + a.start).localeCompare(b.iso + b.start));
+    }
+    function plSessKey(p, s) { const d = parseDateInPayload(p, s.date); return d ? `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}|${s.start}|${s.end}` : null; }
+    function plSortPayloadSessions(p) {
+      p.sessions.sort((a, b) => { const x = plSessKey(p, a), y = plSessKey(p, b); return (x || '~').localeCompare(y || '~'); });
+    }
+    async function plGenerate() {
+      if (YEAR_RO) { roBlock(); return; }
+      const cs = plViewCourses().filter(c => plan.slots.some(s => s.courseId === c.id));
+      if (!cs.length) { alert("Aucune UE planifiée dans la sélection affichée (bachelier / bloc / enseignant)."); return; }
+      plSay('Analyse des séances existantes…');
+      const items = []; let total = 0;
+      try {
+        for (const c of cs) {
+          const want = plWanted(c);
+          const p = await payloadOfCourse(c.id);
+          const have = new Set(((p && p.sessions) || []).map(s => plSessKey(p, s)).filter(Boolean));
+          const add = want.filter(w => !have.has(`${w.iso}|${w.start}|${w.end}`));
+          items.push({c, want, add, dup: want.length - add.length}); total += add.length;
+        }
+      } catch (e) { plSay(''); alert("Analyse impossible : " + ((e && e.message) || e)); return; }
+      plSay('');
+      const lines = items.map(i => `• ${i.c.codeUE} ${i.c.titre || i.c.intituleUE || ''} : ${i.add.length} séance(s) à créer` + (i.dup ? ` (${i.dup} déjà présente(s), ignorée(s))` : ''));
+      const warn = YEAR === (YEAR_CFG && YEAR_CFG.active) ? `\n\n⚠ ${YEAR} est l'année EN COURS : les séances seront ajoutées aux registres que les enseignants utilisent. Rien n'est supprimé ni modifié, mais vérifiez bien.` : `\n\nAnnée ${YEAR}.`;
+      if (!total) { alert("Rien à créer : toutes les séances du planning existent déjà dans les UE.\n\n" + lines.join('\n')); return; }
+      plChoice(`Générer ${total} séance(s) · ${YEAR}`, lines.join('\n') + warn + "\n\nLes séances existantes, les pointages, les étudiants et les points ne sont pas touchés. Les locaux du planning sont associés aux séances.", [
+        {label: `✅ Créer ${total} séance(s) dans ${items.filter(i => i.add.length).length} UE`, cls: 'bg-emerald-600 hover:bg-emerald-700 text-white', fn: () => plGenRun(items)}]);
+    }
+    async function plGenRun(items) {
+      if (YEAR === (YEAR_CFG && YEAR_CFG.active) && !confirm(`Dernière vérification : ajouter ces séances à l'année EN COURS ${YEAR} ?`)) return;
+      let made = 0; const errors = [];
+      for (const it of items) {
+        if (!it.add.length) continue;
+        const c = it.c; plSay('Création : ' + c.codeUE + '…');
+        try {
+          const ts = Date.now(), added = [];
+          const addTo = p => {
+            added.length = 0;
+            const have = new Set((p.sessions || []).map(s => plSessKey(p, s)).filter(Boolean));
+            it.want.filter(w => !have.has(`${w.iso}|${w.start}|${w.end}`)).forEach((w, i) => {
+              const s = {id: `sess_${ts}_p${i}`, date: normalizeSessionDate(frOfIso(w.iso)), start: w.start, end: w.end};
+              p.sessions.push(s); added.push({s, roomId: w.roomId});
+            });
+            plSortPayloadSessions(p);
+          };
+          if (c.id === currentCourseId) {
+            const p = {sessions, adminMetadata};
+            addTo(p); sortSessions(); saveToStorage(); renderTable();
+          } else {
+            const base = () => registreForNewYear({courseTitle: c.titre || c.intituleUE || '', adminMetadata: {codeUE: c.codeUE, intituleUE: c.intituleUE || c.titre || '', section: c.section, teacher: c.enseignant, periods: c.periodes}}, YEAR);
+            const pack = p => { p.savedAt = new Date().toISOString(); return {data: JSON.stringify(p), savedAt: p.savedAt, codeUE: (p.adminMetadata && p.adminMetadata.codeUE) || '', courseTitle: p.courseTitle || ''}; };
+            let final = null;
+            if (db) {
+              const ref = yearCollection(REMOTE_COLLECTION).doc(c.id);
+              const work = snap => { let p = base(); if (snap.exists) { const x = snap.data(); p = typeof x.data === 'string' ? JSON.parse(x.data) : x.data; } p.sessions = p.sessions || []; addTo(p); final = p; return pack(p); };
+              if (typeof db.runTransaction === 'function') await db.runTransaction(async tx => { tx.set(ref, work(await tx.get(ref))); });
+              else ref.set(work(await ref.get()));
+            } else { final = (await payloadOfCourse(c.id)) || base(); final.sessions = final.sessions || []; addTo(final); }
+            try { localStorage.setItem(storageKeyFor(c.id), JSON.stringify(final)); } catch (e) { /* ignoré */ }
+          }
+          // locaux : local par défaut de l'UE (s'il n'y en a pas) + exceptions par séance
+          const rooms = added.filter(a => a.roomId && locaux.some(r => r.id === a.roomId));
+          if (rooms.length) {
+            const freq = {}; rooms.forEach(a => { freq[a.roomId] = (freq[a.roomId] || 0) + 1; });
+            const main = c.localId || Object.keys(freq).sort((x, y) => freq[y] - freq[x])[0];
+            const mr = locaux.find(r => r.id === main);
+            const ls = Object.assign({}, c.localSessions || {});
+            rooms.forEach(a => { if (a.roomId !== main) { const r = locaux.find(x => x.id === a.roomId); ls[a.s.id] = {id: r.id, label: roomShort(r), num: r.numero}; } });
+            upsertCourse(Object.assign({}, c, {localId: main, localLabel: mr ? roomShort(mr) : (c.localLabel || ''), localSessions: ls}));
+          }
+          made += added.length;
+        } catch (e) { errors.push(`${c.codeUE} : ${(e && e.code === 'permission-denied') ? 'refusé par Firestore' : ((e && e.message) || e)}`); }
+      }
+      plSay(errors.length ? 'Terminé avec erreurs' : '✔ Séances créées');
+      plRender();
+      alert(`${made} séance(s) créée(s) dans les UE.` + (errors.length ? `\n\nErreurs :\n• ${errors.join('\n• ')}` : '') + `\n\nElles apparaissent dans « Séances » de chaque UE (pointage), avec le local du planning.`);
+    }
+
     // ----- disponibilités des enseignants -----
     function plRenderDispoList() {
       const q = locSearchNorm((document.getElementById('plDSearch') || {}).value || '');
@@ -8225,7 +8313,7 @@
       ban.classList.remove('hidden');
       if (st === 'prepa') {
         ban.className = 'mt-1 text-xs px-2 py-1 rounded font-semibold bg-amber-100 text-amber-900 border border-amber-300';
-        ban.innerHTML = `📝 Année ${YEAR} en préparation : visible des administrateurs seulement. <button onclick="activateYear('${YEAR}')" class="ml-2 px-2 py-0.5 rounded bg-amber-600 text-white font-bold hover:bg-amber-700">Activer cette année pour tous</button>`;
+        ban.innerHTML = `📝 Année ${YEAR} en préparation : visible des administrateurs seulement. <button onclick="activateYear('${YEAR}')" class="ml-2 px-2 py-0.5 rounded bg-amber-600 text-white font-bold hover:bg-amber-700">Activer cette année pour tous</button> <button onclick="wipeYear('${YEAR}')" class="ml-1 px-2 py-0.5 rounded bg-white text-red-700 border border-red-400 font-bold hover:bg-red-50" title="Supprime toutes les données de cette année en préparation">🗑 Vider cette année</button>`;
       } else if (!YEAR_RO && st === 'archive') {
         // un admin a déverrouillé l'archive pour une correction
         ban.className = 'mt-1 text-xs px-2 py-1 rounded font-semibold bg-orange-100 text-orange-900 border border-orange-300';
@@ -8352,7 +8440,11 @@
     async function activateYear(y) {
       if (!isLoggedAdmin() || !db) return;
       if (yearState(y) !== 'prepa') return;
-      if (!confirm(`Activer l'année ${y} ?\n\nTous les enseignants verront alors ${y} (sans étudiants) ; ${YEAR_CFG.active} passera en archive (lecture seule).`)) return;
+      if (!confirm(`ACTIVER l'année ${y} ? (vérification 1 sur 3)\n\nTous les enseignants verront alors ${y} (sans étudiants) ; ${YEAR_CFG.active} passera en archive (lecture seule : plus aucun pointage ni point ne pourra y être encodé par les enseignants).`)) return;
+      if (!confirm(`VÉRIFICATION 2 sur 3 : cette opération concerne TOUS les utilisateurs.\n\nAvez-vous contrôlé que :\n• les cours, les enseignants attribués et les locaux de ${y} sont corrects ?\n• le calendrier académique et le planning de ${y} sont prêts ?\n• tous les pointages et points de ${YEAR_CFG.active} sont terminés ?\n\nCliquez sur OK uniquement si tout est vérifié.`)) return;
+      const typed = prompt(`VÉRIFICATION 3 sur 3 : pour confirmer l'activation, tapez l'année exacte ci-dessous.\n\n${y}`);
+      if (typed === null) return;
+      if (String(typed).trim() !== y) { alert("L'année saisie ne correspond pas : activation annulée."); return; }
       try {
         await db.collection(YEARS_COLLECTION).doc('_config').set({active: y, years: {[y]: {status: 'actif', activatedAt: new Date().toISOString()}}}, {merge: true});
         try { localStorage.setItem(YEAR_KEY, y); sessionStorage.removeItem('CESNA_YR_RELOAD'); } catch (e) { /* ignoré */ }
@@ -8360,6 +8452,47 @@
         location.reload();
       } catch (e) {
         alert("Activation impossible : " + (e && e.code === 'permission-denied' ? "refusé par les règles Firestore." : (e && e.message) || e));
+      }
+    }
+
+
+    // Vider complètement une année EN PRÉPARATION (jamais l'année en cours, l'année d'origine ni une archive) : double confirmation
+    const YEAR_SUBCOLLECTIONS = ['registres', 'catalogue_ue', 'locaux', 'calendrier', 'planning'];
+    async function wipeYear(y) {
+      if (!isLoggedAdmin() || !db) return;
+      if (yearState(y) !== 'prepa' || y === LEGACY_YEAR || y === YEAR_CFG.active) { alert("Seule une année « en préparation » peut être vidée (jamais l'année en cours ni une archive)."); return; }
+      let counts = {}, students = 0;
+      try {
+        for (const n of YEAR_SUBCOLLECTIONS) {
+          const snap = await yearCollection(n, y).get(); counts[n] = snap.size;
+          if (n === 'registres') snap.forEach(d => { try { const x = d.data(), p = typeof x.data === 'string' ? JSON.parse(x.data) : x.data; students += ((p && p.students) || []).length; } catch (e) { /* ignoré */ } });
+        }
+      } catch (e) { alert("Lecture impossible : " + ((e && e.message) || e)); return; }
+      if (!confirm(`VIDER L'ANNÉE ${y} ? (confirmation 1 sur 2)\n\nSera SUPPRIMÉ DÉFINITIVEMENT :\n• ${counts.catalogue_ue} cours\n• ${counts.registres} registres (${students} étudiants, séances, pointages, points)\n• ${counts.locaux} locaux, ${counts.calendrier} calendrier, ${counts.planning} planning\n• l'année ${y} elle-même\n\nL'année en cours (${YEAR_CFG.active}) n'est PAS touchée. Cette action est IRRÉVERSIBLE.`)) return;
+      const typed = prompt(`Confirmation 2 sur 2 : pour supprimer définitivement TOUTES les données de ${y}, tapez :\n\nVIDER ${y}`);
+      if (typed === null) return;
+      if (String(typed).trim() !== 'VIDER ' + y) { alert("Texte incorrect : rien n'a été supprimé."); return; }
+      try {
+        for (const n of YEAR_SUBCOLLECTIONS) {
+          const snap = await yearCollection(n, y).get();
+          const docs = []; snap.forEach(d => docs.push(d.ref));
+          for (let i = 0; i < docs.length; i += 400) {
+            const b = db.batch(); docs.slice(i, i + 400).forEach(r => b.delete(r)); await b.commit();
+          }
+        }
+        const cfgRef = db.collection(YEARS_COLLECTION).doc('_config');
+        const cfg = (await cfgRef.get()).data() || {};
+        const yrs = Object.assign({}, cfg.years || {}); delete yrs[y];
+        await cfgRef.set(Object.assign({}, cfg, {years: yrs}));
+        try { await db.collection(YEARS_COLLECTION).doc(y).delete(); } catch (e) { /* fiche absente */ }
+        try {
+          Object.keys(localStorage).filter(k => k.endsWith('__' + y)).forEach(k => localStorage.removeItem(k));
+          localStorage.setItem(YEAR_KEY, YEAR_CFG.active); sessionStorage.removeItem('CESNA_YR_RELOAD');
+        } catch (e) { /* ignoré */ }
+        alert(`L'année ${y} a été vidée et supprimée. Retour à ${YEAR_CFG.active}.`);
+        location.reload();
+      } catch (e) {
+        alert("Suppression interrompue : " + (e && e.code === 'permission-denied' ? "refusé par les règles Firestore." : (e && e.message) || e) + "\n\nVérifiez l'état de l'année avant de recommencer.");
       }
     }
 
