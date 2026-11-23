@@ -561,6 +561,14 @@
     </div>
   </div>
 
+  <div id="planChoiceModal" class="fixed inset-0 z-[70] bg-black/40 hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden">
+      <div id="plcTitle" class="bg-[#0a3a60] text-white px-4 py-2 font-bold text-sm"></div>
+      <div id="plcMsg" class="px-4 pt-3 text-xs text-slate-700"></div>
+      <div id="plcBtns" class="p-4 flex flex-col gap-2"></div>
+    </div>
+  </div>
+
   <div id="planSlotModal" class="fixed inset-0 z-[60] bg-black/50 hidden flex items-center justify-center p-3">
     <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[94vh] flex flex-col overflow-hidden">
       <div class="bg-[#0a3a60] text-white px-4 py-2 flex items-center">
@@ -572,7 +580,7 @@
           <select id="plsCourse" onchange="plSlotChanged(true)" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5"></select></div>
         <div class="sm:col-span-2"><label class="font-semibold block mb-0.5">Enseignant(s)</label>
           <div id="plsTeachers" class="border border-slate-300 rounded p-2 max-h-36 overflow-auto grid sm:grid-cols-2 gap-x-3 gap-y-0.5"></div></div>
-        <div class="sm:col-span-2 flex flex-wrap gap-4">
+        <div id="plsModeRow" class="sm:col-span-2 flex flex-wrap gap-4">
           <label class="inline-flex items-center gap-1"><input type="radio" name="plsMode" value="rec" checked onchange="plSlotChanged()"> Récurrent (chaque semaine)</label>
           <label class="inline-flex items-center gap-1"><input type="radio" name="plsMode" value="one" onchange="plSlotChanged()"> Date unique</label>
         </div>
@@ -4964,6 +4972,10 @@
     function plPlannedOf(courseId, slots) {
       return (slots || plan.slots).filter(s => s.courseId === courseId).reduce((n, s) => n + plOcc(s).length * plPer(s), 0);
     }
+    // autres séances à prendre en compte pour le contrôle (la série d'origine perd la date déplacée)
+    function plOthers() {
+      return plan.slots.map(x => (plEdit && plEdit.skip && x.id === plEdit.skip.id) ? Object.assign({}, x, {exc: (x.exc || []).concat(plEdit.skip.date)}) : x);
+    }
     function plSlotLabel(o) {
       const c = plCourse(o.courseId);
       return `« ${c ? c.codeUE + ' ' + (c.titre || c.intituleUE || '') : '?'} »`;
@@ -5142,24 +5154,111 @@
         const blocks = list.map(e => {
           const c = e._c, c0 = plCourse(e.s.courseId), bad = e.bad.length > 0;
           const r = locaux.find(x => x.id === e.s.roomId);
-          return `<div onclick="event.stopPropagation();plOpenSlot('${e.s.id}','${iso}')" title="${escapeHtml(bad ? '⚠ ' + e.bad.join('\n') : 'Cliquer pour modifier')}" class="absolute rounded text-white overflow-hidden px-1 py-0.5 shadow cursor-pointer ${bad ? 'outline outline-2 outline-red-600' : ''}" style="top:${(e.st - h0 * 60) / 60 * PX}px;height:${Math.max(22, (e.en - e.st) / 60 * PX - 2)}px;left:calc(${c.col / c.n * 100}% + 1px);width:calc(${100 / c.n}% - 2px);background:${courseColor(e.s.courseId)}">
+          return `<div onmousedown="plBlockDown(event,'${e.s.id}','${iso}',${e.st},${e.en},${PX})" onclick="event.stopPropagation()" title="${escapeHtml(bad ? '⚠ ' + e.bad.join('\n') : 'Cliquer pour modifier')}" class="absolute rounded text-white overflow-hidden px-1 py-0.5 shadow cursor-pointer ${bad ? 'outline outline-2 outline-red-600' : ''}" style="top:${(e.st - h0 * 60) / 60 * PX}px;height:${Math.max(22, (e.en - e.st) / 60 * PX - 2)}px;left:calc(${c.col / c.n * 100}% + 1px);width:calc(${100 / c.n}% - 2px);background:${courseColor(e.s.courseId)}">
             <div class="text-[10px] font-bold leading-tight">${escapeHtml(e.s.start)}-${escapeHtml(e.s.end)} ${escapeHtml(c0 ? c0.codeUE : '?')}</div>
             <div class="text-[9px] leading-tight truncate">${escapeHtml(c0 ? (c0.titre || c0.intituleUE || '') : '')}</div>
             <div class="text-[9px] leading-tight truncate">${escapeHtml((e.s.teachers || []).map(t => plTeacherName(t).split(' ')[0]).join(', '))}</div>
-            <div class="text-[9px] leading-tight font-semibold">${r ? '📍 ' + escapeHtml(roomShort(r)) : 'local ?'}</div></div>`;
+            <div class="text-[9px] leading-tight font-semibold">${r ? '📍 ' + escapeHtml(roomShort(r)) : 'local ?'}</div>
+            <div onmousedown="plResizeDown(event,'${e.s.id}','${iso}',${e.st},${e.en},${PX})" class="absolute left-0 right-0 bottom-0 h-1.5 cursor-ns-resize bg-white/30 hover:bg-white/60"></div></div>`;
         }).join('');
         return `<div class="flex-1 min-w-[120px] border-l border-slate-300"><div class="text-center text-[11px] font-bold py-1 ${iso === todayIso ? 'bg-amber-400 text-slate-900' : 'bg-[#0a3a60] text-white'}">${PL_DAYS[plDowOf(iso) - 1]} ${fmtDM(d)}</div>
-          <div class="relative ${closed ? 'bg-slate-200' : ''}" onclick="plColClick(event,'${iso}',${h0},${PX})" style="height:${H}px;cursor:cell;background-image:repeating-linear-gradient(to bottom,#e2e8f0 0,#e2e8f0 1px,transparent 1px,transparent ${PX}px)">
+          <div class="relative select-none ${closed ? 'bg-slate-200' : ''}" data-pliso="${iso}" data-plh0="${h0}" onmousedown="plColDown(event,'${iso}',${h0},${PX})" style="height:${H}px;cursor:cell;background-image:repeating-linear-gradient(to bottom,#e2e8f0 0,#e2e8f0 1px,transparent 1px,transparent ${PX}px)">
             ${closed ? `<div class="absolute inset-x-0 top-1 text-center text-[10px] font-semibold text-slate-600 px-1">${escapeHtml(closed)}</div>` : ''}${blocks}</div></div>`;
       }).join('');
       box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[70vh]"><div class="flex min-w-[860px]"><div class="w-12 shrink-0"><div class="py-1 text-[11px]">&nbsp;</div>${hours}</div>${cols}</div></div>
         <p class="mt-1 text-[11px] text-slate-500">Cliquez dans une colonne pour planifier un cours à cette heure, ou sur un cours pour le modifier. Gris : congé du calendrier académique. Contour rouge : séance qui ne respecte plus une règle.</p>`;
     }
-    function plColClick(ev, iso, h0, PX) {
+    // ----- souris façon Outlook : glisser pour créer, déplacer, redimensionner -----
+    let plDrag = null;
+    const plSnap = (m, step) => Math.round(m / (step || 10)) * (step || 10);
+    function plDragStart(d) {
+      plDrag = d;
+      document.addEventListener('mousemove', plDragMove);
+      document.addEventListener('mouseup', plDragUp);
+    }
+    function plColDown(ev, iso, h0, PX) {
+      if (ev.button !== 0 || ev.target.closest('[data-plblock]')) return;
       if (YEAR_RO) { roBlock(); return; }
-      const rect = ev.currentTarget.getBoundingClientRect();
-      const mins = Math.max(0, Math.round(((ev.clientY - rect.top) / PX * 60) / 30) * 30) + h0 * 60;
-      plNewSlot('', iso, mins);
+      const col = ev.currentTarget, rect = col.getBoundingClientRect();
+      plDragStart({kind: 'create', iso, h0, PX, col, top: rect.top, y0: ev.clientY, moved: false, ghost: null});
+      ev.preventDefault();
+    }
+    function plBlockDown(ev, id, iso, st, en, PX) {
+      if (ev.button !== 0) return;
+      ev.stopPropagation(); ev.currentTarget.setAttribute('data-plblock', '1');
+      plDragStart({kind: 'move', id, iso, st, en, PX, el: ev.currentTarget, x0: ev.clientX, y0: ev.clientY, moved: false});
+      ev.preventDefault();
+    }
+    function plResizeDown(ev, id, iso, st, en, PX) {
+      if (ev.button !== 0) return;
+      ev.stopPropagation();
+      const el = ev.currentTarget.parentElement; el.setAttribute('data-plblock', '1');
+      plDragStart({kind: 'resize', id, iso, st, en, PX, el, h: el.offsetHeight, y0: ev.clientY, moved: false});
+      ev.preventDefault();
+    }
+    function plDragMove(ev) {
+      const d = plDrag; if (!d) return;
+      const dy = ev.clientY - d.y0;
+      if (!d.moved && Math.abs(dy) < 5 && !(d.x0 !== undefined && Math.abs(ev.clientX - d.x0) >= 5)) return;
+      d.moved = true;
+      if (d.kind === 'move') { d.el.style.transform = `translate(${ev.clientX - d.x0}px,${dy}px)`; d.el.style.opacity = '.75'; d.el.style.zIndex = '40'; d.el.style.pointerEvents = 'none'; }
+      else if (d.kind === 'resize') { d.el.style.height = Math.max(22, d.h + dy) + 'px'; }
+      else if (d.kind === 'create') {
+        if (!d.ghost) { d.ghost = document.createElement('div'); d.ghost.className = 'absolute left-0 right-0 bg-sky-300/60 border border-sky-600 rounded pointer-events-none'; d.col.appendChild(d.ghost); }
+        const a = Math.min(d.y0, ev.clientY) - d.top, b = Math.max(d.y0, ev.clientY) - d.top;
+        d.ghost.style.top = a + 'px'; d.ghost.style.height = Math.max(6, b - a) + 'px';
+      }
+    }
+    function plDragUp(ev) {
+      document.removeEventListener('mousemove', plDragMove); document.removeEventListener('mouseup', plDragUp);
+      const d = plDrag; plDrag = null; if (!d) return;
+      const dy = ev.clientY - d.y0;
+      if (d.kind === 'create') {
+        if (d.ghost) d.ghost.remove();
+        const lo = Math.min(d.y0, ev.clientY) - d.top, hi = Math.max(d.y0, ev.clientY) - d.top;
+        const toMin = y => d.h0 * 60 + plSnap(Math.max(0, y) / d.PX * 60, 10);
+        if (!d.moved) { plNewSlot('', d.iso, d.h0 * 60 + plSnap(Math.max(0, d.y0 - d.top) / d.PX * 60, 30)); return; }
+        const s = toMin(lo); let e = toMin(hi); if (e - s < 30) e = s + 30;
+        plNewSlot('', d.iso, s, Math.min(e, 23 * 60 + 55)); return;
+      }
+      if (!d.moved) { d.el.removeAttribute('data-plblock'); plOpenSlot(d.id, d.iso); return; }
+      if (d.kind === 'resize') {
+        const ne = Math.max(d.st + 30, plSnap(d.en + dy / d.PX * 60, 10));
+        plRender(); if (ne !== d.en) plMoveOccurrence(d.id, d.iso, d.iso, d.st, ne); return;
+      }
+      // déplacement : colonne (jour) sous le curseur + décalage vertical
+      const under = document.elementsFromPoint(ev.clientX, ev.clientY).map(e => e.closest && e.closest('[data-pliso]')).find(Boolean);
+      const delta = plSnap(dy / d.PX * 60, 10);
+      if (!under || (under.dataset.pliso === d.iso && delta === 0)) { plRender(); return; }
+      plRender();
+      plMoveOccurrence(d.id, d.iso, under.dataset.pliso, Math.max(0, d.st + delta), Math.min(24 * 60 - 5, d.en + delta));
+    }
+    // déplace / redimensionne une occurrence ; pour une série, demande « cette occurrence » ou « toute la série »
+    function plMoveOccurrence(id, iso, newIso, ns, ne) {
+      if (YEAR_RO) { roBlock(); return; }
+      const s = plan.slots.find(x => x.id === id); if (!s) return;
+      const tt = plFmtT;
+      const refuse = errs => alert("Déplacement impossible :\n\n• " + errs.join("\n• "));
+      const doOne = () => {   // cours à date unique, ou occurrence isolée d'une série
+        const cand = Object.assign({}, s, {mode: 'one', date: newIso, start: tt(ns), end: tt(ne), exc: []});
+        if (s.mode === 'one') cand.id = s.id; else cand.id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        const others = s.mode === 'one' ? plan.slots : plan.slots.map(x => x.id === s.id ? Object.assign({}, x, {exc: (x.exc || []).concat(iso)}) : x);
+        const errs = plCheck(cand, others); if (errs.length) { refuse(errs); return; }
+        if (s.mode === 'one') plan.slots[plan.slots.findIndex(x => x.id === s.id)] = cand;
+        else { s.exc = (s.exc || []).concat(iso); plan.slots.push(cand); }
+        plPersist(); plRender();
+      };
+      const doSeries = () => {
+        const nd = s.dow + (plDowOf(newIso) - plDowOf(iso));
+        const cand = Object.assign({}, s, {dow: nd >= 1 && nd <= 6 ? nd : s.dow, start: tt(ns), end: tt(ne)});
+        const errs = plCheck(cand, plan.slots); if (errs.length) { refuse(errs); return; }
+        plan.slots[plan.slots.findIndex(x => x.id === s.id)] = cand;
+        plPersist(); plRender();
+      };
+      if (s.mode === 'one') { doOne(); return; }
+      plChoice('Déplacer un cours récurrent', `${frOfIso(iso)} → ${frOfIso(newIso)} · ${tt(ns)}-${tt(ne)}`, [
+        {label: '📅 Cette occurrence seulement', fn: doOne},
+        {label: '🔁 Toute la série', fn: doSeries}]);
     }
 
     // ----- fenêtre d'une séance -----
@@ -5190,29 +5289,68 @@
       document.getElementById('plsTeachers').innerHTML = teachersList.filter(t => t.actif !== false || set.has(plEm(t.email))).map(t =>
         `<label class="inline-flex items-center gap-1"><input type="checkbox" value="${escapeHtml(plEm(t.email))}" ${set.has(plEm(t.email)) ? 'checked' : ''} onchange="plSlotChanged()"> ${escapeHtml(teacherLabel(t))}${plan.dispos[plEm(t.email)] ? '' : ' <span class="text-slate-400">(dispo ?)</span>'}</label>`).join('') || '<span class="text-slate-500">Aucun enseignant (créez-les via « Gérer les enseignants »).</span>';
     }
-    function plNewSlot(courseId, iso, mins) {
+    function plNewSlot(courseId, iso, mins, endMins) {
       if (YEAR_RO) { roBlock(); return; }
       const cs = plViewCourses();
       const cid = courseId || (cs[0] && cs[0].id) || '';
       if (!cid) { alert("Aucune UE à planifier dans cette sélection."); return; }
-      plEdit = {id: null, dateIso: null, exc: []};
-      const m0 = mins != null ? mins : 9 * 60, per = 4 * PERIOD_MINUTES;
+      plEdit = {id: null, dateIso: null, exc: [], skip: null};
+      document.getElementById('plsModeRow').classList.remove('hidden');
+      const m0 = mins != null ? mins : 9 * 60, per = endMins != null ? endMins - m0 : 4 * PERIOD_MINUTES;
       const last = plan.slots.filter(s => s.courseId === cid && s.mode !== 'one').sort((a, b) => String(b.to).localeCompare(String(a.to)))[0];
       const s = {courseId: cid, teachers: plDefaultTeachers(cid), mode: 'rec', dow: iso ? plDowOf(iso) || 1 : 1, from: iso || isoOf(plWeek), to: last ? last.to : '', start: plFmtT(m0), end: plFmtT(Math.min(m0 + per, 23 * 60 + 55)), roomId: '', exc: []};
       document.getElementById('plsTitle').textContent = 'Planifier un cours';
       document.getElementById('plsDelBtn').classList.add('hidden'); document.getElementById('plsSkipBtn').classList.add('hidden');
       plFillForm(s); plShowSlot();
     }
+    function plChoice(title, msg, buttons) {
+      document.getElementById('plcTitle').textContent = title;
+      document.getElementById('plcMsg').textContent = msg || '';
+      const box = document.getElementById('plcBtns'); box.innerHTML = '';
+      plChoiceFns = [];
+      buttons.forEach((b, i) => {
+        plChoiceFns.push(b.fn);
+        const el = document.createElement('button');
+        el.className = 'px-3 py-2 rounded font-semibold text-left ' + (b.cls || 'bg-slate-100 hover:bg-slate-200 text-slate-800');
+        el.textContent = b.label;
+        el.onclick = () => { document.getElementById('planChoiceModal').classList.add('hidden'); if (b.fn) b.fn(); };
+        box.appendChild(el);
+      });
+      const c = document.createElement('button'); c.className = 'px-3 py-1.5 text-slate-500 hover:bg-slate-100 rounded'; c.textContent = 'Annuler';
+      c.onclick = () => { document.getElementById('planChoiceModal').classList.add('hidden'); plRender(); };
+      box.appendChild(c);
+      document.getElementById('planChoiceModal').classList.remove('hidden');
+    }
+    let plChoiceFns = [];
+    // clic sur un cours : comme Outlook, « cette occurrence » ou « toute la série »
     function plOpenSlot(id, dateIso) {
       const s = plan.slots.find(x => x.id === id); if (!s) return;
-      plEdit = {id, dateIso: dateIso || null, exc: (s.exc || []).slice()};
-      document.getElementById('plsTitle').textContent = 'Modifier la planification';
-      document.getElementById('plsDelBtn').classList.toggle('hidden', !!YEAR_RO);
-      const sk = document.getElementById('plsSkipBtn');
-      const canSkip = !YEAR_RO && s.mode !== 'one' && dateIso;
-      sk.classList.toggle('hidden', !canSkip);
-      if (canSkip) sk.textContent = `Pas de cours le ${frOfIso(dateIso)}`;
+      if (s.mode !== 'one' && dateIso && !YEAR_RO) {
+        plChoice('Cours récurrent', `${plCourse(s.courseId) ? plCourse(s.courseId).codeUE : ''} · ${frOfIso(dateIso)} : que voulez-vous modifier ?`, [
+          {label: '📅 Cette occurrence seulement (' + frOfIso(dateIso) + ')', fn: () => plOpenOccurrence(id, dateIso)},
+          {label: '🔁 Toute la série', fn: () => plOpenSeries(id)}]);
+        return;
+      }
+      plOpenSeries(id);
+    }
+    function plOpenSeries(id) {
+      const s = plan.slots.find(x => x.id === id); if (!s) return;
+      plEdit = {id, dateIso: null, exc: (s.exc || []).slice(), skip: null};
+      document.getElementById('plsTitle').textContent = s.mode === 'one' ? 'Modifier ce cours' : 'Modifier toute la série';
+      const del = document.getElementById('plsDelBtn'); del.classList.toggle('hidden', !!YEAR_RO); del.textContent = s.mode === 'one' ? '🗑 Supprimer' : '🗑 Supprimer la série';
+      document.getElementById('plsSkipBtn').classList.add('hidden');
+      document.getElementById('plsModeRow').classList.remove('hidden');
       plFillForm(s); plShowSlot();
+    }
+    // une seule occurrence d'une série : devient un cours à date unique (la date est retirée de la série à l'enregistrement)
+    function plOpenOccurrence(id, iso) {
+      const s = plan.slots.find(x => x.id === id); if (!s) return;
+      plEdit = {id: null, dateIso: iso, exc: [], skip: {id, date: iso}};
+      document.getElementById('plsTitle').textContent = 'Modifier cette occurrence · ' + frOfIso(iso);
+      const del = document.getElementById('plsDelBtn'); del.classList.toggle('hidden', !!YEAR_RO); del.textContent = '🗑 Supprimer cette occurrence';
+      document.getElementById('plsSkipBtn').classList.add('hidden');
+      document.getElementById('plsModeRow').classList.add('hidden');
+      plFillForm(Object.assign({}, s, {mode: 'one', date: iso, exc: []})); plShowSlot();
     }
     function plShowSlot() { document.getElementById('planSlotModal').classList.remove('hidden'); plSlotChanged(); }
     function plCloseSlot() { document.getElementById('planSlotModal').classList.add('hidden'); plEdit = null; }
@@ -5232,12 +5370,12 @@
       const one = s.mode === 'one';
       g('plsRecBox').classList.toggle('hidden', one); g('plsOneBox').classList.toggle('hidden', !one); g('plsExcBox').classList.toggle('hidden', one);
       const c = plCourse(s.courseId), occ = plOcc(s), per = plPer(s);
-      const others = plan.slots.filter(x => x.id !== s.id);
+      const others = plOthers().filter(x => x.id !== s.id);
       const planned = plPlannedOf(s.courseId, others) + occ.length * per, target = c ? plTarget(c) : 0;
       g('plsInfo').innerHTML = `<b>${occ.length}</b> séance(s) × <b>${per}</b> période(s) = <b>${occ.length * per}</b> p pour cette planification.<br>
         UE : ${plPeriodTag(planned, target)} (total planifié / périodes de l'UE)`
         + (one || !c || !target ? '' : ` <button type="button" onclick="plFillTo()" class="ml-2 px-2 py-0.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded font-semibold">🎯 Calculer la date de fin pour atteindre ${target} p</button>`);
-      const errs = plCheck(s, plan.slots);
+      const errs = plCheck(s, plOthers());
       const eb = g('plsErr'); eb.classList.toggle('hidden', !errs.length);
       eb.innerHTML = errs.length ? '<b>Enregistrement impossible :</b><ul class="list-disc pl-5 mt-1">' + errs.map(e => `<li>${escapeHtml(e)}</li>`).join('') + '</ul>' : '';
     }
@@ -5250,7 +5388,7 @@
     // date de fin = première date où le total des périodes de l'UE atteint la cible
     function plFillTo() {
       const s = plReadSlot(), c = plCourse(s.courseId); if (!c || s.mode === 'one' || !s.from) return;
-      const per = plPer(s), need = plTarget(c) - plPlannedOf(s.courseId, plan.slots.filter(x => x.id !== s.id));
+      const per = plPer(s), need = plTarget(c) - plPlannedOf(s.courseId, plOthers().filter(x => x.id !== s.id));
       if (!per || need <= 0) { document.getElementById('plsErr').classList.remove('hidden'); document.getElementById('plsErr').textContent = need <= 0 ? "Les périodes de l'UE sont déjà toutes planifiées par ailleurs." : "Heures invalides."; return; }
       let acc = 0, last = null;
       const far = Object.assign({}, s, {to: isoOf(new Date(dateFromIso(s.from).getFullYear() + 2, 11, 31))});
@@ -5259,14 +5397,22 @@
     }
     function plSaveSlot() {
       if (YEAR_RO) { roBlock(); return; }
-      const s = plReadSlot(), errs = plCheck(s, plan.slots);
+      const s = plReadSlot(), errs = plCheck(s, plOthers());
       if (errs.length) { plSlotChanged(); return; }
+      if (plEdit && plEdit.skip) { const ser = plan.slots.find(x => x.id === plEdit.skip.id); if (ser) ser.exc = (ser.exc || []).concat(plEdit.skip.date); }
       const i = plan.slots.findIndex(x => x.id === s.id);
       if (i >= 0) plan.slots[i] = s; else plan.slots.push(s);
       plPersist(); plCloseSlot(); plRender();
     }
     function plDeleteSlot() {
-      if (YEAR_RO || !plEdit || !plEdit.id) return;
+      if (YEAR_RO || !plEdit) return;
+      if (plEdit.skip) {   // supprimer une seule occurrence de la série
+        if (!confirm("Supprimer cette occurrence (" + frOfIso(plEdit.skip.date) + ") ?")) return;
+        const ser = plan.slots.find(x => x.id === plEdit.skip.id);
+        if (ser) ser.exc = (ser.exc || []).concat(plEdit.skip.date);
+        plPersist(); plCloseSlot(); plRender(); return;
+      }
+      if (!plEdit.id) return;
       if (!confirm("Supprimer cette planification (toutes ses séances) ?")) return;
       plan.slots = plan.slots.filter(x => x.id !== plEdit.id);
       plPersist(); plCloseSlot(); plRender();
