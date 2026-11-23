@@ -229,6 +229,9 @@
                   <div class="dd-sep"></div>
                   <button id="newYearBtn" onclick="openNewYearModal()" class="dd-item admin-only hidden" role="menuitem">➕ Nouvelle année scolaire</button>
                   <button id="backupBtn" onclick="openBackupModal()" class="dd-item admin-only hidden" role="menuitem">💾 Sauvegarde &amp; restauration</button>
+                  <div id="yearMenuSep" class="hidden border-t border-slate-200 my-1"></div>
+                  <button id="yearActBtn" onclick="activateYear(YEAR)" class="dd-item hidden" role="menuitem">✅ Activer l'année affichée pour tous…</button>
+                  <button id="yearWipeBtn" onclick="wipeYear(YEAR)" class="dd-item hidden text-red-700" role="menuitem">🗑 Vider l'année affichée…</button>
                 </div>
               </span>
 
@@ -8369,7 +8372,13 @@
       return true;
     }
 
+    // « Activer » et « Vider » : dans le menu Administration (et seulement pour une année en préparation) pour éviter un clic involontaire
+    function refreshYearMenu() {
+      const on = !!(isLoggedAdmin() && yearState(YEAR) === 'prepa');
+      ['yearMenuSep', 'yearActBtn', 'yearWipeBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); });
+    }
     function buildYearUI() {
+      refreshYearMenu();
       const st = yearState(YEAR);
       const badge = document.getElementById('yearBadge');
       if (badge) {
@@ -8391,7 +8400,7 @@
       ban.classList.remove('hidden');
       if (st === 'prepa') {
         ban.className = 'mt-1 text-xs px-2 py-1 rounded font-semibold bg-amber-100 text-amber-900 border border-amber-300';
-        ban.innerHTML = `📝 Année ${YEAR} en préparation : visible des administrateurs seulement. <button onclick="activateYear('${YEAR}')" class="ml-2 px-2 py-0.5 rounded bg-amber-600 text-white font-bold hover:bg-amber-700">Activer cette année pour tous</button> <button onclick="wipeYear('${YEAR}')" class="ml-1 px-2 py-0.5 rounded bg-white text-red-700 border border-red-400 font-bold hover:bg-red-50" title="Supprime toutes les données de cette année en préparation">🗑 Vider cette année</button>`;
+        ban.innerHTML = `📝 Année ${YEAR} en préparation : visible des administrateurs seulement. <span class="ml-1 font-normal">Activation ou suppression : menu ⚙ Administration (en bas).</span>`;
       } else if (!YEAR_RO && st === 'archive') {
         // un admin a déverrouillé l'archive pour une correction
         ban.className = 'mt-1 text-xs px-2 py-1 rounded font-semibold bg-orange-100 text-orange-900 border border-orange-300';
