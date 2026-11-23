@@ -537,6 +537,7 @@
             </select>
             <select id="plTeacher" onchange="plOnTeacher()" class="hidden bg-white border border-slate-300 rounded px-2 py-1.5 min-w-[220px]"></select>
             <span class="mx-1 text-slate-300">|</span>
+            <select id="plLayout" onchange="plOnLayout()" class="bg-white border border-slate-300 rounded px-2 py-1.5 font-semibold"><option value="week">Semaine (heures)</option><option value="month">Mois (matin · après-midi · soir)</option></select>
             <button onclick="plStep(-1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold">‹</button>
             <button onclick="plToday()" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-semibold">Aujourd'hui</button>
             <button onclick="plStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold">›</button>
@@ -5058,9 +5059,20 @@
     function plPickBloc(b) { plBloc = b; plRender(); }
     function plOnView() { plViewMode = document.getElementById('plView').value; plRender(); }
     function plOnTeacher() { plTeacherSel = document.getElementById('plTeacher').value; plRender(); }
-    function plStep(n) { plWeek = new Date(plWeek.getFullYear(), plWeek.getMonth(), plWeek.getDate() + 7 * n); plRender(); }
-    function plToday() { plWeek = mondayOf(new Date()); plRender(); }
-    function plGoto(v) { const d = dateFromIso(v); if (d) { plWeek = mondayOf(d); plRender(); } }
+    let plLayout = 'week', plMonthD = null;
+    function plOnLayout() {
+      plLayout = document.getElementById('plLayout').value;
+      if (plLayout === 'month') plMonthD = new Date(plWeek.getFullYear(), plWeek.getMonth(), plWeek.getDate() + 3);   // mois qui contient le plus de jours de la semaine affichée
+      else if (plMonthD) plWeek = mondayOf(new Date(plMonthD.getFullYear(), plMonthD.getMonth(), 1));
+      plRender();
+    }
+    function plStep(n) {
+      if (plLayout === 'month') { const b = plMonthD || new Date(); plMonthD = new Date(b.getFullYear(), b.getMonth() + n, 1); plWeek = mondayOf(plMonthD); }
+      else plWeek = new Date(plWeek.getFullYear(), plWeek.getMonth(), plWeek.getDate() + 7 * n);
+      plRender();
+    }
+    function plToday() { plWeek = mondayOf(new Date()); plMonthD = new Date(); plRender(); }
+    function plGoto(v) { const d = dateFromIso(v); if (d) { plWeek = mondayOf(d); plMonthD = d; plRender(); } }
     function plViewCourses() {
       if (plViewMode === 'teacher') {
         const t = teachersList.find(x => plEm(x.email) === plEm(plTeacherSel));
@@ -5089,9 +5101,10 @@
       const blocs = plBlocsOf(plSection);
       document.getElementById('plBlocs').innerHTML = blocs.length ? [['', 'Tous les blocs']].concat(blocs.map(b => [b, b])).map(([v, l]) =>
         `<button onclick="plPickBloc(decodeURIComponent('${encodeURIComponent(v)}'))" class="px-3 py-1.5 rounded border font-bold ${plBloc === v ? 'bg-[#0a3a60] text-white border-[#0a3a60]' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}">${escapeHtml(l)}</button>`).join('') : '';
-      document.getElementById('plGoto').value = isoOf(plWeek);
+      document.getElementById('plLayout').value = plLayout;
+      document.getElementById('plGoto').value = isoOf(plLayout === 'month' && plMonthD ? plMonthD : plWeek);
       plRenderLeft();
-      plRenderGrid();
+      if (plLayout === 'month') plRenderMonth(); else plRenderGrid();
     }
     function plPeriodTag(planned, target) {
       const cls = !target ? 'text-slate-500' : planned === target ? 'text-emerald-700' : planned > target ? 'text-red-700' : 'text-amber-700';
@@ -5260,6 +5273,51 @@
       plChoice('Déplacer un cours récurrent', `${frOfIso(iso)} → ${frOfIso(newIso)} · ${tt(ns)}-${tt(ne)}`, [
         {label: '📅 Cette occurrence seulement', fn: doOne},
         {label: '🔁 Toute la série', fn: doSeries}]);
+    }
+
+
+    // ----- vue mensuelle : chaque jour est découpé en 3 plages (matin, après-midi, soir) -----
+    const PL_BANDS = [{k: 'Matin', cls: 'bg-amber-50', def: 9 * 60}, {k: 'Après-midi', cls: 'bg-sky-50', def: 13 * 60 + 30}, {k: 'Soir', cls: 'bg-indigo-50', def: 18 * 60}];
+    function plBand(startMin) { return startMin < PL_HALF ? 0 : startMin < 17 * 60 ? 1 : 2; }
+    function plRenderMonth() {
+      const box = document.getElementById('plGrid');
+      const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+      const base = plMonthD || new Date(), y = base.getFullYear(), m = base.getMonth();
+      document.getElementById('plWeekLbl').textContent = `${MONTHS[m][0].toUpperCase() + MONTHS[m].slice(1)} ${y}`;
+      if (plViewMode === 'teacher' && !plTeacherSel) { box.innerHTML = '<p class="text-slate-500 p-6 text-center">Choisissez un enseignant pour voir son planning.</p>'; return; }
+      const byDay = {};
+      plViewSlots().forEach(s => {
+        const errs = plCheck(s, plan.slots), st = timeToMin(s.start), en = timeToMin(s.end);
+        plOcc(s).forEach(iso => { (byDay[iso] = byDay[iso] || []).push({s, st, en, bad: errs}); });
+      });
+      const todayIso = isoOf(new Date()), last = new Date(y, m + 1, 0);
+      let cur = mondayOf(new Date(y, m, 1)), rows = '';
+      for (let w = 0; w < 6 && cur <= last; w++) {
+        let tds = '';
+        for (let i = 0; i < 6; i++) {
+          const iso = isoOf(cur), inM = cur.getMonth() === m, closed = closedLabelOf(cur), list = (byDay[iso] || []).slice().sort((a, b) => a.st - b.st);
+          const bands = PL_BANDS.map((b, bi) => {
+            const chips = list.filter(e => plBand(e.st) === bi).map(e => {
+              const c0 = plCourse(e.s.courseId), r = locaux.find(x => x.id === e.s.roomId);
+              return `<div onclick="event.stopPropagation();plOpenSlot('${e.s.id}','${iso}')" title="${escapeHtml((c0 ? c0.codeUE + ' ' + (c0.titre || c0.intituleUE || '') : '') + '\n' + e.s.start + '-' + e.s.end + '\n' + (e.s.teachers || []).map(plTeacherName).join(', ') + (r ? '\n' + roomShort(r) : '\nlocal ?') + (e.bad.length ? '\n⚠ ' + e.bad.join('\n⚠ ') : ''))}" class="mt-0.5 px-1 rounded text-white text-[10px] leading-4 truncate cursor-pointer ${e.bad.length ? 'outline outline-2 outline-red-600' : ''}" style="background:${courseColor(e.s.courseId)}">${escapeHtml(e.s.start)}-${escapeHtml(e.s.end)} <b>${escapeHtml(c0 ? c0.codeUE : '?')}</b>${r ? ' · ' + escapeHtml(r.numero) : ''}</div>`;
+            }).join('');
+            return `<div onclick="plMonthBandClick('${iso}',${bi})" class="${b.cls} border-t border-slate-200 px-0.5 pb-0.5 min-h-[26px] cursor-cell"><span class="text-[8px] uppercase tracking-wide text-slate-400">${b.k}</span>${chips}</div>`;
+          }).join('');
+          tds += `<td class="align-top border border-slate-300 p-0 min-w-[130px] ${inM ? (closed ? 'bg-slate-200' : 'bg-white') : 'bg-slate-100 opacity-60'}">
+            <div class="flex items-center justify-between px-1 py-0.5"><span class="text-[11px] font-bold ${iso === todayIso ? 'bg-amber-400 text-slate-900 rounded px-1' : 'text-slate-700'}">${cur.getDate()}</span>${closed ? `<span class="text-[9px] text-slate-600 truncate ml-1">${escapeHtml(closed)}</span>` : ''}</div>${bands}</td>`;
+          cur.setDate(cur.getDate() + 1);
+        }
+        cur.setDate(cur.getDate() + 1);   // dimanche : pas de cours
+        rows += `<tr>${tds}</tr>`;
+      }
+      const WD = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+      box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[75vh]"><table class="w-full text-xs border-collapse"><thead class="bg-[#0a3a60] text-white sticky top-0"><tr>${WD.map(d => `<th class="px-1 py-1 text-center">${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
+        <p class="mt-1 text-[11px] text-slate-500">Matin : début avant 12h30 · Après-midi : de 12h30 à 17h · Soir : dès 17h. Cliquez sur une plage pour planifier, sur un cours pour le modifier. Gris : congé du calendrier académique. Contour rouge : règle non respectée.</p>`;
+    }
+    function plMonthBandClick(iso, bi) {
+      if (YEAR_RO) { roBlock(); return; }
+      const m0 = PL_BANDS[bi].def;
+      plNewSlot('', iso, m0, m0 + (bi === 2 ? 4 * PERIOD_MINUTES : 4 * PERIOD_MINUTES));
     }
 
     // ----- fenêtre d'une séance -----
