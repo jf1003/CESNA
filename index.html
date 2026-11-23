@@ -222,6 +222,7 @@
                   <button id="coursesBtn" onclick="openCoursesModal()" class="dd-item admin-only hidden" role="menuitem">⚙ Gérer les cours</button>
                   <button id="teachersBtn" onclick="openTeachersModal()" class="dd-item admin-only hidden" role="menuitem">👥 Gérer les enseignants</button>
                   <button id="locauxBtn" onclick="openLocauxModal()" class="dd-item admin-only hidden" role="menuitem">🏫 Locaux</button>
+                  <button id="planBtn" onclick="openPlanModal()" class="dd-item admin-only hidden" role="menuitem">🗓 Planification des cours</button>
                   <button id="teacherAgendaBtn" onclick="openTeacherAgendaMenu()" class="dd-item admin-only hidden" role="menuitem">👤 Horaire enseignant</button>
                   <button id="calBtn" onclick="openCalendarModal()" class="dd-item admin-only hidden" role="menuitem">📆 Calendrier académique</button>
                   <button id="bulkBtn" onclick="openBulkModal()" class="dd-item admin-only hidden" role="menuitem">📥 Import matricules</button>
@@ -516,6 +517,94 @@
   </div>
 
   <!-- ===== Gestion des locaux (admins) ===== -->
+  <!-- ===== Planification des cours (admin) : disponibilités des enseignants + planning par bachelier / bloc ===== -->
+  <div id="planModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-2 md:p-4">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-[98vw] max-h-[96vh] flex flex-col overflow-hidden">
+      <div class="bg-[#0a3a60] text-white px-4 py-2 flex flex-wrap items-center gap-2">
+        <h2 class="font-bold text-sm mr-auto">🗓 Planification des cours · <span id="plYearLbl"></span></h2>
+        <span id="plSaveState" class="text-[11px] text-slate-300"></span>
+        <button id="plTab_plan" onclick="plShowTab('plan')" class="px-3 py-1 rounded text-xs font-bold">Planning</button>
+        <button id="plTab_dispo" onclick="plShowTab('dispo')" class="px-3 py-1 rounded text-xs font-bold">Disponibilités des enseignants</button>
+        <button onclick="closePlanModal()" class="text-slate-300 hover:text-white font-bold ml-2">✕</button>
+      </div>
+      <div class="p-3 overflow-auto text-xs text-slate-700">
+        <div id="plPane_plan">
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <select id="plSection" onchange="plOnSection()" class="bg-white border border-slate-300 rounded px-2 py-1.5 font-semibold min-w-[220px]"></select>
+            <span id="plBlocs" class="inline-flex gap-1"></span>
+            <select id="plView" onchange="plOnView()" class="bg-white border border-slate-300 rounded px-2 py-1.5">
+              <option value="bloc">Vue par bachelier / bloc</option><option value="teacher">Vue par enseignant</option>
+            </select>
+            <select id="plTeacher" onchange="plOnTeacher()" class="hidden bg-white border border-slate-300 rounded px-2 py-1.5 min-w-[220px]"></select>
+            <span class="mx-1 text-slate-300">|</span>
+            <button onclick="plStep(-1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold">‹</button>
+            <button onclick="plToday()" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-semibold">Aujourd'hui</button>
+            <button onclick="plStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold">›</button>
+            <input type="date" id="plGoto" onchange="plGoto(this.value)" class="border border-slate-300 rounded px-2 py-1 bg-white" title="Aller à une date">
+            <span id="plWeekLbl" class="font-bold text-[#0a3a60] text-sm"></span>
+          </div>
+          <div class="flex flex-col lg:flex-row gap-3">
+            <div id="plLeft" class="lg:w-80 shrink-0"></div>
+            <div id="plGrid" class="flex-1 min-w-0"></div>
+          </div>
+        </div>
+        <div id="plPane_dispo" class="hidden">
+          <div class="grid md:grid-cols-3 gap-4">
+            <div>
+              <input id="plDSearch" type="search" placeholder="🔍 Rechercher un enseignant…" oninput="plRenderDispoList()" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 mb-2">
+              <div id="plDList" class="border border-slate-300 rounded max-h-[62vh] overflow-auto"></div>
+            </div>
+            <div class="md:col-span-2" id="plDBody"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="planSlotModal" class="fixed inset-0 z-[60] bg-black/50 hidden flex items-center justify-center p-3">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[94vh] flex flex-col overflow-hidden">
+      <div class="bg-[#0a3a60] text-white px-4 py-2 flex items-center">
+        <h3 id="plsTitle" class="font-bold text-sm mr-auto">Planifier un cours</h3>
+        <button onclick="plCloseSlot()" class="text-slate-300 hover:text-white font-bold">✕</button>
+      </div>
+      <div class="p-4 overflow-auto text-xs text-slate-700 grid sm:grid-cols-2 gap-3">
+        <div class="sm:col-span-2"><label class="font-semibold block mb-0.5">UE</label>
+          <select id="plsCourse" onchange="plSlotChanged(true)" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5"></select></div>
+        <div class="sm:col-span-2"><label class="font-semibold block mb-0.5">Enseignant(s)</label>
+          <div id="plsTeachers" class="border border-slate-300 rounded p-2 max-h-36 overflow-auto grid sm:grid-cols-2 gap-x-3 gap-y-0.5"></div></div>
+        <div class="sm:col-span-2 flex flex-wrap gap-4">
+          <label class="inline-flex items-center gap-1"><input type="radio" name="plsMode" value="rec" checked onchange="plSlotChanged()"> Récurrent (chaque semaine)</label>
+          <label class="inline-flex items-center gap-1"><input type="radio" name="plsMode" value="one" onchange="plSlotChanged()"> Date unique</label>
+        </div>
+        <div id="plsRecBox" class="sm:col-span-2 grid sm:grid-cols-3 gap-3">
+          <div><label class="font-semibold block mb-0.5">Jour</label>
+            <select id="plsDow" onchange="plSlotChanged()" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5">
+              <option value="1">Lundi</option><option value="2">Mardi</option><option value="3">Mercredi</option><option value="4">Jeudi</option><option value="5">Vendredi</option><option value="6">Samedi</option></select></div>
+          <div><label class="font-semibold block mb-0.5">Du</label><input type="date" id="plsFrom" onchange="plSlotChanged()" class="w-full border border-slate-300 rounded px-2 py-1"></div>
+          <div><label class="font-semibold block mb-0.5">Jusqu'au (inclus)</label><input type="date" id="plsTo" onchange="plSlotChanged()" class="w-full border border-slate-300 rounded px-2 py-1"></div>
+        </div>
+        <div id="plsOneBox" class="sm:col-span-2 hidden"><label class="font-semibold block mb-0.5">Date</label><input type="date" id="plsDate" onchange="plSlotChanged()" class="border border-slate-300 rounded px-2 py-1"></div>
+        <div><label class="font-semibold block mb-0.5">De</label><input type="time" id="plsStart" step="300" onchange="plSlotChanged()" class="w-full border border-slate-300 rounded px-2 py-1"></div>
+        <div><label class="font-semibold block mb-0.5">À</label><input type="time" id="plsEnd" step="300" onchange="plSlotChanged()" class="w-full border border-slate-300 rounded px-2 py-1"></div>
+        <div class="sm:col-span-2"><label class="font-semibold block mb-0.5">Local</label>
+          <select id="plsRoom" onchange="plSlotChanged()" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5"></select></div>
+        <div id="plsExcBox" class="sm:col-span-2">
+          <label class="font-semibold block mb-0.5">Dates sans cours (en plus des congés du calendrier académique)</label>
+          <div class="flex gap-2 items-center"><input type="date" id="plsExcIn" class="border border-slate-300 rounded px-2 py-1"><button type="button" onclick="plAddExc()" class="px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded font-semibold">Ajouter</button></div>
+          <div id="plsExcList" class="mt-1 flex flex-wrap gap-1"></div>
+        </div>
+        <div id="plsInfo" class="sm:col-span-2 bg-slate-50 border border-slate-200 rounded p-2"></div>
+        <div id="plsErr" class="sm:col-span-2 hidden bg-red-50 border border-red-300 text-red-800 rounded p-2"></div>
+      </div>
+      <div class="px-4 py-3 border-t border-slate-200 flex flex-wrap gap-2 justify-end bg-slate-50">
+        <button id="plsDelBtn" onclick="plDeleteSlot()" class="mr-auto px-3 py-1.5 text-red-700 hover:bg-red-50 rounded font-semibold hidden">🗑 Supprimer</button>
+        <button id="plsSkipBtn" onclick="plSkipThisDate()" class="px-3 py-1.5 text-amber-800 hover:bg-amber-50 rounded font-semibold hidden"></button>
+        <button onclick="plCloseSlot()" class="px-3 py-1.5 text-slate-600 hover:bg-slate-100 rounded">Annuler</button>
+        <button onclick="plSaveSlot()" class="px-4 py-1.5 font-bold bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <div id="locauxModal" class="fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-2 md:p-4">
     <div class="bg-white rounded-lg shadow-2xl w-full max-w-[96vw] max-h-[95vh] flex flex-col overflow-hidden">
       <div class="bg-[#0a3a60] text-white px-4 py-2 flex flex-wrap items-center gap-2">
@@ -4796,6 +4885,445 @@
       });
     }
     initDossierDrop();
+
+    // -------------------------------------------------------------
+    // PLANIFICATION DES COURS (admins) : disponibilités des enseignants + planning par bachelier / bloc
+    //  - stocké dans yc('planning').doc('main') = {data: JSON {dispos, slots}} (un planning par année) ; copie locale
+    //  - slot = {id, courseId, teachers:[emails], mode:'rec'|'one', dow(1-6), from, to, date, start, end, roomId, exc:[dates]}
+    //  - règles refusées à l'enregistrement : même bloc/bachelier en même temps, même enseignant en même temps,
+    //    même local en même temps, enseignant non disponible (si ses disponibilités sont renseignées)
+    //  - périodes planifiées = séances (hors congés du calendrier académique et dates exclues) × périodes par séance (50 min)
+    // -------------------------------------------------------------
+    const PLAN_LS_KEY = "CESNA_PLANNING_V1" + YEAR_SUFFIX;
+    const PL_DAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    const PL_HALF = 12 * 60 + 30;   // avant 12:30 : matin ; après : après-midi
+    let plan = {dispos: {}, slots: []};
+    let planSaveTimer = null;
+    let plSection = '', plBloc = '', plViewMode = 'bloc', plTeacherSel = '', plWeek = null, plTab = 'plan', plDispoSel = '';
+    let plEdit = null;
+
+    async function plLoad() {
+      try {
+        const raw = localStorage.getItem(PLAN_LS_KEY);
+        if (raw) { const p = JSON.parse(raw); plan = {dispos: (p && p.dispos) || {}, slots: Array.isArray(p && p.slots) ? p.slots : []}; }
+      } catch (e) { /* ignoré */ }
+      if (db) {
+        try {
+          const snap = await yc('planning').doc('main').get();
+          if (snap.exists) {
+            const p = JSON.parse((snap.data() || {}).data || 'null');
+            if (p) {
+              plan = {dispos: p.dispos || {}, slots: Array.isArray(p.slots) ? p.slots : []};
+              try { localStorage.setItem(PLAN_LS_KEY, JSON.stringify(plan)); } catch (e) { /* ignoré */ }
+            }
+          }
+        } catch (e) { console.warn("Planning illisible :", e); plSay(e && e.code === 'permission-denied' ? "Lecture refusée par Firestore : ajoutez les règles « planning » (fichier de règles à jour)." : "Planning non lu : " + ((e && e.message) || e), true); }
+      }
+    }
+    function plSay(txt, bad) {
+      const el = document.getElementById('plSaveState');
+      if (el) { el.textContent = txt; el.className = 'text-[11px] ' + (bad ? 'text-red-200 font-bold' : 'text-slate-300'); }
+    }
+    function plPersist() {
+      try { localStorage.setItem(PLAN_LS_KEY, JSON.stringify(plan)); } catch (e) { /* ignoré */ }
+      plSay('💾 Enregistrement…');
+      clearTimeout(planSaveTimer);
+      planSaveTimer = setTimeout(async () => {
+        planSaveTimer = null;
+        if (!db) { plSay('Enregistré sur cet appareil (hors ligne)'); return; }
+        try {
+          await yc('planning').doc('main').set({data: JSON.stringify(plan), savedAt: new Date().toISOString()});
+          plSay('✔ Enregistré');
+        } catch (e) {
+          plSay(e && e.code === 'permission-denied' ? "Refusé par Firestore : ajoutez les règles « planning » (fichier de règles à jour)." : (e && e.code === 'read-only-year' ? "Année archivée : lecture seule" : "Enregistrement impossible : " + ((e && e.message) || e)), true);
+        }
+      }, 400);
+    }
+
+    const plEm = e => String(e || '').trim().toLowerCase();
+    function plTeacherName(email) { const t = teachersList.find(x => plEm(x.email) === plEm(email)); return t ? teacherLabel(t) : email; }
+    function plCourse(id) { return courses.find(c => c.id === id); }
+    function plGroup(c) { return c && (c.section || c.bloc) ? (c.section || '') + '|' + (c.bloc || '') : ''; }
+    function plTarget(c) { return parseInt(String(c.periodes || ''), 10) || 0; }
+    function plPer(s) { return sessionPeriods({start: s.start, end: s.end}) || 0; }
+    function plDowOf(iso) { const d = dateFromIso(iso); return d ? ((d.getDay() + 6) % 7) + 1 : 0; }
+    function plOcc(s) {
+      if (s.mode === 'one') { return s.date && dateFromIso(s.date) ? [s.date] : []; }
+      const a = dateFromIso(s.from), b = dateFromIso(s.to), dow = +s.dow;
+      if (!a || !b || !dow || b < a) return [];
+      const exc = s.exc || [], out = [];
+      const d = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+      d.setDate(d.getDate() + ((dow - (((d.getDay() + 6) % 7) + 1)) + 7) % 7);
+      for (let n = 0; d <= b && n < 800; n++, d.setDate(d.getDate() + 7)) {
+        const iso = isoOf(d);
+        if (exc.includes(iso) || closedLabelOf(d)) continue;
+        out.push(iso);
+      }
+      return out;
+    }
+    function plPlannedOf(courseId, slots) {
+      return (slots || plan.slots).filter(s => s.courseId === courseId).reduce((n, s) => n + plOcc(s).length * plPer(s), 0);
+    }
+    function plSlotLabel(o) {
+      const c = plCourse(o.courseId);
+      return `« ${c ? c.codeUE + ' ' + (c.titre || c.intituleUE || '') : '?'} »`;
+    }
+    // Contrôle d'une séance contre les autres : renvoie la liste des erreurs (vide = ok)
+    function plCheck(slot, others) {
+      const errs = [], c = plCourse(slot.courseId);
+      const s0 = timeToMin(slot.start), e0 = timeToMin(slot.end);
+      if (!c) errs.push("Choisissez une UE.");
+      if (s0 === null || e0 === null || e0 <= s0) errs.push("L'heure de fin doit être après l'heure de début.");
+      if (slot.mode === 'one' ? !slot.date : (!slot.from || !slot.to || !slot.dow || slot.to < slot.from)) errs.push(slot.mode === 'one' ? "Choisissez la date." : "Choisissez le jour de la semaine et une période valide (du … jusqu'au …).");
+      if (errs.length) return errs;
+      const occ = plOcc(slot);
+      if (!occ.length) return ["Aucune date de cours dans cette période (congés du calendrier académique ou dates exclues) : vérifiez les dates."];
+      const oset = new Set(occ), grp = plGroup(c), tset = slot.teachers || [];
+      const seen = new Set();
+      const add = (kind, o, dates, extra) => {
+        const key = kind + o.id; if (seen.has(key)) return; seen.add(key);
+        const d0 = dates[0];
+        errs.push(`${extra} ${plSlotLabel(o)} le ${frOfIso(d0)} (${o.start}-${o.end})` + (dates.length > 1 ? ` et ${dates.length - 1} autre(s) date(s)` : ''));
+      };
+      for (const o of others) {
+        if (o.id === slot.id) continue;
+        const os = timeToMin(o.start), oe = timeToMin(o.end);
+        if (os === null || oe === null || !(os < e0 && s0 < oe)) continue;
+        const oc = plCourse(o.courseId);
+        const sameGrp = !!grp && plGroup(oc) === grp;
+        const sharedT = (o.teachers || []).filter(t => tset.some(x => plEm(x) === plEm(t)));
+        const sameRoom = !!slot.roomId && o.roomId === slot.roomId;
+        if (!sameGrp && !sharedT.length && !sameRoom) continue;
+        const dates = plOcc(o).filter(d => oset.has(d));
+        if (!dates.length) continue;
+        if (sameGrp) add('g', o, dates, `Même bloc (${c.section}${c.bloc && c.bloc !== c.section ? ' · ' + c.bloc : ''}) : les étudiants ont déjà cours avec`);
+        if (sharedT.length) add('t', o, dates, `${sharedT.map(plTeacherName).join(', ')} a déjà cours :`);
+        if (sameRoom) { const r = locaux.find(x => x.id === slot.roomId); add('r', o, dates, `Local ${r ? roomShort(r) : ''} déjà occupé par`); }
+      }
+      // disponibilités des enseignants (seulement s'ils les ont renseignées)
+      const need = new Set();
+      occ.forEach(iso => { const dow = plDowOf(iso); if (dow >= 1 && dow <= 5) { if (s0 < PL_HALF) need.add(dow + 'm'); if (e0 > PL_HALF) need.add(dow + 'a'); } });
+      tset.forEach(t => {
+        const dsp = plan.dispos[plEm(t)];
+        if (!dsp) return;
+        Array.from(need).sort().forEach(k => { if (!dsp[k]) errs.push(`${plTeacherName(t)} n'est pas disponible le ${PL_DAYS[+k[0] - 1]} ${k[1] === 'm' ? 'matin' : 'après-midi'}.`); });
+      });
+      return errs;
+    }
+
+    // ----- fenêtre principale -----
+    async function openPlanModal() {
+      if (!isLoggedAdmin()) return;
+      document.getElementById('plYearLbl').textContent = YEAR + (YEAR_RO ? ' (lecture seule)' : '');
+      document.getElementById('planModal').classList.remove('hidden');
+      try { ensureLocauxSync(); } catch (e) { /* ignoré */ }
+      plSay('Chargement…');
+      await Promise.all([plLoad(), loadCalendar(), teachersList.length ? null : Promise.resolve(loadTeachers()).catch(() => {})]);
+      plSay('');
+      if (!plSection || !plSections().includes(plSection)) { plSection = plSections()[0] || ''; plBloc = ''; }
+      if (!plWeek) {
+        const y1 = parseInt(String(YEAR).slice(0, 4), 10) || new Date().getFullYear();
+        const t = new Date(), start = new Date(y1, 8, 1), end = new Date(y1 + 1, 7, 31);
+        const firsts = plan.slots.map(s => s.mode === 'one' ? s.date : s.from).filter(Boolean).sort();
+        plWeek = mondayOf(t >= start && t <= end ? t : (firsts.length ? dateFromIso(firsts[0]) : start));
+      }
+      plShowTab(plTab);
+    }
+    function closePlanModal() { document.getElementById('planModal').classList.add('hidden'); }
+    function plShowTab(tab) {
+      plTab = tab;
+      ['plan', 'dispo'].forEach(t => {
+        document.getElementById('plPane_' + t).classList.toggle('hidden', t !== tab);
+        const b = document.getElementById('plTab_' + t);
+        b.className = 'px-3 py-1 rounded text-xs font-bold ' + (t === tab ? 'bg-white text-[#0a3a60]' : 'bg-white/10 text-white hover:bg-white/20');
+      });
+      if (tab === 'plan') plRender(); else plRenderDispo();
+    }
+    function plSections() { return Array.from(new Set(courses.map(c => c.section || '').filter(Boolean))).sort((a, b) => a.localeCompare(b, 'fr')); }
+    function plBlocsOf(sec) { return Array.from(new Set(courses.filter(c => c.section === sec && c.bloc && c.bloc !== c.section).map(c => c.bloc))).sort((a, b) => a.localeCompare(b, 'fr', {numeric: true})); }
+    function plOnSection() { plSection = document.getElementById('plSection').value; plBloc = ''; plRender(); }
+    function plPickBloc(b) { plBloc = b; plRender(); }
+    function plOnView() { plViewMode = document.getElementById('plView').value; plRender(); }
+    function plOnTeacher() { plTeacherSel = document.getElementById('plTeacher').value; plRender(); }
+    function plStep(n) { plWeek = new Date(plWeek.getFullYear(), plWeek.getMonth(), plWeek.getDate() + 7 * n); plRender(); }
+    function plToday() { plWeek = mondayOf(new Date()); plRender(); }
+    function plGoto(v) { const d = dateFromIso(v); if (d) { plWeek = mondayOf(d); plRender(); } }
+    function plViewCourses() {
+      if (plViewMode === 'teacher') {
+        const t = teachersList.find(x => plEm(x.email) === plEm(plTeacherSel));
+        if (!t) return [];
+        const ids = new Set((t.courseIds || []));
+        plan.slots.forEach(s => { if ((s.teachers || []).some(x => plEm(x) === plEm(t.email))) ids.add(s.courseId); });
+        return courses.filter(c => ids.has(c.id));
+      }
+      return courses.filter(c => c.section === plSection && (!plBloc || c.bloc === plBloc))
+        .sort((a, b) => String(a.bloc || '').localeCompare(String(b.bloc || ''), 'fr', {numeric: true}) || String(a.codeUE || '').localeCompare(String(b.codeUE || ''), 'fr', {numeric: true}));
+    }
+    function plViewSlots() {
+      const ids = new Set(plViewCourses().map(c => c.id));
+      if (plViewMode === 'teacher') return plan.slots.filter(s => (s.teachers || []).some(x => plEm(x) === plEm(plTeacherSel)));
+      return plan.slots.filter(s => ids.has(s.courseId));
+    }
+    function plRender() {
+      const secSel = document.getElementById('plSection');
+      secSel.innerHTML = plSections().map(s => `<option value="${escapeHtml(s)}"${s === plSection ? ' selected' : ''}>${escapeHtml(s)}</option>`).join('') || '<option value="">(aucune UE)</option>';
+      document.getElementById('plView').value = plViewMode;
+      const tSel = document.getElementById('plTeacher');
+      tSel.classList.toggle('hidden', plViewMode !== 'teacher');
+      secSel.classList.toggle('hidden', plViewMode === 'teacher');
+      document.getElementById('plBlocs').classList.toggle('hidden', plViewMode === 'teacher');
+      tSel.innerHTML = '<option value="">— choisissez un enseignant —</option>' + teachersList.filter(t => t.actif !== false).map(t => `<option value="${escapeHtml(t.email)}"${plEm(t.email) === plEm(plTeacherSel) ? ' selected' : ''}>${escapeHtml(teacherLabel(t))}</option>`).join('');
+      const blocs = plBlocsOf(plSection);
+      document.getElementById('plBlocs').innerHTML = blocs.length ? [['', 'Tous les blocs']].concat(blocs.map(b => [b, b])).map(([v, l]) =>
+        `<button onclick="plPickBloc(decodeURIComponent('${encodeURIComponent(v)}'))" class="px-3 py-1.5 rounded border font-bold ${plBloc === v ? 'bg-[#0a3a60] text-white border-[#0a3a60]' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}">${escapeHtml(l)}</button>`).join('') : '';
+      document.getElementById('plGoto').value = isoOf(plWeek);
+      plRenderLeft();
+      plRenderGrid();
+    }
+    function plPeriodTag(planned, target) {
+      const cls = !target ? 'text-slate-500' : planned === target ? 'text-emerald-700' : planned > target ? 'text-red-700' : 'text-amber-700';
+      const ico = !target ? '' : planned === target ? '✔ ' : planned > target ? '⚠ ' : '… ';
+      return `<span class="font-bold ${cls}">${ico}${planned} / ${target || '?'} p</span>`;
+    }
+    function plRenderLeft() {
+      const box = document.getElementById('plLeft');
+      const cs = plViewCourses();
+      if (plViewMode === 'teacher' && !plTeacherSel) { box.innerHTML = '<p class="text-slate-500 p-2">Choisissez un enseignant.</p>'; return; }
+      if (!cs.length) { box.innerHTML = '<p class="text-slate-500 p-2">Aucune UE dans cette sélection.</p>'; return; }
+      let totP = 0, totT = 0;
+      const rows = cs.map(c => {
+        const planned = plPlannedOf(c.id), target = plTarget(c);
+        totP += planned; totT += target;
+        const slots = plan.slots.filter(s => s.courseId === c.id);
+        const names = Array.from(new Set(slots.flatMap(s => s.teachers || []))).map(plTeacherName).join(', ') || String(c.enseignant || '');
+        return `<div class="border border-slate-300 rounded mb-2 bg-white">
+          <div class="px-2 py-1.5 flex items-start gap-2" style="border-left:5px solid ${courseColor(c.id)}">
+            <div class="flex-1 min-w-0"><div class="font-bold text-slate-800 leading-tight">${escapeHtml(c.codeUE || '')} ${escapeHtml(c.titre || c.intituleUE || '')}</div>
+              <div class="text-[11px] text-slate-500 truncate">${escapeHtml(plViewMode === 'teacher' ? [c.section, c.bloc].filter(Boolean).join(' · ') : names)}</div>
+              <div class="text-[11px]">${plPeriodTag(planned, plTarget(c))}</div></div>
+            <button onclick="plNewSlot('${c.id}')" class="px-2 py-1 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded font-semibold shrink-0">+ Planifier</button></div>
+          ${slots.map(s => {
+            const per = plPer(s), n = plOcc(s).length;
+            const when = s.mode === 'one' ? `${frOfIso(s.date)}` : `${PL_DAYS[s.dow - 1]} · ${frOfIso(s.from)} → ${frOfIso(s.to)}`;
+            const r = locaux.find(x => x.id === s.roomId);
+            return `<button onclick="plOpenSlot('${s.id}')" class="block w-full text-left px-2 py-1 border-t border-slate-100 hover:bg-slate-50 text-[11px]"><b>${escapeHtml(s.start)}-${escapeHtml(s.end)}</b> ${escapeHtml(when)} <span class="text-slate-500">· ${n} × ${per} p${r ? ' · ' + escapeHtml(roomShort(r)) : ' · local ?'}</span></button>`;
+          }).join('')}</div>`;
+      }).join('');
+      box.innerHTML = rows + `<div class="border-2 border-[#0a3a60] rounded px-2 py-1.5 bg-slate-50 font-bold">Total : ${plPeriodTag(totP, totT)}</div>
+        <p class="mt-1 text-[11px] text-slate-500">Vert : toutes les périodes de l'UE sont planifiées. Ambre : il en manque. Rouge : trop de périodes.</p>`;
+    }
+    function plRenderGrid() {
+      const box = document.getElementById('plGrid');
+      const days = Array.from({length: 6}, (_, i) => { const d = new Date(plWeek); d.setDate(d.getDate() + i); return d; });
+      document.getElementById('plWeekLbl').textContent = `Semaine du ${fmtDM(days[0])}/${days[0].getFullYear()} au ${fmtDM(days[5])}/${days[5].getFullYear()}`;
+      if (plViewMode === 'teacher' && !plTeacherSel) { box.innerHTML = '<p class="text-slate-500 p-6 text-center">Choisissez un enseignant pour voir son planning.</p>'; return; }
+      const slots = plViewSlots();
+      const wk = new Set(days.map(isoOf));
+      const ents = [];
+      slots.forEach(s => {
+        const errs = plCheck(s, plan.slots);
+        plOcc(s).filter(i => wk.has(i)).forEach(iso => ents.push({s, iso, st: timeToMin(s.start), en: timeToMin(s.end), bad: errs}));
+      });
+      const h0 = Math.min(8, ...ents.map(e => Math.floor(e.st / 60))), h1 = Math.max(21, ...ents.map(e => Math.ceil(e.en / 60)));
+      const PX = 38, H = (h1 - h0) * PX, todayIso = isoOf(new Date());
+      const hours = Array.from({length: h1 - h0}, (_, i) => `<div class="text-[10px] text-slate-500 text-right pr-1 border-t border-slate-200" style="height:${PX}px">${String(h0 + i).padStart(2, '0')}:00</div>`).join('');
+      const cols = days.map(d => {
+        const iso = isoOf(d), closed = closedLabelOf(d);
+        const list = ents.filter(e => e.iso === iso).sort((a, b) => a.st - b.st || a.en - b.en);
+        let clusterEnd = -1, cluster = [];
+        const place = () => { const n = Math.max(...cluster.map(c => c.col)) + 1; cluster.forEach(c => { c.n = n; }); cluster = []; };
+        list.forEach(e => {
+          if (cluster.length && e.st >= clusterEnd) { place(); clusterEnd = -1; }
+          const used = cluster.filter(c => c.e.en > e.st).map(c => c.col);
+          let col = 0; while (used.includes(col)) col++;
+          const cell = {e, col}; cluster.push(cell); clusterEnd = Math.max(clusterEnd, e.en); e._c = cell;
+        });
+        if (cluster.length) place();
+        const blocks = list.map(e => {
+          const c = e._c, c0 = plCourse(e.s.courseId), bad = e.bad.length > 0;
+          const r = locaux.find(x => x.id === e.s.roomId);
+          return `<div onclick="event.stopPropagation();plOpenSlot('${e.s.id}','${iso}')" title="${escapeHtml(bad ? '⚠ ' + e.bad.join('\n') : 'Cliquer pour modifier')}" class="absolute rounded text-white overflow-hidden px-1 py-0.5 shadow cursor-pointer ${bad ? 'outline outline-2 outline-red-600' : ''}" style="top:${(e.st - h0 * 60) / 60 * PX}px;height:${Math.max(22, (e.en - e.st) / 60 * PX - 2)}px;left:calc(${c.col / c.n * 100}% + 1px);width:calc(${100 / c.n}% - 2px);background:${courseColor(e.s.courseId)}">
+            <div class="text-[10px] font-bold leading-tight">${escapeHtml(e.s.start)}-${escapeHtml(e.s.end)} ${escapeHtml(c0 ? c0.codeUE : '?')}</div>
+            <div class="text-[9px] leading-tight truncate">${escapeHtml(c0 ? (c0.titre || c0.intituleUE || '') : '')}</div>
+            <div class="text-[9px] leading-tight truncate">${escapeHtml((e.s.teachers || []).map(t => plTeacherName(t).split(' ')[0]).join(', '))}</div>
+            <div class="text-[9px] leading-tight font-semibold">${r ? '📍 ' + escapeHtml(roomShort(r)) : 'local ?'}</div></div>`;
+        }).join('');
+        return `<div class="flex-1 min-w-[120px] border-l border-slate-300"><div class="text-center text-[11px] font-bold py-1 ${iso === todayIso ? 'bg-amber-400 text-slate-900' : 'bg-[#0a3a60] text-white'}">${PL_DAYS[plDowOf(iso) - 1]} ${fmtDM(d)}</div>
+          <div class="relative ${closed ? 'bg-slate-200' : ''}" onclick="plColClick(event,'${iso}',${h0},${PX})" style="height:${H}px;cursor:cell;background-image:repeating-linear-gradient(to bottom,#e2e8f0 0,#e2e8f0 1px,transparent 1px,transparent ${PX}px)">
+            ${closed ? `<div class="absolute inset-x-0 top-1 text-center text-[10px] font-semibold text-slate-600 px-1">${escapeHtml(closed)}</div>` : ''}${blocks}</div></div>`;
+      }).join('');
+      box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[70vh]"><div class="flex min-w-[860px]"><div class="w-12 shrink-0"><div class="py-1 text-[11px]">&nbsp;</div>${hours}</div>${cols}</div></div>
+        <p class="mt-1 text-[11px] text-slate-500">Cliquez dans une colonne pour planifier un cours à cette heure, ou sur un cours pour le modifier. Gris : congé du calendrier académique. Contour rouge : séance qui ne respecte plus une règle.</p>`;
+    }
+    function plColClick(ev, iso, h0, PX) {
+      if (YEAR_RO) { roBlock(); return; }
+      const rect = ev.currentTarget.getBoundingClientRect();
+      const mins = Math.max(0, Math.round(((ev.clientY - rect.top) / PX * 60) / 30) * 30) + h0 * 60;
+      plNewSlot('', iso, mins);
+    }
+
+    // ----- fenêtre d'une séance -----
+    function plFmtT(m) { return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; }
+    function plDefaultTeachers(courseId) {
+      const c = plCourse(courseId); if (!c) return [];
+      const byIds = teachersList.filter(t => (t.courseIds || []).includes(courseId)).map(t => plEm(t.email));
+      if (byIds.length) return byIds;
+      const e = locSearchNorm(c.enseignant);
+      return e && !/definir/.test(e) ? teachersList.filter(t => e.includes(locSearchNorm(t.nom)) && locSearchNorm(t.nom)).map(t => plEm(t.email)) : [];
+    }
+    function plFillForm(s, dateIso) {
+      const cs = plViewCourses().length ? plViewCourses() : courses;
+      const list = cs.some(c => c.id === s.courseId) ? cs : cs.concat(plCourse(s.courseId) || []);
+      document.getElementById('plsCourse').innerHTML = list.map(c => `<option value="${c.id}"${c.id === s.courseId ? ' selected' : ''}>${escapeHtml((c.bloc && c.bloc !== c.section ? c.bloc + ' · ' : '') + c.codeUE + ' ' + (c.titre || c.intituleUE || ''))}</option>`).join('');
+      plRenderTeacherChecks(s.teachers || []);
+      document.querySelectorAll('input[name=plsMode]').forEach(r => { r.checked = r.value === (s.mode || 'rec'); });
+      document.getElementById('plsDow').value = String(s.dow || 1);
+      document.getElementById('plsFrom').value = s.from || ''; document.getElementById('plsTo').value = s.to || '';
+      document.getElementById('plsDate').value = s.date || '';
+      document.getElementById('plsStart').value = s.start || '09:00'; document.getElementById('plsEnd').value = s.end || '12:20';
+      document.getElementById('plsRoom').innerHTML = '<option value="">— aucun local —</option>' + sortedLocaux().map(r => `<option value="${r.id}"${r.id === s.roomId ? ' selected' : ''}>${escapeHtml(roomLong(r))}</option>`).join('');
+      plEdit.exc = (s.exc || []).slice();
+      plRenderExc();
+    }
+    function plRenderTeacherChecks(sel) {
+      const set = new Set((sel || []).map(plEm));
+      document.getElementById('plsTeachers').innerHTML = teachersList.filter(t => t.actif !== false || set.has(plEm(t.email))).map(t =>
+        `<label class="inline-flex items-center gap-1"><input type="checkbox" value="${escapeHtml(plEm(t.email))}" ${set.has(plEm(t.email)) ? 'checked' : ''} onchange="plSlotChanged()"> ${escapeHtml(teacherLabel(t))}${plan.dispos[plEm(t.email)] ? '' : ' <span class="text-slate-400">(dispo ?)</span>'}</label>`).join('') || '<span class="text-slate-500">Aucun enseignant (créez-les via « Gérer les enseignants »).</span>';
+    }
+    function plNewSlot(courseId, iso, mins) {
+      if (YEAR_RO) { roBlock(); return; }
+      const cs = plViewCourses();
+      const cid = courseId || (cs[0] && cs[0].id) || '';
+      if (!cid) { alert("Aucune UE à planifier dans cette sélection."); return; }
+      plEdit = {id: null, dateIso: null, exc: []};
+      const m0 = mins != null ? mins : 9 * 60, per = 4 * PERIOD_MINUTES;
+      const last = plan.slots.filter(s => s.courseId === cid && s.mode !== 'one').sort((a, b) => String(b.to).localeCompare(String(a.to)))[0];
+      const s = {courseId: cid, teachers: plDefaultTeachers(cid), mode: 'rec', dow: iso ? plDowOf(iso) || 1 : 1, from: iso || isoOf(plWeek), to: last ? last.to : '', start: plFmtT(m0), end: plFmtT(Math.min(m0 + per, 23 * 60 + 55)), roomId: '', exc: []};
+      document.getElementById('plsTitle').textContent = 'Planifier un cours';
+      document.getElementById('plsDelBtn').classList.add('hidden'); document.getElementById('plsSkipBtn').classList.add('hidden');
+      plFillForm(s); plShowSlot();
+    }
+    function plOpenSlot(id, dateIso) {
+      const s = plan.slots.find(x => x.id === id); if (!s) return;
+      plEdit = {id, dateIso: dateIso || null, exc: (s.exc || []).slice()};
+      document.getElementById('plsTitle').textContent = 'Modifier la planification';
+      document.getElementById('plsDelBtn').classList.toggle('hidden', !!YEAR_RO);
+      const sk = document.getElementById('plsSkipBtn');
+      const canSkip = !YEAR_RO && s.mode !== 'one' && dateIso;
+      sk.classList.toggle('hidden', !canSkip);
+      if (canSkip) sk.textContent = `Pas de cours le ${frOfIso(dateIso)}`;
+      plFillForm(s); plShowSlot();
+    }
+    function plShowSlot() { document.getElementById('planSlotModal').classList.remove('hidden'); plSlotChanged(); }
+    function plCloseSlot() { document.getElementById('planSlotModal').classList.add('hidden'); plEdit = null; }
+    function plReadSlot() {
+      const g = id => document.getElementById(id);
+      const mode = (document.querySelector('input[name=plsMode]:checked') || {}).value || 'rec';
+      return {id: plEdit && plEdit.id || ('p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+        courseId: g('plsCourse').value, teachers: Array.from(g('plsTeachers').querySelectorAll('input:checked')).map(i => i.value),
+        mode, dow: parseInt(g('plsDow').value, 10) || 1, from: g('plsFrom').value, to: g('plsTo').value, date: g('plsDate').value,
+        start: g('plsStart').value, end: g('plsEnd').value, roomId: g('plsRoom').value, exc: (plEdit && plEdit.exc || []).slice()};
+    }
+    function plSlotChanged(courseChanged) {
+      if (!plEdit) return;
+      const g = id => document.getElementById(id);
+      if (courseChanged) plRenderTeacherChecks(plDefaultTeachers(g('plsCourse').value));
+      const s = plReadSlot();
+      const one = s.mode === 'one';
+      g('plsRecBox').classList.toggle('hidden', one); g('plsOneBox').classList.toggle('hidden', !one); g('plsExcBox').classList.toggle('hidden', one);
+      const c = plCourse(s.courseId), occ = plOcc(s), per = plPer(s);
+      const others = plan.slots.filter(x => x.id !== s.id);
+      const planned = plPlannedOf(s.courseId, others) + occ.length * per, target = c ? plTarget(c) : 0;
+      g('plsInfo').innerHTML = `<b>${occ.length}</b> séance(s) × <b>${per}</b> période(s) = <b>${occ.length * per}</b> p pour cette planification.<br>
+        UE : ${plPeriodTag(planned, target)} (total planifié / périodes de l'UE)`
+        + (one || !c || !target ? '' : ` <button type="button" onclick="plFillTo()" class="ml-2 px-2 py-0.5 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded font-semibold">🎯 Calculer la date de fin pour atteindre ${target} p</button>`);
+      const errs = plCheck(s, plan.slots);
+      const eb = g('plsErr'); eb.classList.toggle('hidden', !errs.length);
+      eb.innerHTML = errs.length ? '<b>Enregistrement impossible :</b><ul class="list-disc pl-5 mt-1">' + errs.map(e => `<li>${escapeHtml(e)}</li>`).join('') + '</ul>' : '';
+    }
+    function plRenderExc() {
+      const el = document.getElementById('plsExcList');
+      el.innerHTML = (plEdit.exc || []).slice().sort().map(d => `<span class="inline-flex items-center gap-1 bg-amber-100 text-amber-900 rounded px-1.5 py-0.5">${frOfIso(d)} <button type="button" onclick="plDelExc('${d}')" class="font-bold hover:text-red-700">✕</button></span>`).join('');
+    }
+    function plAddExc() { const v = document.getElementById('plsExcIn').value; if (v && !plEdit.exc.includes(v)) { plEdit.exc.push(v); plRenderExc(); plSlotChanged(); } document.getElementById('plsExcIn').value = ''; }
+    function plDelExc(d) { plEdit.exc = plEdit.exc.filter(x => x !== d); plRenderExc(); plSlotChanged(); }
+    // date de fin = première date où le total des périodes de l'UE atteint la cible
+    function plFillTo() {
+      const s = plReadSlot(), c = plCourse(s.courseId); if (!c || s.mode === 'one' || !s.from) return;
+      const per = plPer(s), need = plTarget(c) - plPlannedOf(s.courseId, plan.slots.filter(x => x.id !== s.id));
+      if (!per || need <= 0) { document.getElementById('plsErr').classList.remove('hidden'); document.getElementById('plsErr').textContent = need <= 0 ? "Les périodes de l'UE sont déjà toutes planifiées par ailleurs." : "Heures invalides."; return; }
+      let acc = 0, last = null;
+      const far = Object.assign({}, s, {to: isoOf(new Date(dateFromIso(s.from).getFullYear() + 2, 11, 31))});
+      for (const iso of plOcc(far)) { acc += per; last = iso; if (acc >= need) break; }
+      if (last) { document.getElementById('plsTo').value = last; plSlotChanged(); }
+    }
+    function plSaveSlot() {
+      if (YEAR_RO) { roBlock(); return; }
+      const s = plReadSlot(), errs = plCheck(s, plan.slots);
+      if (errs.length) { plSlotChanged(); return; }
+      const i = plan.slots.findIndex(x => x.id === s.id);
+      if (i >= 0) plan.slots[i] = s; else plan.slots.push(s);
+      plPersist(); plCloseSlot(); plRender();
+    }
+    function plDeleteSlot() {
+      if (YEAR_RO || !plEdit || !plEdit.id) return;
+      if (!confirm("Supprimer cette planification (toutes ses séances) ?")) return;
+      plan.slots = plan.slots.filter(x => x.id !== plEdit.id);
+      plPersist(); plCloseSlot(); plRender();
+    }
+    function plSkipThisDate() {
+      if (YEAR_RO || !plEdit || !plEdit.id || !plEdit.dateIso) return;
+      const s = plan.slots.find(x => x.id === plEdit.id); if (!s) return;
+      s.exc = (s.exc || []).concat(plEdit.dateIso);
+      plPersist(); plCloseSlot(); plRender();
+    }
+
+    // ----- disponibilités des enseignants -----
+    function plRenderDispoList() {
+      const q = locSearchNorm((document.getElementById('plDSearch') || {}).value || '');
+      const list = teachersList.filter(t => t.actif !== false && (!q || locSearchNorm(teacherLabel(t) + ' ' + t.email).includes(q)));
+      document.getElementById('plDList').innerHTML = list.map(t => {
+        const cfg = !!plan.dispos[plEm(t.email)];
+        return `<button onclick="plPickDispo(decodeURIComponent('${encodeURIComponent(t.email)}'))" class="block w-full text-left px-2 py-1.5 border-b border-slate-100 hover:bg-sky-50 ${plEm(t.email) === plEm(plDispoSel) ? 'bg-sky-100 font-bold' : ''}">${escapeHtml(teacherLabel(t))} <span class="${cfg ? 'text-emerald-700' : 'text-slate-400'}">${cfg ? '✔ renseignées' : '(non renseignées)'}</span></button>`;
+      }).join('') || '<p class="p-2 text-slate-500">Aucun enseignant.</p>';
+    }
+    function plPickDispo(email) { plDispoSel = email; plRenderDispo(); }
+    function plRenderDispo() {
+      plRenderDispoList();
+      const box = document.getElementById('plDBody');
+      const t = teachersList.find(x => plEm(x.email) === plEm(plDispoSel));
+      if (!t) { box.innerHTML = '<p class="text-slate-500 p-4">Choisissez un enseignant dans la liste pour indiquer ses disponibilités (jours et demi-journées).</p>'; return; }
+      const d = plan.dispos[plEm(t.email)];
+      const ro = !!YEAR_RO;
+      const row = i => `<tr><td class="border border-slate-300 px-3 py-2 font-semibold bg-slate-50">${PL_DAYS[i][0].toUpperCase() + PL_DAYS[i].slice(1)}</td>` +
+        ['m', 'a'].map(h => `<td class="border border-slate-300 text-center"><label class="block py-2 cursor-pointer"><input type="checkbox" ${d && d[(i + 1) + h] ? 'checked' : ''} ${ro ? 'disabled' : ''} onchange="plDispoToggle('${(i + 1) + h}', this.checked)" class="w-5 h-5"></label></td>`).join('') + '</tr>';
+      const bad = d ? plan.slots.filter(s => (s.teachers || []).some(x => plEm(x) === plEm(t.email)) && plCheck(s, plan.slots).some(e => e.includes("n'est pas disponible"))).length : 0;
+      box.innerHTML = `<h3 class="font-bold text-sm text-[#0a3a60] mb-1">${escapeHtml(teacherLabel(t))}</h3>
+        <p class="mb-2 ${d ? 'text-emerald-700' : 'text-amber-700'}">${d ? 'Cochez les demi-journées où l\'enseignant PEUT donner cours. Ce qui n\'est pas coché est refusé dans le planning.' : 'Disponibilités non renseignées : aucune contrainte n\'est appliquée à cet enseignant. Cochez des cases (ou « Tout cocher ») pour les définir.'}</p>
+        <table class="border-collapse text-xs"><thead><tr><th class="px-3 py-1"></th><th class="px-6 py-1 bg-[#0a3a60] text-white">Matin</th><th class="px-6 py-1 bg-[#0a3a60] text-white">Après-midi</th></tr></thead><tbody>${[0, 1, 2, 3, 4].map(row).join('')}</tbody></table>
+        <p class="mt-1 text-[11px] text-slate-500">Matin : cours commençant avant 12:30. Après-midi (et soirée) : cours se terminant après 12:30. Le samedi n'est pas contrôlé.</p>
+        ${bad ? `<p class="mt-2 text-red-700 font-semibold">⚠ ${bad} planification(s) existante(s) ne respectent plus ces disponibilités (en rouge dans le planning).</p>` : ''}
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button ${ro ? 'disabled' : ''} onclick="plDispoAll(true)" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded font-semibold">Tout cocher</button>
+          <button ${ro ? 'disabled' : ''} onclick="plDispoAll(false)" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded font-semibold">Tout décocher</button>
+          <button ${ro ? 'disabled' : ''} onclick="plDispoClear()" class="px-3 py-1.5 text-red-700 hover:bg-red-50 rounded font-semibold">Supprimer les disponibilités (aucune contrainte)</button></div>`;
+    }
+    function plDispoToggle(key, on) {
+      if (YEAR_RO) { roBlock(); return; }
+      const e = plEm(plDispoSel);
+      if (!plan.dispos[e]) plan.dispos[e] = {};
+      plan.dispos[e][key] = !!on;
+      plPersist(); plRenderDispo();
+    }
+    function plDispoAll(on) {
+      if (YEAR_RO) { roBlock(); return; }
+      const o = {}; for (let i = 1; i <= 5; i++) { o[i + 'm'] = !!on; o[i + 'a'] = !!on; }
+      plan.dispos[plEm(plDispoSel)] = o; plPersist(); plRenderDispo();
+    }
+    function plDispoClear() {
+      if (YEAR_RO) { roBlock(); return; }
+      delete plan.dispos[plEm(plDispoSel)]; plPersist(); plRenderDispo();
+    }
 
     // ----- Grilles d'évaluation individuelles : une copie de la grille Excel de l'UE par étudiant (nom + acquis + décision) -----
     function gridCellText(c, sst) {
