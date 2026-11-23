@@ -568,12 +568,8 @@
 
   <div id="planDispoModal" class="fixed inset-0 z-[60] bg-black/50 hidden flex items-center justify-center p-3">
     <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden">
-      <div class="bg-[#0a3a60] text-white px-4 py-2 flex items-center"><h3 id="pdsTitle" class="font-bold text-sm mr-auto">Disponibilité</h3><button onclick="plClosePds()" class="text-slate-300 hover:text-white font-bold">✕</button></div>
+      <div class="bg-[#0a3a60] text-white px-4 py-2 flex items-center"><h3 id="pdsTitle" class="font-bold text-sm mr-auto">Indisponibilité</h3><button onclick="plClosePds()" class="text-slate-300 hover:text-white font-bold">✕</button></div>
       <div class="p-4 text-xs text-slate-700 grid grid-cols-2 gap-3">
-        <div class="col-span-2 flex gap-4">
-          <label class="inline-flex items-center gap-1 font-semibold text-emerald-700"><input type="radio" name="pdsType" value="ok"> ✅ Disponible</label>
-          <label class="inline-flex items-center gap-1 font-semibold text-red-700"><input type="radio" name="pdsType" value="no"> ⛔ Indisponible (absence, congé…)</label>
-        </div>
         <div><label class="font-semibold block mb-0.5">Du</label><input type="date" id="pdsFrom" class="w-full border border-slate-300 rounded px-2 py-1"></div>
         <div><label class="font-semibold block mb-0.5">Au (inclus)</label><input type="date" id="pdsTo" class="w-full border border-slate-300 rounded px-2 py-1"></div>
         <div class="col-span-2 flex gap-2">
@@ -585,7 +581,7 @@
             <label><input type="checkbox" class="pdsDay" value="1"> Lundi</label><label><input type="checkbox" class="pdsDay" value="2"> Mardi</label><label><input type="checkbox" class="pdsDay" value="3"> Mercredi</label><label><input type="checkbox" class="pdsDay" value="4"> Jeudi</label><label><input type="checkbox" class="pdsDay" value="5"> Vendredi</label></div></div>
         <div class="col-span-2"><label class="font-semibold block mb-0.5">Plages</label>
           <div class="flex gap-4"><label><input type="checkbox" class="pdsHalf" value="m"> Matin</label><label><input type="checkbox" class="pdsHalf" value="a"> Après-midi (et soir)</label></div></div>
-        <div class="col-span-2"><label class="font-semibold block mb-0.5">Note (facultatif)</label><input type="text" id="pdsNote" maxlength="120" class="w-full border border-slate-300 rounded px-2 py-1" placeholder="ex. autre employeur, formation…"></div>
+        <div class="col-span-2"><label class="font-semibold block mb-0.5">Note (facultatif)</label><input type="text" id="pdsNote" maxlength="120" class="w-full border border-slate-300 rounded px-2 py-1" placeholder="ex. autre employeur, formation, congé…"></div>
         <div id="pdsErr" class="col-span-2 hidden bg-red-50 border border-red-300 text-red-800 rounded p-2"></div>
       </div>
       <div class="px-4 py-3 border-t border-slate-200 flex gap-2 justify-end bg-slate-50">
@@ -5011,20 +5007,16 @@
     function plOthers() {
       return plan.slots.map(x => (plEdit && plEdit.skip && x.id === plEdit.skip.id) ? Object.assign({}, x, {exc: (x.exc || []).concat(plEdit.skip.date)}) : x);
     }
-    // Disponibilités = événements façon Outlook : {id, type:'ok'|'no', from, to, dows:[1-5], halves:['m','a'], note}
-    //  - aucune disponibilité renseignée : aucune contrainte ; sinon un jour/demi-journée n'est possible que s'il est couvert par un événement « disponible »
-    //  - un événement « indisponible » (absence, congé…) l'emporte toujours
-    //  - ancien réglage hebdomadaire (plan.dispos) toujours pris en compte
-    function plConfigured(email) { const e = plEm(email); return !!((plan.avail[e] || []).length || plan.dispos[e]); }
+    // Indisponibilités = événements façon Outlook : {id, type:'no', from, to, dows:[1-5], halves:['m','a'], note}
+    //  - par défaut un enseignant est disponible ; seuls les événements « indisponible » bloquent le planning
+    //  - ancien réglage hebdomadaire (plan.dispos) toujours pris en compte s'il existe
+    function plConfigured(email) { const e = plEm(email); return !!((plan.avail[e] || []).some(ev => ev.type === 'no') || plan.dispos[e]); }
     function plAvailable(email, iso, half) {
       const e = plEm(email), dow = plDowOf(iso);
       if (dow < 1 || dow > 5) return true;
-      const evs = plan.avail[e] || [], old = plan.dispos[e];
-      const cover = ev => iso >= ev.from && iso <= ev.to && (ev.dows || []).includes(dow) && (ev.halves || []).includes(half);
-      if (evs.some(ev => ev.type === 'no' && cover(ev))) return false;
-      const oks = evs.filter(ev => ev.type !== 'no');
-      if (!oks.length && !old) return true;
-      return oks.some(cover) || !!(old && old[dow + half]);
+      if ((plan.avail[e] || []).some(ev => ev.type === 'no' && iso >= ev.from && iso <= ev.to && (ev.dows || []).includes(dow) && (ev.halves || []).includes(half))) return false;
+      const old = plan.dispos[e];
+      return !old || !!old[dow + half];
     }
     // demi-journée « m » (avant 12:30) ou « a » (après) indisponible pour l'enseignant sélectionné en vue enseignant ?
     function plBlockedFor(iso, half) {
@@ -5416,7 +5408,7 @@
     function plRenderTeacherChecks(sel) {
       const set = new Set((sel || []).map(plEm));
       document.getElementById('plsTeachers').innerHTML = teachersList.filter(t => t.actif !== false || set.has(plEm(t.email))).map(t =>
-        `<label class="inline-flex items-center gap-1"><input type="checkbox" value="${escapeHtml(plEm(t.email))}" ${set.has(plEm(t.email)) ? 'checked' : ''} onchange="plSlotChanged()"> ${escapeHtml(teacherLabel(t))}${plConfigured(t.email) ? '' : ' <span class="text-slate-400">(dispo ?)</span>'}</label>`).join('') || '<span class="text-slate-500">Aucun enseignant (créez-les via « Gérer les enseignants »).</span>';
+        `<label class="inline-flex items-center gap-1"><input type="checkbox" value="${escapeHtml(plEm(t.email))}" ${set.has(plEm(t.email)) ? 'checked' : ''} onchange="plSlotChanged()"> ${escapeHtml(teacherLabel(t))}</label>`).join('') || '<span class="text-slate-500">Aucun enseignant (créez-les via « Gérer les enseignants »).</span>';
     }
     function plNewSlot(courseId, iso, mins, endMins) {
       if (YEAR_RO) { roBlock(); return; }
@@ -5649,7 +5641,7 @@
       const list = teachersList.filter(t => t.actif !== false && (!q || locSearchNorm(teacherLabel(t) + ' ' + t.email).includes(q)));
       document.getElementById('plDList').innerHTML = list.map(t => {
         const cfg = plConfigured(t.email);
-        return `<button onclick="plPickDispo(decodeURIComponent('${encodeURIComponent(t.email)}'))" class="block w-full text-left px-2 py-1.5 border-b border-slate-100 hover:bg-sky-50 ${plEm(t.email) === plEm(plDispoSel) ? 'bg-sky-100 font-bold' : ''}">${escapeHtml(teacherLabel(t))} <span class="${cfg ? 'text-emerald-700' : 'text-slate-400'}">${cfg ? '✔ renseignées' : '(non renseignées)'}</span></button>`;
+        return `<button onclick="plPickDispo(decodeURIComponent('${encodeURIComponent(t.email)}'))" class="block w-full text-left px-2 py-1.5 border-b border-slate-100 hover:bg-sky-50 ${plEm(t.email) === plEm(plDispoSel) ? 'bg-sky-100 font-bold' : ''}">${escapeHtml(teacherLabel(t))} <span class="${cfg ? 'text-red-700' : 'text-slate-400'}">${cfg ? '⛔ indisponibilités' : ''}</span></button>`;
       }).join('') || '<p class="p-2 text-slate-500">Aucun enseignant.</p>';
     }
     function plPickDispo(email) { plDispoSel = email; plRenderDispo(); }
@@ -5663,24 +5655,23 @@
       plRenderDispoList();
       const box = document.getElementById('plDBody');
       const t = teachersList.find(x => plEm(x.email) === plEm(plDispoSel));
-      if (!t) { box.innerHTML = '<p class="text-slate-500 p-4">Choisissez un enseignant dans la liste, puis ajoutez ses disponibilités comme des événements (période, jours, matin / après-midi).</p>'; return; }
-      const e = plEm(t.email), evs = (plan.avail[e] || []).slice().sort((a, b) => String(a.from).localeCompare(String(b.from))), old = plan.dispos[e], ro = !!YEAR_RO;
+      if (!t) { box.innerHTML = '<p class="text-slate-500 p-4">Choisissez un enseignant dans la liste, puis ajoutez ses indisponibilités comme des événements (période, jours, matin / après-midi). Sans indisponibilité, l\'enseignant est considéré comme toujours disponible.</p>'; return; }
+      const e = plEm(t.email), evs = (plan.avail[e] || []).filter(x => x.type === 'no').sort((a, b) => String(a.from).localeCompare(String(b.from))), old = plan.dispos[e], ro = !!YEAR_RO;
       const cfg = plConfigured(t.email);
-      const rows = evs.map(ev => `<div class="flex items-center gap-2 border border-slate-200 rounded px-2 py-1.5 mb-1 ${ev.type === 'no' ? 'bg-red-50' : 'bg-emerald-50'}">
-          <span class="font-bold ${ev.type === 'no' ? 'text-red-700' : 'text-emerald-700'}">${ev.type === 'no' ? '⛔ Indisponible' : '✅ Disponible'}</span>
+      const rows = evs.map(ev => `<div class="flex items-center gap-2 border border-slate-200 rounded px-2 py-1.5 mb-1 bg-red-50">
+          <span class="font-bold text-red-700">⛔ Indisponible</span>
           <span class="flex-1">${escapeHtml(plEvText(ev))}${ev.note ? ` <span class="text-slate-500">· ${escapeHtml(ev.note)}</span>` : ''}</span>
           <button ${ro ? 'disabled' : ''} onclick="plOpenDEvent('${ev.id}')" class="px-2 py-0.5 text-sky-700 hover:bg-sky-100 rounded font-semibold">✏ Modifier</button>
           <button ${ro ? 'disabled' : ''} onclick="plDelDEvent('${ev.id}')" class="px-2 py-0.5 text-red-700 hover:bg-red-100 rounded font-semibold">🗑</button></div>`).join('');
       const bad = cfg ? plan.slots.filter(s => (s.teachers || []).some(x => plEm(x) === e) && plCheck(s, plan.slots).some(m => m.includes("n'est pas disponible"))).length : 0;
       box.innerHTML = `<h3 class="font-bold text-sm text-[#0a3a60] mb-1">${escapeHtml(teacherLabel(t))}</h3>
-        <p class="mb-2 ${cfg ? 'text-emerald-700' : 'text-amber-700'}">${cfg ? "Dès qu'une disponibilité est renseignée, l'enseignant ne peut être planifié que dans ses plages « disponibles » (les « indisponibles » l'emportent)." : "Aucune disponibilité renseignée : aucune contrainte n'est appliquée à cet enseignant."}</p>
+        <p class="mb-2 ${cfg ? 'text-emerald-700' : 'text-amber-700'}">${cfg ? "Les plages indisponibles sont bloquées dans le planning ; partout ailleurs l'enseignant reste disponible." : "Aucune indisponibilité : l'enseignant est disponible partout."}</p>
         <div class="flex flex-wrap gap-2 mb-2">
-          <button ${ro ? 'disabled' : ''} onclick="plOpenDEvent('', 'ok')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold shadow">➕ Ajouter une disponibilité</button>
           <button ${ro ? 'disabled' : ''} onclick="plOpenDEvent('', 'no')" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded font-bold shadow">⛔ Ajouter une indisponibilité</button></div>
         ${rows || '<p class="text-slate-500 mb-2">Aucun événement.</p>'}
         ${old ? `<div class="flex items-center gap-2 border border-slate-200 rounded px-2 py-1.5 mb-1 bg-slate-50"><span class="flex-1">Ancien réglage hebdomadaire (toute l'année) : ${[1, 2, 3, 4, 5].map(d => PL_DAYS[d - 1].slice(0, 3) + ' ' + (old[d + 'm'] ? 'M' : '') + (old[d + 'a'] ? 'A' : '') ).join(' · ')}</span><button ${ro ? 'disabled' : ''} onclick="plDispoClear()" class="px-2 py-0.5 text-red-700 hover:bg-red-100 rounded font-semibold">🗑</button></div>` : ''}
         ${bad ? `<p class="mt-2 text-red-700 font-semibold">⚠ ${bad} planification(s) existante(s) ne respectent plus ces disponibilités (en rouge dans le planning).</p>` : ''}
-        <h4 class="font-bold text-slate-700 mt-4 mb-1">Aperçu de l'année, semaine par semaine <span class="font-normal text-slate-500">(cliquez sur une semaine pour y ajouter une disponibilité ou une indisponibilité)</span></h4>
+        <h4 class="font-bold text-slate-700 mt-4 mb-1">Aperçu de l'année, semaine par semaine <span class="font-normal text-slate-500">(cliquez sur une semaine pour y ajouter une indisponibilité)</span></h4>
         ${plRenderDispoYear(t)}`;
     }
     function plRenderDispoYear(t) {
@@ -5695,15 +5686,15 @@
           if (!closed) allClosed = false;
           ['m', 'a'].forEach(half => {
             const ok = plAvailable(t.email, iso, half);
-            cells.push(`<td class="border border-white w-5 h-5 ${closed ? 'bg-slate-200' : ok ? (cfg ? 'bg-emerald-400' : 'bg-emerald-100') : 'bg-red-300'}" title="${escapeHtml(PL_DAYS[i] + ' ' + frOfIso(iso) + ' ' + (half === 'm' ? 'matin' : 'après-midi') + (closed ? ' · congé' : ok ? '' : ' · indisponible'))}"></td>`);
+            cells.push(`<td class="border border-white w-5 h-5 ${closed ? 'bg-slate-200' : ok ? 'bg-emerald-100' : 'bg-red-400'}" title="${escapeHtml(PL_DAYS[i] + ' ' + frOfIso(iso) + ' ' + (half === 'm' ? 'matin' : 'après-midi') + (closed ? ' · congé' : ok ? '' : ' · indisponible'))}"></td>`);
           });
         }
         const fri = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 4);
-        rows += `<tr class="cursor-pointer hover:outline hover:outline-2 hover:outline-sky-500" onclick="plOpenDEvent('', 'ok', '${mon}', '${isoOf(fri)}')"><td class="pr-2 text-[10px] text-slate-500 whitespace-nowrap">${fmtDM(cur)} → ${fmtDM(fri)}</td>${cells.join('')}</tr>`;
+        rows += `<tr class="cursor-pointer hover:outline hover:outline-2 hover:outline-sky-500" onclick="plOpenDEvent('', 'no', '${mon}', '${isoOf(fri)}')"><td class="pr-2 text-[10px] text-slate-500 whitespace-nowrap">${fmtDM(cur)} → ${fmtDM(fri)}</td>${cells.join('')}</tr>`;
         cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 7);
       }
       return `<div class="max-h-[40vh] overflow-auto border border-slate-200 rounded p-2 inline-block"><table class="border-collapse"><thead><tr><th></th>${WD.map(d => `<th colspan="2" class="text-[10px] text-slate-600">${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
-        <p class="mt-1 text-[11px] text-slate-500">Chaque jour : colonne gauche = matin, droite = après-midi. Vert : disponible · Rouge : indisponible · Gris : congé du calendrier académique.</p>`;
+        <p class="mt-1 text-[11px] text-slate-500">Chaque jour : colonne gauche = matin, droite = après-midi. Vert clair : disponible · Rouge : indisponible · Gris : congé du calendrier académique.</p>`;
     }
     function plOpenDEvent(id, type, from, to) {
       if (YEAR_RO) { roBlock(); return; }
@@ -5712,9 +5703,9 @@
       const yb = plYearBounds();
       plDEdit = {id: id || null};
       const g = i => document.getElementById(i);
-      const e = ev || {type: type || 'ok', from: from || yb.from, to: to || yb.to, dows: [1, 2, 3, 4, 5], halves: ['m', 'a'], note: ''};
-      g('pdsTitle').textContent = (id ? 'Modifier' : 'Ajouter') + ' · ' + plTeacherName(plDispoSel);
-      document.querySelectorAll('input[name=pdsType]').forEach(r => { r.checked = r.value === e.type; });
+      const mon = mondayOf(new Date()), wk = isoOf(mon), wkEnd = isoOf(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 4));
+      const e = ev || {type: 'no', from: from || (wk >= yb.from && wk <= yb.to ? wk : yb.from), to: to || (wk >= yb.from && wk <= yb.to ? wkEnd : yb.from), dows: [1, 2, 3, 4, 5], halves: ['m', 'a'], note: ''};
+      g('pdsTitle').textContent = (id ? 'Modifier une indisponibilité' : 'Ajouter une indisponibilité') + ' · ' + plTeacherName(plDispoSel);
       g('pdsFrom').value = e.from; g('pdsTo').value = e.to; g('pdsNote').value = e.note || '';
       document.querySelectorAll('.pdsDay').forEach(c => { c.checked = (e.dows || []).includes(+c.value); });
       document.querySelectorAll('.pdsHalf').forEach(c => { c.checked = (e.halves || []).includes(c.value); });
@@ -5732,7 +5723,7 @@
       if (YEAR_RO) { roBlock(); return; }
       const g = i => document.getElementById(i);
       const ev = {id: (plDEdit && plDEdit.id) || ('d' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
-        type: (document.querySelector('input[name=pdsType]:checked') || {}).value || 'ok', from: g('pdsFrom').value, to: g('pdsTo').value,
+        type: 'no', from: g('pdsFrom').value, to: g('pdsTo').value,
         dows: Array.from(document.querySelectorAll('.pdsDay:checked')).map(c => +c.value), halves: Array.from(document.querySelectorAll('.pdsHalf:checked')).map(c => c.value), note: g('pdsNote').value.trim()};
       const err = !ev.from || !ev.to || ev.to < ev.from ? "Choisissez une période valide (du … au …)." : !ev.dows.length ? "Cochez au moins un jour." : !ev.halves.length ? "Cochez matin et/ou après-midi." : '';
       if (err) { g('pdsErr').textContent = err; g('pdsErr').classList.remove('hidden'); return; }
@@ -5743,7 +5734,7 @@
     }
     function plDelDEvent(id) {
       if (YEAR_RO) { roBlock(); return; }
-      if (!confirm("Supprimer cet événement de disponibilité ?")) return;
+      if (!confirm("Supprimer cette indisponibilité ?")) return;
       const e = plEm(plDispoSel); plan.avail[e] = (plan.avail[e] || []).filter(x => x.id !== id);
       if (!plan.avail[e].length) delete plan.avail[e];
       plPersist(); plClosePds(); plRenderDispo();
