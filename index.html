@@ -4978,6 +4978,13 @@
     function plOthers() {
       return plan.slots.map(x => (plEdit && plEdit.skip && x.id === plEdit.skip.id) ? Object.assign({}, x, {exc: (x.exc || []).concat(plEdit.skip.date)}) : x);
     }
+    // demi-journée « m » (avant 12:30) ou « a » (après) indisponible pour l'enseignant sélectionné en vue enseignant ?
+    function plBlockedFor(iso, half) {
+      if (plViewMode !== 'teacher' || !plTeacherSel) return false;
+      const dsp = plan.dispos[plEm(plTeacherSel)], dow = plDowOf(iso);
+      return !!dsp && dow >= 1 && dow <= 5 && !dsp[dow + half];
+    }
+    function plBlockMsg(iso, half) { return `${plTeacherName(plTeacherSel)} n'est pas disponible le ${PL_DAYS[plDowOf(iso) - 1]} ${half === 'm' ? 'matin' : 'après-midi'} (voir « Disponibilités des enseignants »).`; }
     function plSlotLabel(o) {
       const c = plCourse(o.courseId);
       return `« ${c ? c.codeUE + ' ' + (c.titre || c.intituleUE || '') : '?'} »`;
@@ -5177,7 +5184,7 @@
         }).join('');
         return `<div class="flex-1 min-w-[120px] border-l border-slate-300"><div class="text-center text-[11px] font-bold py-1 ${iso === todayIso ? 'bg-amber-400 text-slate-900' : 'bg-[#0a3a60] text-white'}">${PL_DAYS[plDowOf(iso) - 1]} ${fmtDM(d)}</div>
           <div class="relative select-none ${closed ? 'bg-slate-200' : ''}" data-pliso="${iso}" data-plh0="${h0}" onmousedown="plColDown(event,'${iso}',${h0},${PX})" style="height:${H}px;cursor:cell;background-image:repeating-linear-gradient(to bottom,#e2e8f0 0,#e2e8f0 1px,transparent 1px,transparent ${PX}px)">
-            ${closed ? `<div class="absolute inset-x-0 top-1 text-center text-[10px] font-semibold text-slate-600 px-1">${escapeHtml(closed)}</div>` : ''}${blocks}</div></div>`;
+            ${closed ? `<div class="absolute inset-x-0 top-1 text-center text-[10px] font-semibold text-slate-600 px-1">${escapeHtml(closed)}</div>` : ''}${plBlockOverlay(iso, h0, h1, PX)}${blocks}</div></div>`;
       }).join('');
       box.innerHTML = `<div class="border border-slate-300 rounded overflow-auto max-h-[70vh]"><div class="flex min-w-[860px]"><div class="w-12 shrink-0"><div class="py-1 text-[11px]">&nbsp;</div>${hours}</div>${cols}</div></div>
         <p class="mt-1 text-[11px] text-slate-500">Cliquez dans une colonne pour planifier un cours à cette heure, ou sur un cours pour le modifier. Gris : congé du calendrier académique. Contour rouge : séance qui ne respecte plus une règle.</p>`;
@@ -5190,10 +5197,20 @@
       document.addEventListener('mousemove', plDragMove);
       document.addEventListener('mouseup', plDragUp);
     }
+    function plBlockOverlay(iso, h0, h1, PX) {
+      const hatch = 'background-image:repeating-linear-gradient(45deg,rgba(148,163,184,.55) 0,rgba(148,163,184,.55) 4px,rgba(226,232,240,.55) 4px,rgba(226,232,240,.55) 8px)';
+      let out = '';
+      const cut = (PL_HALF - h0 * 60) / 60 * PX;
+      if (h0 * 60 < PL_HALF && plBlockedFor(iso, 'm')) out += `<div class="absolute inset-x-0 pointer-events-none flex items-start justify-center text-[10px] font-semibold text-slate-700" style="top:0;height:${cut}px;${hatch}">indisponible</div>`;
+      if (plBlockedFor(iso, 'a')) { const top = Math.max(0, cut); out += `<div class="absolute inset-x-0 pointer-events-none flex items-start justify-center text-[10px] font-semibold text-slate-700" style="top:${top}px;height:${(h1 * 60 - h0 * 60) / 60 * PX - top}px;${hatch}">indisponible</div>`; }
+      return out;
+    }
     function plColDown(ev, iso, h0, PX) {
       if (ev.button !== 0 || ev.target.closest('[data-plblock]')) return;
       if (YEAR_RO) { roBlock(); return; }
       const col = ev.currentTarget, rect = col.getBoundingClientRect();
+      const clickMin = h0 * 60 + (ev.clientY - rect.top) / PX * 60;
+      if (plBlockedFor(iso, clickMin < PL_HALF ? 'm' : 'a')) { alert(plBlockMsg(iso, clickMin < PL_HALF ? 'm' : 'a')); ev.preventDefault(); return; }
       plDragStart({kind: 'create', iso, h0, PX, col, top: rect.top, y0: ev.clientY, moved: false, ghost: null});
       ev.preventDefault();
     }
@@ -5301,7 +5318,8 @@
               const c0 = plCourse(e.s.courseId), r = locaux.find(x => x.id === e.s.roomId);
               return `<div onclick="event.stopPropagation();plOpenSlot('${e.s.id}','${iso}')" title="${escapeHtml((c0 ? c0.codeUE + ' ' + (c0.titre || c0.intituleUE || '') : '') + '\n' + e.s.start + '-' + e.s.end + '\n' + (e.s.teachers || []).map(plTeacherName).join(', ') + (r ? '\n' + roomShort(r) : '\nlocal ?') + (e.bad.length ? '\n⚠ ' + e.bad.join('\n⚠ ') : ''))}" class="mt-0.5 px-1 rounded text-white text-[10px] leading-4 truncate cursor-pointer ${e.bad.length ? 'outline outline-2 outline-red-600' : ''}" style="background:${courseColor(e.s.courseId)}">${escapeHtml(e.s.start)}-${escapeHtml(e.s.end)} <b>${escapeHtml(c0 ? c0.codeUE : '?')}</b>${r ? ' · ' + escapeHtml(r.numero) : ''}</div>`;
             }).join('');
-            return `<div onclick="plMonthBandClick('${iso}',${bi})" class="${b.cls} border-t border-slate-200 px-0.5 pb-0.5 min-h-[26px] cursor-cell"><span class="text-[8px] uppercase tracking-wide text-slate-400">${b.k}</span>${chips}</div>`;
+            const blk = plBlockedFor(iso, bi === 0 ? 'm' : 'a');
+            return `<div onclick="plMonthBandClick('${iso}',${bi})" ${blk ? 'title="Enseignant indisponible"' : ''} class="${blk ? 'bg-slate-300 opacity-70' : b.cls} border-t border-slate-200 px-0.5 pb-0.5 min-h-[26px] cursor-cell"><span class="text-[8px] uppercase tracking-wide text-slate-400">${b.k}</span>${chips}</div>`;
           }).join('');
           tds += `<td class="align-top border border-slate-300 p-0 min-w-[130px] ${inM ? (closed ? 'bg-slate-200' : 'bg-white') : 'bg-slate-100 opacity-60'}">
             <div class="flex items-center justify-between px-1 py-0.5"><span class="text-[11px] font-bold ${iso === todayIso ? 'bg-amber-400 text-slate-900 rounded px-1' : 'text-slate-700'}">${cur.getDate()}</span>${closed ? `<span class="text-[9px] text-slate-600 truncate ml-1">${escapeHtml(closed)}</span>` : ''}</div>${bands}</td>`;
@@ -5317,6 +5335,7 @@
     function plMonthBandClick(iso, bi) {
       if (YEAR_RO) { roBlock(); return; }
       const m0 = PL_BANDS[bi].def;
+      if (plBlockedFor(iso, bi === 0 ? 'm' : 'a')) { alert(plBlockMsg(iso, bi === 0 ? 'm' : 'a')); return; }
       plNewSlot('', iso, m0, m0 + (bi === 2 ? 4 * PERIOD_MINUTES : 4 * PERIOD_MINUTES));
     }
 
@@ -5357,7 +5376,8 @@
       document.getElementById('plsModeRow').classList.remove('hidden');
       const m0 = mins != null ? mins : 9 * 60, per = endMins != null ? endMins - m0 : 4 * PERIOD_MINUTES;
       const last = plan.slots.filter(s => s.courseId === cid && s.mode !== 'one').sort((a, b) => String(b.to).localeCompare(String(a.to)))[0];
-      const s = {courseId: cid, teachers: plDefaultTeachers(cid), mode: 'rec', dow: iso ? plDowOf(iso) || 1 : 1, from: iso || isoOf(plWeek), to: last ? last.to : '', start: plFmtT(m0), end: plFmtT(Math.min(m0 + per, 23 * 60 + 55)), roomId: '', exc: []};
+      const defT = plDefaultTeachers(cid); if (plViewMode === 'teacher' && plTeacherSel && !defT.includes(plEm(plTeacherSel))) defT.push(plEm(plTeacherSel));
+      const s = {courseId: cid, teachers: defT, mode: 'rec', dow: iso ? plDowOf(iso) || 1 : 1, from: iso || isoOf(plWeek), to: last ? last.to : '', start: plFmtT(m0), end: plFmtT(Math.min(m0 + per, 23 * 60 + 55)), roomId: '', exc: []};
       document.getElementById('plsTitle').textContent = 'Planifier un cours';
       document.getElementById('plsDelBtn').classList.add('hidden'); document.getElementById('plsSkipBtn').classList.add('hidden');
       plFillForm(s); plShowSlot();
