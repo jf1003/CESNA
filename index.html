@@ -5274,6 +5274,16 @@
       document.addEventListener('mousemove', plDragMove);
       document.addEventListener('mouseup', plDragUp);
     }
+    // séances d'autres UE où les enseignants de l'UE active sont déjà pris ce jour-là
+    function plBusyOn(iso) {
+      const tset = new Set(plFocusTeachers()), cid = plFocusCourse(), out = [];
+      if (!tset.size) return out;
+      plan.slots.forEach(s => {
+        if (s.courseId === cid || !(s.teachers || []).some(t => tset.has(plEm(t))) || !plOcc(s).includes(iso)) return;
+        out.push({s, who: (s.teachers || []).filter(t => tset.has(plEm(t))).map(t => plTeacherName(t).split(' ').slice(-1)[0]).join(', ')});
+      });
+      return out;
+    }
     function plBlockOverlay(iso, h0, h1, PX) {
       const hatch = 'background-image:repeating-linear-gradient(45deg,rgba(248,113,113,.45) 0,rgba(248,113,113,.45) 4px,rgba(254,226,226,.55) 4px,rgba(254,226,226,.55) 8px)';
       const hatch2 = 'background-image:repeating-linear-gradient(-45deg,rgba(251,146,60,.5) 0,rgba(251,146,60,.5) 4px,rgba(255,237,213,.6) 4px,rgba(255,237,213,.6) 8px)';
@@ -5409,8 +5419,13 @@
               const c0 = plCourse(e.s.courseId), r = locaux.find(x => x.id === e.s.roomId);
               return `<div onclick="event.stopPropagation();plOpenSlot('${e.s.id}','${iso}')" title="${escapeHtml((c0 ? c0.codeUE + ' ' + (c0.titre || c0.intituleUE || '') : '') + '\n' + e.s.start + '-' + e.s.end + '\n' + (e.s.teachers || []).map(plTeacherName).join(', ') + (r ? '\n' + roomShort(r) : '\nlocal ?') + (e.bad.length ? '\n⚠ ' + e.bad.join('\n⚠ ') : ''))}" class="mt-0.5 px-1 rounded text-white text-[10px] leading-4 truncate cursor-pointer ${e.bad.length ? 'outline outline-2 outline-red-600' : ''}" style="background:${courseColor(e.s.courseId)}">${escapeHtml(e.s.start)}-${escapeHtml(e.s.end)} <b>${escapeHtml(c0 ? c0.codeUE : '?')}</b>${r ? ' · ' + escapeHtml(r.numero) : ''}</div>`;
             }).join('');
-            const blk = plBlockedFor(iso, bi === 0 ? 'm' : 'a');
-            return `<div onclick="plMonthBandClick('${iso}',${bi})" ${blk ? 'title="Enseignant indisponible"' : ''} class="${blk ? 'bg-slate-300 opacity-70' : b.cls} border-t border-slate-200 px-0.5 pb-0.5 min-h-[26px] cursor-cell"><span class="text-[8px] uppercase tracking-wide text-slate-400">${b.k}</span>${chips}</div>`;
+            const blkT = closed ? [] : plBlockedBy(iso, bi === 0 ? 'm' : 'a'), blk = blkT.length > 0;
+            const busy = (!closed && plViewMode !== 'teacher') ? plBusyOn(iso).filter(x => plBand(timeToMin(x.s.start)) === bi) : [];
+            const sty = blk ? 'background-image:repeating-linear-gradient(45deg,rgba(248,113,113,.45) 0,rgba(248,113,113,.45) 4px,rgba(254,226,226,.55) 4px,rgba(254,226,226,.55) 8px)'
+              : busy.length ? 'background-image:repeating-linear-gradient(-45deg,rgba(251,146,60,.5) 0,rgba(251,146,60,.5) 4px,rgba(255,237,213,.6) 4px,rgba(255,237,213,.6) 8px)' : '';
+            const note = blk ? `<div class="text-[9px] font-semibold text-red-900 leading-tight">indisponible · ${escapeHtml(blkT.map(t => plTeacherName(t).split(' ')[0]).join(', '))}</div>`
+              : busy.map(x => { const c1 = plCourse(x.s.courseId); return `<div class="text-[9px] font-semibold text-orange-900 leading-tight" title="${escapeHtml(x.who + ' donne déjà ' + (c1 ? c1.codeUE : '') + ' ' + x.s.start + '-' + x.s.end)}">déjà pris · ${escapeHtml(x.who)} · ${escapeHtml(c1 ? c1.codeUE : '')}</div>`; }).join('');
+            return `<div onclick="plMonthBandClick('${iso}',${bi})" ${blk ? 'title="Enseignant indisponible"' : ''} style="${sty}" class="${sty ? '' : b.cls} border-t border-slate-200 px-0.5 pb-0.5 min-h-[26px] cursor-cell"><span class="text-[8px] uppercase tracking-wide text-slate-400">${b.k}</span>${note}${chips}</div>`;
           }).join('');
           tds += `<td class="align-top border border-slate-300 p-0 min-w-[130px] ${inM ? (closed ? 'bg-slate-200' : 'bg-white') : 'bg-slate-100 opacity-60'}">
             <div class="flex items-center justify-between px-1 py-0.5"><span class="text-[11px] font-bold ${iso === todayIso ? 'bg-amber-400 text-slate-900 rounded px-1' : 'text-slate-700'}">${cur.getDate()}</span>${closed ? `<span class="text-[9px] text-slate-600 truncate ml-1">${escapeHtml(closed)}</span>` : ''}</div>${bands}</td>`;
