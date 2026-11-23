@@ -4938,7 +4938,7 @@
     const PL_HALF = 12 * 60 + 30;   // avant 12:30 : matin ; après : après-midi
     let plan = {dispos: {}, avail: {}, slots: []};
     let planSaveTimer = null;
-    let plSection = '', plBloc = '', plViewMode = 'bloc', plTeacherSel = '', plWeek = null, plTab = 'plan', plDispoSel = '';
+    let plFocusId = '', plSection = '', plBloc = '', plViewMode = 'bloc', plTeacherSel = '', plWeek = null, plTab = 'plan', plDispoSel = '';
     let plEdit = null;
 
     async function plLoad() {
@@ -5019,11 +5019,23 @@
       return !old || !!old[dow + half];
     }
     // demi-journée « m » (avant 12:30) ou « a » (après) indisponible pour l'enseignant sélectionné en vue enseignant ?
-    function plBlockedFor(iso, half) {
-      if (plViewMode !== 'teacher' || !plTeacherSel) return false;
-      return !plAvailable(plTeacherSel, iso, half);
+    // UE « active » (clic sur sa carte à gauche) : ses enseignants servent à afficher les plages indisponibles / déjà prises
+    function plFocusCourse() {
+      if (plViewMode === 'teacher') return '';
+      const cs = plViewCourses();
+      return (cs.find(c => c.id === plFocusId) || cs[0] || {}).id || '';
     }
-    function plBlockMsg(iso, half) { return `${plTeacherName(plTeacherSel)} n'est pas disponible le ${PL_DAYS[plDowOf(iso) - 1]} ${half === 'm' ? 'matin' : 'après-midi'} (voir « Disponibilités des enseignants »).`; }
+    function plFocusTeachers() {
+      if (plViewMode === 'teacher') return plTeacherSel ? [plEm(plTeacherSel)] : [];
+      const cid = plFocusCourse(); if (!cid) return [];
+      const set = new Set(plDefaultTeachers(cid));
+      plan.slots.filter(s => s.courseId === cid).forEach(s => (s.teachers || []).forEach(t => set.add(plEm(t))));
+      return Array.from(set);
+    }
+    function plBlockedBy(iso, half) { return plFocusTeachers().filter(t => !plAvailable(t, iso, half)); }
+    function plBlockedFor(iso, half) { return plBlockedBy(iso, half).length > 0; }
+    function plBlockMsg(iso, half) { return `${plBlockedBy(iso, half).map(plTeacherName).join(', ')} n'est pas disponible le ${PL_DAYS[plDowOf(iso) - 1]} ${half === 'm' ? 'matin' : 'après-midi'} (voir « Disponibilités des enseignants »).`; }
+    function plPickFocus(id) { plFocusId = id; plRender(); }
     function plSlotLabel(o) {
       const c = plCourse(o.courseId);
       return `« ${c ? c.codeUE + ' ' + (c.titre || c.intituleUE || '') : '?'} »`;
@@ -5172,12 +5184,12 @@
         totP += planned; totT += target;
         const slots = plan.slots.filter(s => s.courseId === c.id);
         const names = Array.from(new Set(slots.flatMap(s => s.teachers || []))).map(plTeacherName).join(', ') || String(c.enseignant || '');
-        return `<div class="border border-slate-300 rounded mb-2 bg-white">
-          <div class="px-2 py-1.5 flex items-start gap-2" style="border-left:5px solid ${courseColor(c.id)}">
+        return `<div class="border rounded mb-2 bg-white ${plViewMode !== 'teacher' && c.id === plFocusCourse() ? 'border-sky-500 ring-2 ring-sky-300' : 'border-slate-300'}">
+          <div onclick="plPickFocus('${c.id}')" class="px-2 py-1.5 flex items-start gap-2 cursor-pointer" style="border-left:5px solid ${courseColor(c.id)}">
             <div class="flex-1 min-w-0"><div class="font-bold text-slate-800 leading-tight">${escapeHtml(c.codeUE || '')} ${escapeHtml(c.titre || c.intituleUE || '')}</div>
               <div class="text-[11px] text-slate-500 truncate">${escapeHtml(plViewMode === 'teacher' ? [c.section, c.bloc].filter(Boolean).join(' · ') : names)}</div>
               <div class="text-[11px]">${plPeriodTag(planned, plTarget(c))}</div></div>
-            <button onclick="plNewSlot('${c.id}')" class="px-2 py-1 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded font-semibold shrink-0">+ Planifier</button></div>
+            <button onclick="event.stopPropagation(); plNewSlot('${c.id}')" class="px-2 py-1 bg-sky-100 hover:bg-sky-200 text-sky-800 rounded font-semibold shrink-0">+ Planifier</button></div>
           ${slots.map(s => {
             const per = plPer(s), n = plOcc(s).length;
             const when = s.mode === 'one' ? `${frOfIso(s.date)}` : `${PL_DAYS[s.dow - 1]} · ${frOfIso(s.from)} → ${frOfIso(s.to)}`;
@@ -5186,6 +5198,7 @@
           }).join('')}</div>`;
       }).join('');
       box.innerHTML = rows + `<div class="border-2 border-[#0a3a60] rounded px-2 py-1.5 bg-slate-50 font-bold">Total : ${plPeriodTag(totP, totT)}</div>
+        ${plViewMode !== 'teacher' && plFocusTeachers().length ? `<p class="mt-1 text-[11px] text-slate-700">Plages affichées pour : <b>${escapeHtml(plFocusTeachers().map(plTeacherName).join(', '))}</b> (cliquez sur une UE pour changer). Rouge hachuré = indisponible ; orange = déjà pris par une autre UE.</p>` : ''}
         <p class="mt-1 text-[11px] text-slate-500">Vert : toutes les périodes de l'UE sont planifiées. Ambre : il en manque. Rouge : trop de périodes.</p>`;
     }
     function plRenderGrid() {
@@ -5241,11 +5254,25 @@
       document.addEventListener('mouseup', plDragUp);
     }
     function plBlockOverlay(iso, h0, h1, PX) {
-      const hatch = 'background-image:repeating-linear-gradient(45deg,rgba(148,163,184,.55) 0,rgba(148,163,184,.55) 4px,rgba(226,232,240,.55) 4px,rgba(226,232,240,.55) 8px)';
+      const hatch = 'background-image:repeating-linear-gradient(45deg,rgba(248,113,113,.45) 0,rgba(248,113,113,.45) 4px,rgba(254,226,226,.55) 4px,rgba(254,226,226,.55) 8px)';
+      const hatch2 = 'background-image:repeating-linear-gradient(-45deg,rgba(251,146,60,.5) 0,rgba(251,146,60,.5) 4px,rgba(255,237,213,.6) 4px,rgba(255,237,213,.6) 8px)';
       let out = '';
-      const cut = (PL_HALF - h0 * 60) / 60 * PX;
-      if (h0 * 60 < PL_HALF && plBlockedFor(iso, 'm')) out += `<div class="absolute inset-x-0 pointer-events-none flex items-start justify-center text-[10px] font-semibold text-slate-700" style="top:0;height:${cut}px;${hatch}">indisponible</div>`;
-      if (plBlockedFor(iso, 'a')) { const top = Math.max(0, cut); out += `<div class="absolute inset-x-0 pointer-events-none flex items-start justify-center text-[10px] font-semibold text-slate-700" style="top:${top}px;height:${(h1 * 60 - h0 * 60) / 60 * PX - top}px;${hatch}">indisponible</div>`; }
+      const cut = (PL_HALF - h0 * 60) / 60 * PX, H = (h1 - h0) * PX;
+      const lbl = 'absolute inset-x-0 pointer-events-none flex items-start justify-center text-center text-[10px] font-semibold text-red-900 leading-tight';
+      const nm = half => plBlockedBy(iso, half).map(t => plTeacherName(t).split(' ').slice(-1)[0] || plTeacherName(t)).join(', ');
+      if (h0 * 60 < PL_HALF && plBlockedFor(iso, 'm')) out += `<div class="${lbl}" style="top:0;height:${Math.min(cut, H)}px;${hatch}">indisponible · ${escapeHtml(nm('m'))}</div>`;
+      if (plBlockedFor(iso, 'a')) { const top = Math.max(0, cut); out += `<div class="${lbl}" style="top:${top}px;height:${H - top}px;${hatch}">indisponible · ${escapeHtml(nm('a'))}</div>`; }
+      // enseignant déjà pris par une autre séance (hors vue enseignant, où ces séances sont déjà affichées)
+      if (plViewMode !== 'teacher') {
+        const tset = new Set(plFocusTeachers()), cid = plFocusCourse();
+        if (tset.size) plan.slots.forEach(s => {
+          if (s.courseId === cid || !(s.teachers || []).some(t => tset.has(plEm(t))) || !plOcc(s).includes(iso)) return;
+          const top = (timeToMin(s.start) - h0 * 60) / 60 * PX, ht = (timeToMin(s.end) - timeToMin(s.start)) / 60 * PX;
+          if (top + ht <= 0 || top >= H) return;
+          const c = plCourse(s.courseId), who = (s.teachers || []).filter(t => tset.has(plEm(t))).map(t => plTeacherName(t).split(' ').slice(-1)[0]).join(', ');
+          out += `<div class="${lbl}" style="top:${Math.max(0, top)}px;height:${ht}px;${hatch2}" title="${escapeHtml(who + ' donne déjà ' + (c ? c.codeUE : '') + ' ' + s.start + '-' + s.end)}">déjà pris · ${escapeHtml(who)} · ${escapeHtml(c ? c.codeUE : '')}</div>`;
+        });
+      }
       return out;
     }
     function plColDown(ev, iso, h0, PX) {
@@ -5413,7 +5440,7 @@
     function plNewSlot(courseId, iso, mins, endMins) {
       if (YEAR_RO) { roBlock(); return; }
       const cs = plViewCourses();
-      const cid = courseId || (cs[0] && cs[0].id) || '';
+      const cid = courseId || plFocusCourse() || (cs[0] && cs[0].id) || '';
       if (!cid) { alert("Aucune UE à planifier dans cette sélection."); return; }
       plEdit = {id: null, dateIso: null, exc: [], skip: null};
       document.getElementById('plsModeRow').classList.remove('hidden');
