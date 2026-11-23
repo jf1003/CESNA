@@ -5036,6 +5036,27 @@
     function plBlockedFor(iso, half) { return plBlockedBy(iso, half).length > 0; }
     function plBlockMsg(iso, half) { return `${plBlockedBy(iso, half).map(plTeacherName).join(', ')} n'est pas disponible le ${PL_DAYS[plDowOf(iso) - 1]} ${half === 'm' ? 'matin' : 'après-midi'} (voir « Disponibilités des enseignants »).`; }
     function plPickFocus(id) { plFocusId = id; plRender(); }
+    // résumé des absences d'un enseignant sur l'année : « lundi matin ×28, mercredi après-midi ×12 »
+    function plAbsSummary(email) {
+      const yb = plYearBounds(), cnt = {}; let d = dateFromIso(yb.from); const end = dateFromIso(yb.to);
+      for (let n = 0; d <= end && n < 400; n++, d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        const dow = d.getDay() === 0 ? 7 : d.getDay(); if (dow > 5 || closedLabelOf(d)) continue;
+        const iso = isoOf(d);
+        ['m', 'a'].forEach(hf => { if (!plAvailable(email, iso, hf)) { const k = dow + hf; cnt[k] = (cnt[k] || 0) + 1; } });
+      }
+      const keys = Object.keys(cnt).sort();
+      return keys.length ? keys.map(k => `${PL_DAYS[+k[0] - 1].toLowerCase()} ${k[1] === 'm' ? 'matin' : 'après-midi'} ×${cnt[k]}`).join(', ') : '';
+    }
+    function plFocusPanel() {
+      if (plViewMode === 'teacher') return '';
+      const cid = plFocusCourse(); if (!cid) return '';
+      const ts = plFocusTeachers();
+      if (!ts.length) return `<div class="mt-2 p-2 rounded border border-amber-300 bg-amber-50 text-[11px] text-amber-900">Aucun enseignant rattaché à cette UE : ses indisponibilités ne peuvent pas être affichées. Choisissez l'enseignant en cliquant sur « + Planifier » (ou rattachez-le à l'UE).</div>`;
+      return `<div class="mt-2 p-2 rounded border border-sky-300 bg-sky-50 text-[11px] text-slate-800"><div class="font-bold text-[#0a3a60] mb-1">Enseignant(s) de l'UE active</div>${ts.map(t => {
+        const s = plAbsSummary(t);
+        return `<div class="mb-1"><b>${escapeHtml(plTeacherName(t))}</b> : ${s ? `<span class="text-red-700">indisponible ${escapeHtml(s)}</span>` : '<span class="text-emerald-700">aucune indisponibilité encodée</span>'}</div>`;
+      }).join('')}<div class="text-slate-500">Rouge hachuré dans la grille = indisponible ; orange = déjà pris par une autre UE. Cliquez ensuite sur « + Planifier » pour créer l'horaire.</div></div>`;
+    }
     function plSlotLabel(o) {
       const c = plCourse(o.courseId);
       return `« ${c ? c.codeUE + ' ' + (c.titre || c.intituleUE || '') : '?'} »`;
@@ -5198,7 +5219,7 @@
           }).join('')}</div>`;
       }).join('');
       box.innerHTML = rows + `<div class="border-2 border-[#0a3a60] rounded px-2 py-1.5 bg-slate-50 font-bold">Total : ${plPeriodTag(totP, totT)}</div>
-        ${plViewMode !== 'teacher' && plFocusTeachers().length ? `<p class="mt-1 text-[11px] text-slate-700">Plages affichées pour : <b>${escapeHtml(plFocusTeachers().map(plTeacherName).join(', '))}</b> (cliquez sur une UE pour changer). Rouge hachuré = indisponible ; orange = déjà pris par une autre UE.</p>` : ''}
+        ${plFocusPanel()}
         <p class="mt-1 text-[11px] text-slate-500">Vert : toutes les périodes de l'UE sont planifiées. Ambre : il en manque. Rouge : trop de périodes.</p>`;
     }
     function plRenderGrid() {
@@ -5416,7 +5437,11 @@
       const byIds = teachersList.filter(t => (t.courseIds || []).includes(courseId)).map(t => plEm(t.email));
       if (byIds.length) return byIds;
       const e = locSearchNorm(c.enseignant);
-      return e && !/definir/.test(e) ? teachersList.filter(t => e.includes(locSearchNorm(t.nom)) && locSearchNorm(t.nom)).map(t => plEm(t.email)) : [];
+      if (!e || /definir/.test(e)) return [];
+      const direct = teachersList.filter(t => locSearchNorm(t.nom) && e.includes(locSearchNorm(t.nom))).map(t => plEm(t.email));
+      if (direct.length) return direct;
+      const words = new Set(e.split(/[^a-z0-9]+/).filter(Boolean));   // « Jean-François SMEERS », « Smeers J-F »…
+      return teachersList.filter(t => { const w = locSearchNorm(t.nom).split(/[^a-z0-9]+/).filter(Boolean); return w.length && w.every(x => words.has(x)); }).map(t => plEm(t.email));
     }
     function plFillForm(s, dateIso) {
       const cs = plViewCourses().length ? plViewCourses() : courses;
