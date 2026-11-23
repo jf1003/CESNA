@@ -5671,7 +5671,7 @@
         ${rows || '<p class="text-slate-500 mb-2">Aucun événement.</p>'}
         ${old ? `<div class="flex items-center gap-2 border border-slate-200 rounded px-2 py-1.5 mb-1 bg-slate-50"><span class="flex-1">Ancien réglage hebdomadaire (toute l'année) : ${[1, 2, 3, 4, 5].map(d => PL_DAYS[d - 1].slice(0, 3) + ' ' + (old[d + 'm'] ? 'M' : '') + (old[d + 'a'] ? 'A' : '') ).join(' · ')}</span><button ${ro ? 'disabled' : ''} onclick="plDispoClear()" class="px-2 py-0.5 text-red-700 hover:bg-red-100 rounded font-semibold">🗑</button></div>` : ''}
         ${bad ? `<p class="mt-2 text-red-700 font-semibold">⚠ ${bad} planification(s) existante(s) ne respectent plus ces disponibilités (en rouge dans le planning).</p>` : ''}
-        <h4 class="font-bold text-slate-700 mt-4 mb-1">Aperçu de l'année, semaine par semaine <span class="font-normal text-slate-500">(cliquez sur une semaine pour y ajouter une indisponibilité)</span></h4>
+        <h4 class="font-bold text-slate-700 mt-4 mb-1">Aperçu de l'année, semaine par semaine <span class="font-normal text-slate-500">(cliquez sur les cases pour basculer disponible / indisponible, ou glissez la souris pour en peindre plusieurs ; la date à gauche ouvre la fenêtre de la semaine)</span></h4>
         ${plRenderDispoYear(t)}`;
     }
     function plRenderDispoYear(t) {
@@ -5686,15 +5686,72 @@
           if (!closed) allClosed = false;
           ['m', 'a'].forEach(half => {
             const ok = plAvailable(t.email, iso, half);
-            cells.push(`<td class="border border-white w-5 h-5 ${closed ? 'bg-slate-200' : ok ? 'bg-emerald-100' : 'bg-red-400'}" title="${escapeHtml(PL_DAYS[i] + ' ' + frOfIso(iso) + ' ' + (half === 'm' ? 'matin' : 'après-midi') + (closed ? ' · congé' : ok ? '' : ' · indisponible'))}"></td>`);
+            cells.push(`<td ${closed ? '' : `data-c="${iso}${half}" onmousedown="plCellDown(event,'${iso}','${half}')" onmouseenter="plCellOver(event,'${iso}','${half}')"`} class="border border-white w-5 h-5 ${closed ? 'bg-slate-200' : (ok ? 'bg-emerald-100 hover:bg-emerald-300 cursor-pointer' : 'bg-red-400 hover:bg-red-300 cursor-pointer')}" title="${escapeHtml(PL_DAYS[i] + ' ' + frOfIso(iso) + ' ' + (half === 'm' ? 'matin' : 'après-midi') + (closed ? ' · congé' : ok ? '' : ' · indisponible'))}"></td>`);
           });
         }
         const fri = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 4);
-        rows += `<tr class="cursor-pointer hover:outline hover:outline-2 hover:outline-sky-500" onclick="plOpenDEvent('', 'no', '${mon}', '${isoOf(fri)}')"><td class="pr-2 text-[10px] text-slate-500 whitespace-nowrap">${fmtDM(cur)} → ${fmtDM(fri)}</td>${cells.join('')}</tr>`;
+        rows += `<tr><td title="Ouvrir la fenêtre pour cette semaine" onclick="plOpenDEvent('', 'no', '${mon}', '${isoOf(fri)}')" class="pr-2 text-[10px] text-sky-700 underline cursor-pointer whitespace-nowrap">${fmtDM(cur)} → ${fmtDM(fri)}</td>${cells.join('')}</tr>`;
         cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 7);
       }
       return `<div class="max-h-[40vh] overflow-auto border border-slate-200 rounded p-2 inline-block"><table class="border-collapse"><thead><tr><th></th>${WD.map(d => `<th colspan="2" class="text-[10px] text-slate-600">${d}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>
-        <p class="mt-1 text-[11px] text-slate-500">Chaque jour : colonne gauche = matin, droite = après-midi. Vert clair : disponible · Rouge : indisponible · Gris : congé du calendrier académique.</p>`;
+        <p class="mt-1 text-[11px] text-slate-500">Chaque jour : colonne gauche = matin, droite = après-midi (clic sur une case = basculer). Vert clair : disponible · Rouge : indisponible · Gris : congé du calendrier académique.</p>`;
+    }
+    // clic / glissé directement sur les cases de l'aperçu
+    let plPaint = null;
+    function plCellState(iso, half) { return plAvailable(plDispoSel, iso, half); }
+    function plCellDown(ev, iso, half) {
+      if (ev.button !== 0) return;
+      if (YEAR_RO) { roBlock(); return; }
+      ev.preventDefault();
+      const e = plEm(plDispoSel), old = plan.dispos[e], dow = plDowOf(iso);
+      if (old && !old[dow + half] && !(plan.avail[e] || []).some(x => x.type === 'no')) { alert("Cet enseignant a un ancien réglage hebdomadaire : supprimez-le (🗑) pour modifier ses plages ici."); return; }
+      plPaint = {mode: plCellState(iso, half) ? 'add' : 'remove', cells: new Map()};
+      plCellOver(ev, iso, half);
+    }
+    function plCellOver(ev, iso, half) {
+      if (!plPaint || !(ev.buttons & 1)) return;
+      const k = iso + half; if (plPaint.cells.has(k)) return;
+      plPaint.cells.set(k, [iso, half]);
+      ev.currentTarget.className = ev.currentTarget.className.replace(/bg-(red|emerald)-\d+/g, '').replace(/hover:bg-\S+/g, '') + (plPaint.mode === 'add' ? ' bg-red-400 outline outline-1 outline-red-700' : ' bg-emerald-100 outline outline-1 outline-emerald-700');
+    }
+    document.addEventListener('mouseup', () => { if (plPaint) { const p = plPaint; plPaint = null; plPaintApply(p); } });
+    function plIsoAdd(iso, n) { const d = dateFromIso(iso); return isoOf(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); }
+    // retire une demi-journée des événements « indisponible » qui la couvrent (scinde l'événement si besoin)
+    function plFreeCell(e, iso, half) {
+      const dow = plDowOf(iso), out = [];
+      (plan.avail[e] || []).forEach(ev => {
+        const cover = ev.type === 'no' && iso >= ev.from && iso <= ev.to && (ev.dows || []).includes(dow) && (ev.halves || []).includes(half);
+        if (!cover) { out.push(ev); return; }
+        const nid = () => 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        if (ev.from < iso) out.push({...ev, id: ev.id, to: plIsoAdd(iso, -1)});
+        const rest = (ev.halves || []).filter(x => x !== half);
+        if (rest.length) out.push({...ev, id: nid(), from: iso, to: iso, dows: [dow], halves: rest});
+        if (ev.to > iso) out.push({...ev, id: nid(), from: plIsoAdd(iso, 1)});
+        const other = (ev.dows || []).filter(x => x !== dow);
+        // les autres jours de la semaine de la même date restent bloqués (le jour est traité à part ci-dessus)
+        // — les dates de la période hors du jour cliqué sont couvertes par les morceaux avant/après
+      });
+      plan.avail[e] = out;
+    }
+    function plPaintApply(p) {
+      const e = plEm(plDispoSel); if (!e || !p.cells.size) return;
+      const cells = Array.from(p.cells.values());
+      if (p.mode === 'remove') cells.forEach(([iso, half]) => { if (!plAvailable(plDispoSel, iso, half)) plFreeCell(e, iso, half); });
+      else {
+        const groups = {};   // une indisponibilité par semaine et par plage (ex. lundi + mardi matin)
+        cells.forEach(([iso, half]) => {
+          if (!plAvailable(plDispoSel, iso, half)) return;
+          const wk = isoOf(mondayOf(dateFromIso(iso))), k = wk + half; (groups[k] = groups[k] || {half, list: []}).list.push(iso);
+        });
+        Object.values(groups).forEach(g => {
+          const isos = g.list.sort();
+          (plan.avail[e] = plan.avail[e] || []).push({id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), type: 'no', from: isos[0], to: isos[isos.length - 1], dows: isos.map(plDowOf).filter((x, i, a) => a.indexOf(x) === i), halves: [g.half], note: ''});
+        });
+      }
+      if (!(plan.avail[e] || []).length) delete plan.avail[e];
+      const box = document.querySelector('#plDBody .overflow-auto'), top = box ? box.scrollTop : 0;
+      plPersist(); plRenderDispo();
+      const nb = document.querySelector('#plDBody .overflow-auto'); if (nb) nb.scrollTop = top;
     }
     function plOpenDEvent(id, type, from, to) {
       if (YEAR_RO) { roBlock(); return; }
@@ -5704,7 +5761,7 @@
       plDEdit = {id: id || null};
       const g = i => document.getElementById(i);
       const mon = mondayOf(new Date()), wk = isoOf(mon), wkEnd = isoOf(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 4));
-      const e = ev || {type: 'no', from: from || (wk >= yb.from && wk <= yb.to ? wk : yb.from), to: to || (wk >= yb.from && wk <= yb.to ? wkEnd : yb.from), dows: [1, 2, 3, 4, 5], halves: ['m', 'a'], note: ''};
+      const e = ev || {type: 'no', from: from || (wk >= yb.from && wk <= yb.to ? wk : yb.from), to: to || (wk >= yb.from && wk <= yb.to ? wkEnd : yb.from), dows: [], halves: [], note: ''};
       g('pdsTitle').textContent = (id ? 'Modifier une indisponibilité' : 'Ajouter une indisponibilité') + ' · ' + plTeacherName(plDispoSel);
       g('pdsFrom').value = e.from; g('pdsTo').value = e.to; g('pdsNote').value = e.note || '';
       document.querySelectorAll('.pdsDay').forEach(c => { c.checked = (e.dows || []).includes(+c.value); });
