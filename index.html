@@ -3393,6 +3393,7 @@
         thDate.className = "w-14 min-w-[56px] max-w-[56px] py-1 px-0.5 text-center font-bold border border-slate-400 text-white cursor-pointer hover:bg-blue-900 transition";
         thDate.innerText = sess.date;
         thDate.title = `Séance ${sess.date} (${sess.start} - ${sess.end}) - Cliquez pour marquer 'P' pour tous`;
+        if (sess.teachers && sess.teachers.length) thDate.title += `\nEnseignant de la séance : ${sess.teachers.map(t => { try { return plTeacherName(t); } catch (e) { return t; } }).join(', ')}`;
         thDate.onclick = () => fillEntireSession(sess.id, 'P');
         datesRow.appendChild(thDate);
 
@@ -5635,10 +5636,13 @@
     // ----- génération des séances dans les UE à partir du planning (ajoute seulement ; ne supprime ni ne modifie rien) -----
     function plWanted(c) {
       const seen = new Set(), out = [];
+      const byKey = {};
       plan.slots.filter(s => s.courseId === c.id).forEach(s => plOcc(s).forEach(iso => {
         const k = iso + '|' + s.start + '|' + s.end;
-        if (seen.has(k)) return; seen.add(k);
-        out.push({iso, start: s.start, end: s.end, roomId: s.roomId || ''});
+        if (seen.has(k)) { (s.teachers || []).forEach(t => { if (!byKey[k].teachers.includes(plEm(t))) byKey[k].teachers.push(plEm(t)); }); return; }
+        seen.add(k);
+        byKey[k] = {iso, start: s.start, end: s.end, roomId: s.roomId || '', teachers: (s.teachers || []).map(plEm)};   // enseignant(s) de la séance : sert à imputer les pointages manquants
+        out.push(byKey[k]);
       }));
       return out.sort((a, b) => (a.iso + a.start).localeCompare(b.iso + b.start));
     }
@@ -5651,36 +5655,42 @@
       const cs = plViewCourses().filter(c => plan.slots.some(s => s.courseId === c.id));
       if (!cs.length) { alert("Aucune UE planifiée dans la sélection affichée (bachelier / bloc / enseignant)."); return; }
       plSay('Analyse des séances existantes…');
-      const items = []; let total = 0;
+      const items = []; let total = 0, tagTotal = 0;
       try {
         for (const c of cs) {
           const want = plWanted(c);
           const p = await payloadOfCourse(c.id);
           const have = new Set(((p && p.sessions) || []).map(s => plSessKey(p, s)).filter(Boolean));
           const add = want.filter(w => !have.has(`${w.iso}|${w.start}|${w.end}`));
-          items.push({c, want, add, dup: want.length - add.length}); total += add.length;
+          const wk = {}; want.forEach(w => { wk[`${w.iso}|${w.start}|${w.end}`] = w; });
+          const tag = ((p && p.sessions) || []).filter(s => !(s.teachers && s.teachers.length) && (wk[plSessKey(p, s)] || {teachers: []}).teachers.length).length;
+          items.push({c, want, add, tag, dup: want.length - add.length}); total += add.length; tagTotal += tag;
         }
       } catch (e) { plSay(''); alert("Analyse impossible : " + ((e && e.message) || e)); return; }
       plSay('');
-      const lines = items.map(i => `• ${i.c.codeUE} ${i.c.titre || i.c.intituleUE || ''} : ${i.add.length} séance(s) à créer` + (i.dup ? ` (${i.dup} déjà présente(s), ignorée(s))` : ''));
+      const lines = items.map(i => `• ${i.c.codeUE} ${i.c.titre || i.c.intituleUE || ''} : ${i.add.length} séance(s) à créer` + (i.dup ? ` (${i.dup} déjà présente(s), ignorée(s))` : '') + (i.tag ? ` · ${i.tag} séance(s) existante(s) rattachée(s) à leur enseignant` : ''));
       const warn = YEAR === (YEAR_CFG && YEAR_CFG.active) ? `\n\n⚠ ${YEAR} est l'année EN COURS : les séances seront ajoutées aux registres que les enseignants utilisent. Rien n'est supprimé ni modifié, mais vérifiez bien.` : `\n\nAnnée ${YEAR}.`;
-      if (!total) { alert("Rien à créer : toutes les séances du planning existent déjà dans les UE.\n\n" + lines.join('\n')); return; }
+      if (!total && !tagTotal) { alert("Rien à créer : toutes les séances du planning existent déjà dans les UE.\n\n" + lines.join('\n')); return; }
       plChoice(`Générer ${total} séance(s) · ${YEAR}`, lines.join('\n') + warn + "\n\nLes séances existantes, les pointages, les étudiants et les points ne sont pas touchés. Les locaux du planning sont associés aux séances.", [
-        {label: `✅ Créer ${total} séance(s) dans ${items.filter(i => i.add.length).length} UE`, cls: 'bg-emerald-600 hover:bg-emerald-700 text-white', fn: () => plGenRun(items)}]);
+        {label: total ? `✅ Créer ${total} séance(s) dans ${items.filter(i => i.add.length).length} UE` : `✅ Rattacher ${tagTotal} séance(s) à leur enseignant`, cls: 'bg-emerald-600 hover:bg-emerald-700 text-white', fn: () => plGenRun(items)}]);
     }
     async function plGenRun(items) {
       if (YEAR === (YEAR_CFG && YEAR_CFG.active) && !confirm(`Dernière vérification : ajouter ces séances à l'année EN COURS ${YEAR} ?`)) return;
       let made = 0; const errors = [];
       for (const it of items) {
-        if (!it.add.length) continue;
+        if (!it.add.length && !it.tag) continue;
         const c = it.c; plSay('Création : ' + c.codeUE + '…');
         try {
           const ts = Date.now(), added = [];
           const addTo = p => {
             added.length = 0;
+            // séances déjà présentes : on leur note seulement l'enseignant prévu au planning (aucun pointage n'est touché)
+            const wk = {}; it.want.forEach(w => { wk[`${w.iso}|${w.start}|${w.end}`] = w; });
+            (p.sessions || []).forEach(s => { if (s.teachers && s.teachers.length) return; const w = wk[plSessKey(p, s)]; if (w && w.teachers.length) s.teachers = w.teachers.slice(); });
             const have = new Set((p.sessions || []).map(s => plSessKey(p, s)).filter(Boolean));
             it.want.filter(w => !have.has(`${w.iso}|${w.start}|${w.end}`)).forEach((w, i) => {
               const s = {id: `sess_${ts}_p${i}`, date: normalizeSessionDate(frOfIso(w.iso)), start: w.start, end: w.end};
+              if (w.teachers && w.teachers.length) s.teachers = w.teachers.slice();
               p.sessions.push(s); added.push({s, roomId: w.roomId});
             });
             plSortPayloadSessions(p);
@@ -8400,7 +8410,7 @@
         <th class="text-left px-2 py-1.5">UE</th><th class="text-left px-2 py-1.5">Section</th><th class="text-left px-2 py-1.5">Enseignant</th><th class="text-right px-2 py-1.5">Séances</th><th class="text-right px-2 py-1.5">Cases vides</th><th class="text-left px-2 py-1.5">Plus ancienne</th><th class="text-right px-2 py-1.5">Retard</th></tr></thead><tbody class="divide-y divide-slate-200">` +
         late.map(x => `<tr class="${x.days > 7 ? 'bg-red-50' : x.days >= 1 ? 'bg-amber-50' : ''}">
           ${anaCell(`<span class="font-bold">${escapeHtml(x.a.c.codeUE)}</span> ${escapeHtml(x.a.c.titre || x.a.c.intituleUE || '')}<details class="text-[10px] text-slate-500"><summary class="cursor-pointer">dates</summary>${x.a.late.map(r => fmtDM(r.date) + ' (' + r.miss + ')').join(', ')}</details>`)}
-          ${anaCell(escapeHtml(x.a.section))}${anaCell(escapeHtml(x.a.teacher))}${anaCell(x.a.late.length, 'text-right')}${anaCell(x.cells, 'text-right')}${anaCell(fmtDM(x.oldest) + '/' + x.oldest.getFullYear())}
+          ${anaCell(escapeHtml(x.a.section))}${anaCell(anaLateBy(x.a) ? '<span class="text-[11px]">' + escapeHtml(anaLateBy(x.a)) + '</span>' : escapeHtml(x.a.teacher))}${anaCell(x.a.late.length, 'text-right')}${anaCell(x.cells, 'text-right')}${anaCell(fmtDM(x.oldest) + '/' + x.oldest.getFullYear())}
           ${anaCell(x.days === 0 ? "aujourd'hui" : x.days + ' j', 'text-right font-bold ' + (x.days > 7 ? 'text-red-700' : 'text-amber-700'))}</tr>`).join('') + '</tbody></table></div>';
       if (noSessU.length || emptyReg) {
         html += `<h3 class="font-bold text-[#0a3a60] mb-1">UE sans séance encodée</h3><div class="rounded border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 mb-4 text-xs">` +
@@ -8438,12 +8448,12 @@
       list.forEach(a => { (by[a.teacher] = by[a.teacher] || []).push(a); });
       const rows = Object.keys(by).map(t => {
         const l = by[t], g = aggregate(l);
-        return {t, g, late: l.reduce((s, a) => s + a.late.length, 0), n: l.length, codes: l.map(a => a.c.codeUE)};
+        return {t, g, late: l.reduce((s, a) => s + a.late.length, 0), lateBy: l.map(anaLateBy).filter(Boolean).join(' · '), n: l.length, codes: l.map(a => a.c.codeUE)};
       }).sort((x, y) => (x.g.encRate === null) - (y.g.encRate === null) || (x.g.encRate - y.g.encRate) || x.t.localeCompare(y.t, 'fr'));
       if (!rows.length) return '<p class="py-8 text-center text-slate-500">Aucune donnée.</p>';
       return '<p class="text-[11px] text-slate-500 mb-2">Triés par pointage le moins à jour. Le délai exact de pointage n\'est pas enregistré aujourd\'hui : on mesure la complétude (cases encodées sur cases dues).</p><div class="border border-slate-300 rounded overflow-auto max-h-[62vh]"><table class="w-full text-xs"><thead class="bg-slate-200 text-slate-700 sticky top-0"><tr>' +
         ['Enseignant', 'UE', 'Étudiants distincts', 'Présence moyenne', 'Pointage à jour', 'Séances à compléter', 'Périodes données / prévues'].map((h, i) => `<th class="px-2 py-1.5 ${i > 0 ? 'text-right' : 'text-left'}">${h}</th>`).join('') + '</tr></thead><tbody class="divide-y divide-slate-200">' +
-        rows.map(r => `<tr class="${r.late ? 'bg-amber-50' : ''}">${anaCell('<span class="font-semibold">' + escapeHtml(r.t) + '</span><div class="text-[10px] text-slate-400">' + escapeHtml(r.codes.join(', ')) + '</div>')}${anaCell(r.n, 'text-right')}${anaCell(r.g.keys.size + (r.g.enrolled !== r.g.keys.size ? ' <span class="text-slate-400" title="Inscriptions : un étudiant inscrit à plusieurs UE de cet enseignant y compte plusieurs fois">(' + r.g.enrolled + ' insc.)</span>' : ''), 'text-right')}${anaCell(anaBar(r.g.rate, presColor(r.g.rate)), 'text-right')}${anaCell(fmtPct(r.g.encRate), 'text-right font-semibold ' + (r.g.encRate !== null && r.g.encRate < 90 ? 'text-red-700' : ''))}${anaCell(r.late || '0', 'text-right')}${anaCell(r.g.pDone + (r.g.pPlanned ? ' / ' + r.g.pPlanned : ''), 'text-right')}</tr>`).join('') + '</tbody></table></div>';
+        rows.map(r => `<tr class="${r.late ? 'bg-amber-50' : ''}">${anaCell('<span class="font-semibold">' + escapeHtml(r.t) + '</span><div class="text-[10px] text-slate-400">' + escapeHtml(r.codes.join(', ')) + '</div>')}${anaCell(r.n, 'text-right')}${anaCell(r.g.keys.size + (r.g.enrolled !== r.g.keys.size ? ' <span class="text-slate-400" title="Inscriptions : un étudiant inscrit à plusieurs UE de cet enseignant y compte plusieurs fois">(' + r.g.enrolled + ' insc.)</span>' : ''), 'text-right')}${anaCell(anaBar(r.g.rate, presColor(r.g.rate)), 'text-right')}${anaCell(fmtPct(r.g.encRate), 'text-right font-semibold ' + (r.g.encRate !== null && r.g.encRate < 90 ? 'text-red-700' : ''))}${anaCell((r.late || '0') + (r.lateBy ? '<div class="text-[10px] text-slate-500">' + escapeHtml(r.lateBy) + '</div>' : ''), 'text-right')}${anaCell(r.g.pDone + (r.g.pPlanned ? ' / ' + r.g.pPlanned : ''), 'text-right')}</tr>`).join('') + '</tbody></table></div>';
     }
 
     // ----- Étudiants (vue transversale, par matricule ou nom) -----
@@ -9242,6 +9252,22 @@
       try { const raw = localStorage.getItem(storageKeyFor(id)); if (raw) return JSON.parse(raw); } catch (e) { /* ignoré */ }
       return null;
     }
+    // Séance imputée à un enseignant précis (champ « teachers » posé par le planning) ; sans indication : à tous les enseignants de l'UE
+    function sessionIsMine(s) {
+      const t = (s && s.teachers) || [];
+      if (!t.length || !sessionUser || !sessionUser.email) return true;
+      return t.map(x => String(x).toLowerCase()).includes(String(sessionUser.email).toLowerCase());
+    }
+    // « Dupont (3), Martin (1) » : séances à pointer par enseignant, si l'UE a plusieurs enseignants imputés
+    function anaLateBy(a) {
+      const by = {}; let any = false;
+      (a.late || []).forEach(r => {
+        const t = (r.s && r.s.teachers) || [];
+        if (!t.length) { by['(non attribué)'] = (by['(non attribué)'] || 0) + 1; return; }
+        any = true; t.forEach(e => { const n = plTeacherName(e); by[n] = (by[n] || 0) + 1; });
+      });
+      return any ? Object.keys(by).map(k => `${k} (${by[k]})`).join(', ') : '';
+    }
     async function loadMyTasks() {
       if (!sessionUser) return [];
       const ids = (sessionUser.courseIds || []).filter(id => courses.some(c => c.id === id));
@@ -9251,7 +9277,8 @@
         const p = await payloadOfCourse(id);
         if (!p) continue;
         const a = analyseCourse(c, p, now);
-        if (a.late.length) out.push({c, rows: a.late.map(r => ({sid: r.s.id, date: r.date, start: r.s.start, end: r.s.end, miss: r.miss})), students: a.active});
+        const mine = a.late.filter(r => sessionIsMine(r.s));   // séance d'un autre enseignant de l'UE : pas à mon compte
+        if (mine.length) out.push({c, rows: mine.map(r => ({sid: r.s.id, date: r.date, start: r.s.start, end: r.s.end, miss: r.miss})), students: a.active});
       }
       out.sort((x, y) => x.rows[0].date - y.rows[0].date);
       return out;
