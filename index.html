@@ -3558,6 +3558,9 @@
             tdCell.title += ` · validé par l'admin le ${new Date(record.validatedAt).toLocaleString('fr-BE')}`;
           }
 
+          const whoTxt = recWhoText(record);
+          if (whoTxt) tdCell.title = (tdCell.title ? tdCell.title + '\n' : '') + whoTxt;
+
           tdCell.onclick = () => openPointageModal(std, sess);
           tr.appendChild(tdCell);
         });
@@ -3622,6 +3625,20 @@
       alert(message + "\n\n(Connectez-vous avec un compte administrateur pour le faire.)");
     }
 
+    // Traçabilité : qui a encodé le pointage et quand (visible au survol de la case)
+    function whoStamp() {
+      const u = sessionUser || {};
+      const name = `${String(u.nom || '').toUpperCase()} ${u.prenom || ''}`.trim() || u.email || '';
+      return {by: u.email || '', byName: name, at: new Date().toISOString()};
+    }
+    function recWhoText(rec) {
+      if (!rec || !rec.status || rec.status === '?') return '';
+      if (!rec.by && !rec.byName) return 'Encodeur non enregistré (pointage encodé avant l\'activation du suivi)';
+      let when = '';
+      try { when = new Date(rec.at).toLocaleString('fr-BE', {dateStyle: 'short', timeStyle: 'short'}); } catch (e) { /* ignoré */ }
+      return `Encodé par ${rec.byName || rec.by}${when ? ' le ' + when : ''}`;
+    }
+
     function fillEntireSession(sessionId, defaultStatus) {
       if (roBlock()) return;
       // Les pointages T, D, CM, E et J (validés par l'admin) ne sont jamais écrasés par un « tous présents »
@@ -3635,12 +3652,12 @@
         students.forEach(s => {
           const key = `${s.id}_${sessionId}`;
           if (attendanceData[key] && isAdminStatus(attendanceData[key].status)) return;
-          attendanceData[key] = {
+          attendanceData[key] = Object.assign({
             status: defaultStatus,
             lateMin: 0,
             earlyMin: 0,
             quotite: 1.0
-          };
+          }, whoStamp());
         });
         saveToStorage();
         renderTable();
@@ -3688,6 +3705,7 @@
         earlyMin: 0,
         quotite: (status === 'P' || status === 'M') ? 1.0 : 0
       };
+      Object.assign(rec, whoStamp());
       // T, D, CM : on garde la date de validation par l'admin (traçabilité pour le contrôle)
       if (isAdminStatus(status)) rec.validatedAt = new Date().toISOString();
       attendanceData[`${studentId}_${sessionId}`] = rec;
@@ -3723,7 +3741,7 @@
       todo.forEach(key => {
         const r = attendanceData[key];
         if (onlyEmpty && r && r.status && r.status !== '?') return;
-        attendanceData[key] = {status: 'E', lateMin: 0, earlyMin: 0, quotite: 0, validatedAt: stamp};
+        attendanceData[key] = Object.assign({status: 'E', lateMin: 0, earlyMin: 0, quotite: 0, validatedAt: stamp}, whoStamp());
       });
       saveToStorage();
       renderTable();
@@ -3777,12 +3795,12 @@
 
       const write = () => {
         indicateSaving();
-        attendanceData[`${sid}_${sess}`] = {
+        attendanceData[`${sid}_${sess}`] = Object.assign({
           status: 'R',
           lateMin: late,
           earlyMin: early,
           quotite: quotite
-        };
+        }, whoStamp());
         saveToStorage();
         closePointageModal();
         renderTable();
@@ -8064,7 +8082,7 @@
           if (!(payload.sessions || []).some(sx => sx.id === id)) return;
           const key = `${st.id}_${id}`, cur = (payload.attendanceData[key] || {}).status;
           if (cur && cur !== '?') return;            // jamais d'écrasement
-          payload.attendanceData[key] = {status: 'T', lateMin: 0, earlyMin: 0, quotite: 0, validatedAt: stamp};
+          payload.attendanceData[key] = Object.assign({status: 'T', lateMin: 0, earlyMin: 0, quotite: 0, validatedAt: stamp}, whoStamp());
           res.done++;
         });
         payload.savedAt = stamp;
