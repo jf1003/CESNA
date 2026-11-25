@@ -3395,6 +3395,7 @@
         thDate.title = `Séance ${sess.date} (${sess.start} - ${sess.end}) - Cliquez pour marquer 'P' pour tous`;
         if (sess.teachers && sess.teachers.length) thDate.title += `\nEnseignant de la séance : ${sess.teachers.map(t => { try { return plTeacherName(t); } catch (e) { return t; } }).join(', ')}`;
         thDate.onclick = () => fillEntireSession(sess.id, 'P');
+        if (!canPointSession(sess)) thDate.className += ' opacity-60';
         datesRow.appendChild(thDate);
 
         const thHours = document.createElement('th');
@@ -3562,6 +3563,10 @@
           const whoTxt = recWhoText(record);
           if (whoTxt) tdCell.title = (tdCell.title ? tdCell.title + '\n' : '') + whoTxt;
 
+          if (!canPointSession(sess)) {
+            tdCell.className = tdCell.className.replace('cursor-pointer', 'cursor-not-allowed') + ' opacity-60';
+            tdCell.title = (tdCell.title ? tdCell.title + '\n' : '') + `Séance de ${sessionOwnerText(sess)} : lecture seule pour vous`;
+          }
           tdCell.onclick = () => openPointageModal(std, sess);
           tr.appendChild(tdCell);
         });
@@ -3642,6 +3647,7 @@
 
     function fillEntireSession(sessionId, defaultStatus) {
       if (roBlock()) return;
+      { const sx = sessions.find(x => x.id === sessionId); if (sx && !canPointSession(sx)) { denyPointage(sx); return; } }
       // Les pointages T, D, CM, E et J (validés par l'admin) ne sont jamais écrasés par un « tous présents »
       const keep = students.filter(s => {
         const r = attendanceData[`${s.id}_${sessionId}`];
@@ -3670,6 +3676,7 @@
     // -------------------------------------------------------------
     function openPointageModal(student, session) {
       if (roBlock()) return;
+      if (!canPointSession(session)) { denyPointage(session); return; }
       currentCell.studentId = student.id;
       currentCell.sessionId = session.id;
 
@@ -3721,7 +3728,7 @@
     function propagateTeacherAbsence(sessionId) {
       const ref = sessions.find(x => x.id === sessionId);
       if (!ref) return;
-      const sameDay = sessions.filter(x => x.id === sessionId || x.date === ref.date);
+      const sameDay = sessions.filter(x => (x.id === sessionId || x.date === ref.date) && canPointSession(x));   // seulement les séances que cet enseignant peut pointer
       let empty = 0, replace = 0;
       const todo = [];
       sameDay.forEach(se => students.forEach(st => {
@@ -9258,6 +9265,15 @@
       if (!t.length || !sessionUser || !sessionUser.email) return true;
       return t.map(x => String(x).toLowerCase()).includes(String(sessionUser.email).toLowerCase());
     }
+    // Pointer : un enseignant ne peut pointer que les séances prévues à son planning (il voit toutes les séances de l'UE) ; l'admin peut tout pointer
+    function canPointSession(s) {
+      if (isLoggedAdmin() && !(typeof viewAs !== 'undefined' && viewAs)) return true;
+      return sessionIsMine(s);
+    }
+    function sessionOwnerText(s) {
+      return ((s && s.teachers) || []).map(t => { try { return plTeacherName(t); } catch (e) { return t; } }).join(', ');
+    }
+    function denyPointage(s) { alert(`Cette séance (${s.date}) est prévue à l'horaire de ${sessionOwnerText(s)} : seul(e) cet enseignant (ou un administrateur) peut la pointer.`); }
     // « Dupont (3), Martin (1) » : séances à pointer par enseignant, si l'UE a plusieurs enseignants imputés
     function anaLateBy(a) {
       const by = {}; let any = false;
