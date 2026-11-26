@@ -845,6 +845,7 @@
       <div class="p-4 space-y-3 text-xs text-slate-700 overflow-auto">
         <p>Vacances, jours fériés et journées sans cours, <strong>communs à toutes les UE</strong>. Ils sont ignorés quand on génère des séances.</p>
         <button onclick="calAddHolidays()" class="px-3 py-1 text-xs font-bold bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded">➕ Ajouter les jours fériés belges de l'année</button>
+        <button onclick="calAddSchoolBreaks()" class="px-3 py-1 text-xs font-bold bg-slate-100 border border-slate-300 hover:bg-slate-200 rounded">➕ Ajouter les congés scolaires (Toussaint, Noël, Carnaval, Pâques)</button>
         <div class="grid grid-cols-2 sm:grid-cols-[1fr_1fr_2fr_auto] gap-2 items-end">
           <div><label class="block font-semibold mb-0.5">Du</label><input type="date" id="calFrom" class="w-full p-1.5 border border-slate-300 rounded"></div>
           <div><label class="block font-semibold mb-0.5">Au (facultatif)</label><input type="date" id="calTo" class="w-full p-1.5 border border-slate-300 rounded"></div>
@@ -5914,7 +5915,7 @@
     // ----- Horaire annuel d'un enseignant (document à lui remettre : PDF via l'impression du navigateur) -----
     //  Tableau façon « horaire de bloc » : un bloc par jour (Lu à Sa), 6 plages (AM1, AM2, PM1, PM2, SOIR1, SOIR2), une colonne par semaine ;
     //  une couleur par UE avec son numéro (n), congés du calendrier en rouge, légende dessous avec l'heure exacte entre parenthèses.
-    const PL_YBANDS = [['AM1', 480, 630], ['AM2', 630, 740], ['PM1', 780, 990], ['PM2', 990, 1110], ['SOIR1', 1110, 1230], ['SOIR2', 1230, 1380]];   // 8h-10h30 · 10h30-12h20 · 13h-16h30 · 16h30-18h30 · 18h30-20h30 · dès 20h30
+    const PL_YBANDS = [['AM', 0, 750], ['PM', 750, 1020], ['SOIR', 1020, 1440]];   // AM : avant 12h30 · PM : 12h30-17h · SOIR : dès 17h (comme la vue mois)
     const PL_YCOLORS = ['#f4b183', '#c5e0b3', '#bdd7ee', '#ffe699', '#d9b3ff', '#9ee6e6', '#f8cbad', '#a9d18e', '#9dc3e6', '#ffd966', '#e2b4f0', '#8fe3cf', '#ffb3b3', '#d6dce4', '#d4cf9f', '#b4a7d6'];
     const plHM = m => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
     // Instantané publiable d'un enseignant : tout ce qu'il faut pour dessiner son horaire sans accéder au planning (réservé aux admins)
@@ -5959,10 +5960,10 @@
         // barres rouges (congés) : colonnes consécutives de même libellé fusionnées sur les 6 plages
         const bars = {}; for (let i = 0; i < days.length;) { if (!closed[i]) { i++; continue; } let j = i; while (j + 1 < days.length && closed[j + 1] === closed[i]) j++; bars[i] = {len: j - i + 1, label: closed[i]}; i = j + 1; }
         let rows = '';
-        for (let bi = 0; bi < 6; bi++) {
+        for (let bi = 0; bi < PL_YBANDS.length; bi++) {
           let tds = '';
           for (let i = 0; i < days.length;) {
-            if (closed[i]) { if (bi === 0 && bars[i]) tds += `<td class="cl" rowspan="6" colspan="${bars[i].len}"><div class="v">${escapeHtml(bars[i].label)}</div></td>`; i += bars[i] ? bars[i].len : 1; continue; }
+            if (closed[i]) { if (bi === 0 && bars[i]) tds += `<td class="cl" rowspan="${PL_YBANDS.length}" colspan="${bars[i].len}"><div class="v">${escapeHtml(bars[i].label)}</div></td>`; i += bars[i] ? bars[i].len : 1; continue; }
             const cid = cell(isoOf(days[i]), bi);
             if (!cid) { tds += '<td></td>'; i++; continue; }   // case vide : une case par semaine, quadrillage visible comme dans Excel
             let j = i;
@@ -5970,7 +5971,7 @@
             tds += `<td class="uc" colspan="${j - i + 1}" style="background:${color(cid)}">(${num[cid]})</td>`;
             i = j + 1;
           }
-          rows += `<tr>${bi === 0 ? `<td class="dn" rowspan="6">${NAMES[di]}</td>` : ''}<td class="bn">${PL_YBANDS[bi][0]}</td>${tds}</tr>`;
+          rows += `<tr>${bi === 0 ? `<td class="dn" rowspan="${PL_YBANDS.length}">${NAMES[di]}</td>` : ''}<td class="bn">${PL_YBANDS[bi][0]}</td>${tds}</tr>`;
         }
         blocks += `<table><colgroup><col style="width:5mm"><col style="width:9mm">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th colspan="2"></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
       }
@@ -5978,14 +5979,14 @@
         const when = c.times.slice().sort((a, b) => a[0] - b[0] || String(a[1]).localeCompare(String(b[1]))).map(([dw, s, e]) => `${NAMES[dw - 1] || '?'} (${plHM(timeToMin(s))}-${plHM(timeToMin(e))})`).join(' · ');
         return `<table class="lgt"><tr><td class="lgn" style="background:${color(c.id)}">(${c.n})</td><td class="lgd"><b>${escapeHtml(c.codeUE)} ${escapeHtml(c.titre)}</b>${c.periodes ? ' (' + escapeHtml(String(c.periodes)) + ')' : ''}<br><span class="gr">${escapeHtml([c.section, c.bloc].filter(Boolean).join(' · '))}</span>${when ? ' — <b>' + escapeHtml(when) + '</b>' : ''}</td></tr></table>`;
       }).join('') || '<p>Aucune UE planifiée pour cet enseignant.</p>';
-      return `<section><h1>Année scolaire ${escapeHtml(String(snap.year).replace('-', '/'))} - ${escapeHtml(snap.name)}</h1>${blocks}<div class="lgs">${legend}</div><p class="ft">Plages : AM1 8h-10h30 · AM2 10h30-12h20 · PM1 13h-16h30 · PM2 16h30-18h30 · SOIR1 18h30-20h30 · SOIR2 dès 20h30. Rouge : congé / jour fermé. Horaire provisoire susceptible d'être modifié.</p></section>`;
+      return `<section><h1>Année scolaire ${escapeHtml(String(snap.year).replace('-', '/'))} - ${escapeHtml(snap.name)}</h1>${blocks}<div class="lgs">${legend}</div><p class="ft">AM : cours commençant avant 12h30 · PM : de 12h30 à 17h · SOIR : dès 17h (heure exacte entre parenthèses dans la légende). Rouge : congé / jour fermé. Horaire provisoire susceptible d'être modifié.</p></section>`;
     }
     function plYearDocument(snaps) {
       const css = `@page{size:A4 landscape;margin:6mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}
         section{page-break-after:always}section:last-child{page-break-after:auto}h1{background:#000;color:#fff;font-size:12pt;text-align:center;margin:0 0 1.5mm;padding:1mm}
         table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:.6mm}td,th{border:.25mm solid #000;padding:0;overflow:hidden}
         th.dt{background:#000;color:#fff;font-size:4.8pt;font-weight:normal;height:2.8mm;text-align:center}th.dc{background:#b22222}
-        td{height:3.7mm;font-size:5.8pt;line-height:1}td.dn{background:#000;color:#fff;font-size:6pt;text-align:center;font-weight:bold}td.bn{background:#999;font-size:5.6pt;font-weight:bold;text-align:center}
+        td{height:7.2mm;font-size:7pt;line-height:1}td.dn{background:#000;color:#fff;font-size:8pt;text-align:center;font-weight:bold}td.bn{background:#999;font-size:6.5pt;font-weight:bold;text-align:center}
         td.uc{text-align:left;padding-left:.4mm;font-weight:bold;white-space:nowrap}td.cl{background:#b22222;color:#fff;text-align:center;font-size:6pt;font-weight:bold}
         .v{writing-mode:vertical-rl;transform:rotate(180deg);margin:auto;white-space:nowrap}
         .lgs{column-count:2;column-gap:5mm;margin-top:2mm;font-size:7.5pt}.lgt{break-inside:avoid;margin:0 0 1mm;table-layout:auto}.lgt td{height:auto;font-size:7.5pt;line-height:1.25;padding:.6mm 1.2mm}.lgn{width:11mm;text-align:center;font-weight:bold;vertical-align:middle}.lgd{vertical-align:middle}.gr{color:#444}
@@ -7610,7 +7611,7 @@
           <button onclick="lhPrintYear()" class="px-3 py-1 bg-[#0a3a60] hover:bg-[#082d4a] text-white rounded font-bold">🖨 Ouvrir / enregistrer en PDF</button>
           <span class="ml-auto text-slate-600">${escapeHtml(teacherLabel(t))} · ${ents.length} séance(s) encodée(s)</span></div>
         <iframe id="lhYearFrame" title="Horaire annuel" class="w-full border border-slate-300 rounded bg-white" style="height:62vh"></iframe>
-        <p class="mt-1 text-[11px] text-slate-500">Construit à partir des séances encodées dans les UE (mises à jour automatiquement). Plages : AM1 8h-10h30 · AM2 10h30-12h20 · PM1 13h-16h30 · PM2 16h30-18h30 · SOIR1 18h30-20h30 · SOIR2 dès 20h30.</p>`;
+        <p class="mt-1 text-[11px] text-slate-500">Construit à partir des séances encodées dans les UE (mises à jour automatiquement). AM : avant 12h30 · PM : 12h30-17h · SOIR : dès 17h.</p>`;
       lhYearSnap = snap;
       document.getElementById('lhYearFrame').srcdoc = plYearDocument([snap]);
     }
@@ -9359,6 +9360,19 @@
       renderCalendarList();
     }
     function calRemove(i) { calendarClosed.splice(i, 1); renderCalendarList(); }
+    // Congés scolaires de la Fédération Wallonie-Bruxelles (lundi → dimanche) par année scolaire, à vérifier avec le calendrier de l'établissement
+    const FWB_SCHOOL_BREAKS = {
+      2026: [['2026-10-19', '2026-11-01', "Vacances d'automne (Toussaint)"], ['2026-12-21', '2027-01-03', "Vacances d'hiver (Noël)"], ['2027-02-22', '2027-03-07', 'Congé de détente (Carnaval)'], ['2027-04-26', '2027-05-09', 'Vacances de printemps (Pâques)']],
+      2027: [['2027-10-25', '2027-11-07', "Vacances d'automne (Toussaint)"], ['2027-12-27', '2028-01-09', "Vacances d'hiver (Noël)"], ['2028-02-28', '2028-03-12', 'Congé de détente (Carnaval)'], ['2028-05-01', '2028-05-14', 'Vacances de printemps (Pâques)']]
+    };
+    function calAddSchoolBreaks() {
+      const y1 = parseInt(String(YEAR).slice(0, 4), 10), list = FWB_SCHOOL_BREAKS[y1];
+      if (!list) { calSay(`Les congés scolaires ${YEAR} ne sont pas préenregistrés : ajoutez-les à la main (du … au …).`, 'text-amber-700'); return; }
+      let n = 0;
+      list.forEach(([from, to, label]) => { if (!calendarClosed.some(c => c.from === from && c.to === to)) { calendarClosed.push({from, to, label}); n++; } });
+      renderCalendarList();
+      calSay(n ? `${n} période(s) de congés scolaires ajoutée(s) pour ${YEAR}. Vérifiez-les avec le calendrier de l'établissement, puis enregistrez.` : "Les congés scolaires sont déjà dans la liste.");
+    }
     function calAddHolidays() {
       const y1 = parseInt(String(YEAR).slice(0, 4), 10);
       let n = 0;
