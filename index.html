@@ -5918,6 +5918,16 @@
     const PL_YBANDS = [['AM', 0, 750], ['PM', 750, 1020], ['SOIR', 1020, 1440]];   // AM : avant 12h30 · PM : 12h30-17h · SOIR : dès 17h (comme la vue mois)
     const PL_YCOLORS = ['#f4b183', '#c5e0b3', '#bdd7ee', '#ffe699', '#d9b3ff', '#9ee6e6', '#f8cbad', '#a9d18e', '#9dc3e6', '#ffd966', '#e2b4f0', '#8fe3cf', '#ffb3b3', '#d6dce4', '#d4cf9f', '#b4a7d6'];
     const plHM = m => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+    // Jours fermés pour l'affichage annuel : calendrier académique + congés scolaires FWB et jours fériés belges de l'année s'ils n'y figurent pas encore
+    function plClosedForYear() {
+      const y1 = parseInt(String(YEAR).slice(0, 4), 10), norm = c => ({from: c.from, to: c.to || c.from, label: c.label || 'Jour fermé'});
+      const base = calendarClosed.map(norm), generic = c => c.label === 'Jour fermé';
+      const extra = [];
+      ((typeof FWB_SCHOOL_BREAKS !== 'undefined' && FWB_SCHOOL_BREAKS[y1]) || []).forEach(([from, to, label]) => extra.push({from, to, label}));
+      try { belgianHolidays(y1).forEach(x => extra.push(norm(x))); } catch (e) { /* ignoré */ }
+      const missing = extra.filter(x => !base.some(c => c.from <= x.from && c.to >= x.to));
+      return [...base.filter(c => !generic(c)), ...missing, ...base.filter(generic)];
+    }
     // Instantané publiable d'un enseignant : tout ce qu'il faut pour dessiner son horaire sans accéder au planning (réservé aux admins)
     function plYearSnapshot(email) {
       const e = plEm(email), t = teachersList.find(x => plEm(x.email) === e);
@@ -5934,7 +5944,7 @@
         const s0 = timeToMin(s.start), e0 = timeToMin(s.end); if (s0 == null || e0 == null) return;
         plOcc(s).forEach(iso => occ.push([iso, s.courseId, s0, e0]));
       });
-      return {year: YEAR, email: e, name: t ? teacherLabel(t) : email, courses, occ, closed: calendarClosed.map(c => ({from: c.from, to: c.to || c.from, label: c.label || 'Jour fermé'})), at: new Date().toISOString()};
+      return {year: YEAR, email: e, name: t ? teacherLabel(t) : email, courses, occ, closed: plClosedForYear(), at: new Date().toISOString()};
     }
     function plYearPage(snap) {
       const num = {}; snap.courses.forEach(c => { num[c.id] = c.n; });
@@ -5957,7 +5967,7 @@
       const FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'], nDays = hasSat ? 6 : 5;
       for (let di = 0; di < nDays; di++) {
         const days = weeks.map(w => new Date(w.getFullYear(), w.getMonth(), w.getDate() + di));
-        const closed = days.map(closedOf);
+        const closed = days.map(d => (byDate[isoOf(d)] || []).length ? null : closedOf(d));   // un jour avec séance n'est jamais masqué par un congé
         let head = ''; days.forEach((d, i) => { head += `<th class="dt${closed[i] ? ' dc' : ''}">${dm(d)}</th>`; });
         // barres rouges (congés) : colonnes consécutives de même libellé fusionnées sur les 6 plages
         const bars = {}; for (let i = 0; i < days.length;) { if (!closed[i]) { i++; continue; } let j = i; while (j + 1 < days.length && closed[j + 1] === closed[i]) j++; bars[i] = {len: j - i + 1, label: closed[i]}; i = j + 1; }
@@ -7602,7 +7612,7 @@
         return {id: c.id, n: i + 1, codeUE: c.codeUE || '', titre: c.titre || c.intituleUE || '', section: c.section || '', bloc: c.bloc || '', periodes: c.periodes || '', times: Object.values(times)};
       });
       const occ = ents.map(e => [isoOf(e.date), e.courseId, e.start, e.end]);
-      return {year: YEAR, email: String(t.email || '').toLowerCase(), name: teacherLabel(t), courses, occ, closed: calendarClosed.map(c => ({from: c.from, to: c.to || c.from, label: c.label || 'Jour fermé'})), at: new Date().toISOString()};
+      return {year: YEAR, email: String(t.email || '').toLowerCase(), name: teacherLabel(t), courses, occ, closed: plClosedForYear(), at: new Date().toISOString()};
     }
     function lhRenderYear(box, t, ucs, ents) {
       if (!calendarLoaded) { try { Promise.resolve(loadCalendar()).then(() => { if (lhMode === 'year') renderTeacherAgenda(); }); } catch (e) { /* ignoré */ } }
