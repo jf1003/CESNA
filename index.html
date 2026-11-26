@@ -7459,7 +7459,7 @@
     // ----- onglet « Horaire enseignant » (admins) : agenda de toutes les séances des UE d'un enseignant -----
     let lhAnchor = null;      // date de repère (une date de la semaine ou du mois affiché)
     let lhSelf = false;       // true : « Mon horaire » (enseignant connecté, uniquement ses propres UE)
-    let lhMode = 'week';      // 'week' | 'month'
+    let lhMode = 'week';      // 'week' | 'month' | 'year'
     function teacherCourses(t) {
       if (lhSelf) return courses.filter(c => (sessionUser.courseIds || []).includes(c.id));
       const ids = new Set((Array.isArray(t.courseIds) ? t.courseIds : []).filter(id => courses.some(c => c.id === id)));
@@ -7576,6 +7576,32 @@
     }
     function lhToday() { lhAnchor = new Date(); renderTeacherAgenda(); }
     function lhSetMode(m) { lhMode = m; renderTeacherAgenda(); }
+    // Vue année : le tableau annuel du modèle (une couleur + un numéro par UE, légende dessous), construit à partir des séances déjà encodées dans les UE
+    function plYearSnapshotFromEntries(t, ucs, ents) {
+      const used = ucs.filter(c => ents.some(e => e.courseId === c.id)).sort((a, b) => String(a.codeUE || '').localeCompare(String(b.codeUE || ''), 'fr', {numeric: true}));
+      const courses = used.map((c, i) => {
+        const times = {};
+        ents.filter(e => e.courseId === c.id).forEach(e => { const dw = e.date.getDay(); if (dw >= 1 && dw <= 6) times[`${dw}|${e.startTxt}|${e.endTxt}`] = [dw, e.startTxt, e.endTxt]; });
+        return {id: c.id, n: i + 1, codeUE: c.codeUE || '', titre: c.titre || c.intituleUE || '', section: c.section || '', bloc: c.bloc || '', periodes: c.periodes || '', times: Object.values(times)};
+      });
+      const occ = ents.map(e => [isoOf(e.date), e.courseId, e.start, e.end]);
+      return {year: YEAR, email: String(t.email || '').toLowerCase(), name: teacherLabel(t), courses, occ, closed: calendarClosed.map(c => ({from: c.from, to: c.to || c.from, label: c.label || 'Jour fermé'})), at: new Date().toISOString()};
+    }
+    function lhRenderYear(box, t, ucs, ents) {
+      if (!calendarLoaded) { try { Promise.resolve(loadCalendar()).then(() => { if (lhMode === 'year') renderTeacherAgenda(); }); } catch (e) { /* ignoré */ } }
+      const snap = plYearSnapshotFromEntries(t, ucs, ents);
+      box.innerHTML = `<div class="flex flex-wrap items-center gap-2 mb-2">
+          <span class="font-bold text-[#0a3a60] text-sm">Année scolaire ${escapeHtml(String(YEAR).replace('-', '/'))}</span>
+          <select onchange="lhSetMode(this.value)" class="bg-white border border-slate-300 rounded px-2 py-1 font-semibold"><option value="week">Vue semaine</option><option value="month">Vue mois</option><option value="year" selected>Vue année (modèle)</option></select>
+          <button onclick="lhPrintYear()" class="px-3 py-1 bg-[#0a3a60] hover:bg-[#082d4a] text-white rounded font-bold">🖨 Ouvrir / enregistrer en PDF</button>
+          <span class="ml-auto text-slate-600">${escapeHtml(teacherLabel(t))} · ${ents.length} séance(s) encodée(s)</span></div>
+        <iframe id="lhYearFrame" title="Horaire annuel" class="w-full border border-slate-300 rounded bg-white" style="height:62vh"></iframe>
+        <p class="mt-1 text-[11px] text-slate-500">Construit à partir des séances encodées dans les UE (mises à jour automatiquement). Plages : AM1 8h-10h30 · AM2 10h30-12h20 · PM1 13h-16h30 · PM2 16h30-18h30 · SOIR1 18h30-20h30 · SOIR2 dès 20h30.</p>`;
+      lhYearSnap = snap;
+      document.getElementById('lhYearFrame').srcdoc = plYearDocument([snap]);
+    }
+    let lhYearSnap = null;
+    function lhPrintYear() { if (lhYearSnap) plShowYear([lhYearSnap]); }
     function lhGoDay(key) {
       const [y, m, d] = key.split('-').map(Number);
       lhAnchor = new Date(y, m - 1, d); lhMode = 'week'; renderTeacherAgenda();
@@ -7590,6 +7616,7 @@
       if (!ucs.length) { box.innerHTML = `<p class="text-xs text-slate-500 border border-dashed border-slate-300 rounded p-3">Aucune UE n'est attribuée à ${escapeHtml(teacherLabel(t))}.</p>`; return; }
       const ents = teacherEntries(t);
       lhAnchor = lhAnchor || new Date();
+      if (lhMode === 'year') { lhRenderYear(box, t, ucs, ents); return; }
       const MONTHS_L = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
       const WD = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
       const todayKey = dateKey(new Date());
@@ -7664,7 +7691,7 @@
           <button onclick="lhToday()" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-semibold">Aujourd'hui</button>
           <button onclick="lhStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold" title="Suivant">›</button>
           <span class="font-bold text-[#0a3a60] text-sm">${escapeHtml(label)}</span>
-          <select onchange="lhSetMode(this.value)" class="bg-white border border-slate-300 rounded px-2 py-1 font-semibold"><option value="week"${lhMode === 'week' ? ' selected' : ''}>Vue semaine</option><option value="month"${lhMode === 'month' ? ' selected' : ''}>Vue mois</option></select>
+          <select onchange="lhSetMode(this.value)" class="bg-white border border-slate-300 rounded px-2 py-1 font-semibold"><option value="week"${lhMode === 'week' ? ' selected' : ''}>Vue semaine</option><option value="month"${lhMode === 'month' ? ' selected' : ''}>Vue mois</option><option value="year">Vue année (modèle)</option></select>
           <span class="ml-auto text-slate-600">${escapeHtml(teacherLabel(t))} · ${nShown} séance(s) affichée(s) · ${ents.length} au total</span></div>
         ${grid}
         <div class="mt-2 leading-6">${legend}</div>
