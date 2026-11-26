@@ -5963,9 +5963,11 @@
           let tds = '';
           for (let i = 0; i < days.length;) {
             if (closed[i]) { if (bi === 0 && bars[i]) tds += `<td class="cl" rowspan="6" colspan="${bars[i].len}"><div class="v">${escapeHtml(bars[i].label)}</div></td>`; i += bars[i] ? bars[i].len : 1; continue; }
-            const cid = cell(isoOf(days[i]), bi); let j = i;
+            const cid = cell(isoOf(days[i]), bi);
+            if (!cid) { tds += '<td></td>'; i++; continue; }   // case vide : une case par semaine, quadrillage visible comme dans Excel
+            let j = i;
             while (j + 1 < days.length && !closed[j + 1] && cell(isoOf(days[j + 1]), bi) === cid) j++;
-            tds += cid ? `<td class="uc" colspan="${j - i + 1}" style="background:${color(cid)}">(${num[cid]})</td>` : `<td${j > i ? ` colspan="${j - i + 1}"` : ''}></td>`;
+            tds += `<td class="uc" colspan="${j - i + 1}" style="background:${color(cid)}">(${num[cid]})</td>`;
             i = j + 1;
           }
           rows += `<tr>${bi === 0 ? `<td class="dn" rowspan="6">${NAMES[di]}</td>` : ''}<td class="bn">${PL_YBANDS[bi][0]}</td>${tds}</tr>`;
@@ -5974,19 +5976,19 @@
       }
       const legend = snap.courses.map(c => {
         const when = c.times.slice().sort((a, b) => a[0] - b[0] || String(a[1]).localeCompare(String(b[1]))).map(([dw, s, e]) => `${NAMES[dw - 1] || '?'} (${plHM(timeToMin(s))}-${plHM(timeToMin(e))})`).join(' · ');
-        return `<div class="lg"><span class="sw" style="background:${color(c.id)}"></span><b>(${c.n})</b> ${escapeHtml(c.codeUE)} ${escapeHtml(c.titre)} <span class="gr">— ${escapeHtml([c.section, c.bloc].filter(Boolean).join(' · '))}${c.periodes ? ' · ' + escapeHtml(String(c.periodes)) : ''}</span> — ${escapeHtml(when)}</div>`;
+        return `<table class="lgt"><tr><td class="lgn" style="background:${color(c.id)}">(${c.n})</td><td class="lgd"><b>${escapeHtml(c.codeUE)} ${escapeHtml(c.titre)}</b>${c.periodes ? ' (' + escapeHtml(String(c.periodes)) + ')' : ''}<br><span class="gr">${escapeHtml([c.section, c.bloc].filter(Boolean).join(' · '))}</span>${when ? ' — <b>' + escapeHtml(when) + '</b>' : ''}</td></tr></table>`;
       }).join('') || '<p>Aucune UE planifiée pour cet enseignant.</p>';
       return `<section><h1>Année scolaire ${escapeHtml(String(snap.year).replace('-', '/'))} - ${escapeHtml(snap.name)}</h1>${blocks}<div class="lgs">${legend}</div><p class="ft">Plages : AM1 8h-10h30 · AM2 10h30-12h20 · PM1 13h-16h30 · PM2 16h30-18h30 · SOIR1 18h30-20h30 · SOIR2 dès 20h30. Rouge : congé / jour fermé. Horaire provisoire susceptible d'être modifié.</p></section>`;
     }
     function plYearDocument(snaps) {
       const css = `@page{size:A4 landscape;margin:6mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}
         section{page-break-after:always}section:last-child{page-break-after:auto}h1{background:#000;color:#fff;font-size:12pt;text-align:center;margin:0 0 1.5mm;padding:1mm}
-        table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:.6mm}td,th{border:.2mm solid #000;padding:0;overflow:hidden}
+        table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:.6mm}td,th{border:.25mm solid #000;padding:0;overflow:hidden}
         th.dt{background:#000;color:#fff;font-size:4.8pt;font-weight:normal;height:2.8mm;text-align:center}th.dc{background:#b22222}
         td{height:3.7mm;font-size:5.8pt;line-height:1}td.dn{background:#000;color:#fff;font-size:6pt;text-align:center;font-weight:bold}td.bn{background:#999;font-size:5.6pt;font-weight:bold;text-align:center}
         td.uc{text-align:left;padding-left:.4mm;font-weight:bold;white-space:nowrap}td.cl{background:#b22222;color:#fff;text-align:center;font-size:6pt;font-weight:bold}
         .v{writing-mode:vertical-rl;transform:rotate(180deg);margin:auto;white-space:nowrap}
-        .lgs{column-count:2;column-gap:6mm;margin-top:2mm;font-size:7.5pt}.lg{break-inside:avoid;margin-bottom:1mm}.sw{display:inline-block;width:4mm;height:2.6mm;border:.2mm solid #000;vertical-align:middle;margin-right:1mm}.gr{color:#444}
+        .lgs{column-count:2;column-gap:5mm;margin-top:2mm;font-size:7.5pt}.lgt{break-inside:avoid;margin:0 0 1mm;table-layout:auto}.lgt td{height:auto;font-size:7.5pt;line-height:1.25;padding:.6mm 1.2mm}.lgn{width:11mm;text-align:center;font-weight:bold;vertical-align:middle}.lgd{vertical-align:middle}.gr{color:#444}
         .ft{font-size:6pt;color:#555;margin:1.5mm 0 0}.bar{padding:6px;background:#e2e8f0;font-size:13px}.bar button{padding:6px 14px;font-weight:bold;cursor:pointer}@media print{.bar{display:none}}`;
       const bar = `<div class="bar"><button onclick="window.print()">🖨 Imprimer / Enregistrer en PDF</button> &nbsp; Dans la fenêtre d'impression : « Enregistrer au format PDF » (cochez « Graphiques d'arrière-plan » si les couleurs manquent).</div>`;
       return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Horaire annuel</title><style>${css}</style></head><body>${bar}${snaps.map(plYearPage).join('')}</body></html>`;
