@@ -5953,7 +5953,9 @@
         return hit ? hit.cid : null;
       };
       let blocks = '';
-      for (let di = 0; di < 6; di++) {
+      const hasSat = snap.occ.some(o => { const d = dateFromIso(o[0]); return d && d.getDay() === 6; });   // samedi : seulement si l'enseignant y a cours
+      const FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'], nDays = hasSat ? 6 : 5;
+      for (let di = 0; di < nDays; di++) {
         const days = weeks.map(w => new Date(w.getFullYear(), w.getMonth(), w.getDate() + di));
         const closed = days.map(closedOf);
         let head = ''; days.forEach((d, i) => { head += `<th class="dt${closed[i] ? ' dc' : ''}">${dm(d)}</th>`; });
@@ -5971,9 +5973,9 @@
             tds += `<td class="uc" colspan="${j - i + 1}" style="background:${color(cid)}">(${num[cid]})</td>`;
             i = j + 1;
           }
-          rows += `<tr>${bi === 0 ? `<td class="dn" rowspan="${PL_YBANDS.length}">${NAMES[di]}</td>` : ''}<td class="bn">${PL_YBANDS[bi][0]}</td>${tds}</tr>`;
+          rows += `<tr>${bi === 0 ? `<td class="dn" rowspan="${PL_YBANDS.length}"><div class="v">${FULL[di]}</div></td>` : ''}<td class="bn">${PL_YBANDS[bi][0]}</td>${tds}</tr>`;
         }
-        blocks += `<table><colgroup><col style="width:5mm"><col style="width:9mm">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th colspan="2"></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+        blocks += `<table><colgroup><col style="width:6mm"><col style="width:9mm">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th colspan="2"></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
       }
       const legend = snap.courses.map(c => {
         const when = c.times.slice().sort((a, b) => a[0] - b[0] || String(a[1]).localeCompare(String(b[1]))).map(([dw, s, e]) => `${NAMES[dw - 1] || '?'} (${plHM(timeToMin(s))}-${plHM(timeToMin(e))})`).join(' · ');
@@ -5986,7 +5988,7 @@
         section{page-break-after:always}section:last-child{page-break-after:auto}h1{background:#000;color:#fff;font-size:12pt;text-align:center;margin:0 0 1.5mm;padding:1mm}
         table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:.6mm}td,th{border:.25mm solid #000;padding:0;overflow:hidden}
         th.dt{background:#000;color:#fff;font-size:4.8pt;font-weight:normal;height:2.8mm;text-align:center}th.dc{background:#b22222}
-        td{height:7.2mm;font-size:7pt;line-height:1}td.dn{background:#000;color:#fff;font-size:8pt;text-align:center;font-weight:bold}td.bn{background:#999;font-size:6.5pt;font-weight:bold;text-align:center}
+        td{height:9mm;font-size:7pt;line-height:1}td.dn{background:#000;color:#fff;font-size:8pt;text-align:center;font-weight:bold;letter-spacing:.3mm}td.bn{background:#999;font-size:6.5pt;font-weight:bold;text-align:center}
         td.uc{text-align:left;padding-left:.4mm;font-weight:bold;white-space:nowrap}td.cl{background:#b22222;color:#fff;text-align:center;font-size:6pt;font-weight:bold}
         .v{writing-mode:vertical-rl;transform:rotate(180deg);margin:auto;white-space:nowrap}
         .lgs{column-count:2;column-gap:5mm;margin-top:2mm;font-size:7.5pt}.lgt{break-inside:avoid;margin:0 0 1mm;table-layout:auto}.lgt td{height:auto;font-size:7.5pt;line-height:1.25;padding:.6mm 1.2mm}.lgn{width:11mm;text-align:center;font-weight:bold;vertical-align:middle}.lgd{vertical-align:middle}.gr{color:#444}
