@@ -546,7 +546,8 @@
             <button onclick="plStep(1)" class="px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 font-bold">›</button>
             <input type="date" id="plGoto" onchange="plGoto(this.value)" class="border border-slate-300 rounded px-2 py-1 bg-white" title="Aller à une date">
             <span id="plWeekLbl" class="font-bold text-[#0a3a60] text-sm"></span>
-            <button onclick="plGenerate()" class="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold shadow" title="Crée dans chaque UE les séances prévues au planning (sans toucher à ce qui existe déjà)">⚙ Générer les séances dans les UE</button>
+            <button onclick="plYearMenu()" class="ml-auto px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded font-bold shadow" title="Document annuel à remettre à l'enseignant : une couleur par UE, la référence en dessous">📄 Horaire annuel (PDF)</button>
+            <button onclick="plGenerate()" class="ml-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold shadow" title="Crée dans chaque UE les séances prévues au planning (sans toucher à ce qui existe déjà)">⚙ Générer les séances dans les UE</button>
           </div>
           <div class="flex flex-col lg:flex-row gap-3">
             <div id="plLeft" class="lg:w-80 shrink-0"></div>
@@ -864,6 +865,7 @@
     <div class="bg-white rounded-lg shadow-xl border border-slate-300 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
       <div class="px-4 py-3 bg-[#0a3a60] text-white font-bold flex items-center justify-between text-sm">
         <span>📅 Mon horaire</span>
+        <span class="ml-auto mr-3"><button onclick="openMyYearTimetable()" class="px-3 py-1 bg-white text-[#0a3a60] hover:bg-slate-100 rounded font-bold" title="Votre horaire sur toute l'année : une couleur par UE">📄 Horaire annuel (PDF)</button></span>
         <button onclick="closeMyAgenda()" class="text-slate-300 hover:text-white font-bold">✕</button>
       </div>
       <div class="p-4 overflow-auto text-xs text-slate-700"><div id="mhBody"></div></div>
@@ -5908,6 +5910,133 @@
       delete plan.dispos[plEm(plDispoSel)]; plPersist(); plRenderDispo();
     }
 
+    // ----- Horaire annuel d'un enseignant (document à lui remettre : PDF via l'impression du navigateur) -----
+    //  Tableau façon « horaire de bloc » : un bloc par jour (Lu à Sa), 6 plages (AM1, AM2, PM1, PM2, SOIR1, SOIR2), une colonne par semaine ;
+    //  une couleur par UE avec son numéro (n), congés du calendrier en rouge, légende dessous avec l'heure exacte entre parenthèses.
+    const PL_YBANDS = [['AM1', 480, 630], ['AM2', 630, 740], ['PM1', 780, 990], ['PM2', 990, 1110], ['SOIR1', 1110, 1230], ['SOIR2', 1230, 1380]];   // 8h-10h30 · 10h30-12h20 · 13h-16h30 · 16h30-18h30 · 18h30-20h30 · dès 20h30
+    const PL_YCOLORS = ['#f4b183', '#c5e0b3', '#bdd7ee', '#ffe699', '#d9b3ff', '#9ee6e6', '#f8cbad', '#a9d18e', '#9dc3e6', '#ffd966', '#e2b4f0', '#8fe3cf', '#ffb3b3', '#d6dce4', '#d4cf9f', '#b4a7d6'];
+    const plHM = m => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+    // Instantané publiable d'un enseignant : tout ce qu'il faut pour dessiner son horaire sans accéder au planning (réservé aux admins)
+    function plYearSnapshot(email) {
+      const e = plEm(email), t = teachersList.find(x => plEm(x.email) === e);
+      const mine = plan.slots.filter(s => (s.teachers || []).some(x => plEm(x) === e));
+      const ids = Array.from(new Set(mine.map(s => s.courseId)));
+      const cs = ids.map(id => plCourse(id)).filter(Boolean).sort((a, b) => String(a.codeUE || '').localeCompare(String(b.codeUE || ''), 'fr', {numeric: true}));
+      const courses = cs.map((c, i) => {
+        const times = {};
+        mine.filter(s => s.courseId === c.id).forEach(s => { (s.mode === 'one' ? [plDowOf(s.date)] : [s.dow]).forEach(dw => { times[`${dw}|${s.start}|${s.end}`] = [dw, s.start, s.end]; }); });
+        return {id: c.id, n: i + 1, codeUE: c.codeUE || '', titre: c.titre || c.intituleUE || '', section: c.section || '', bloc: c.bloc || '', periodes: c.periodes || '', times: Object.values(times)};
+      });
+      const occ = [];
+      mine.forEach(s => {
+        const s0 = timeToMin(s.start), e0 = timeToMin(s.end); if (s0 == null || e0 == null) return;
+        plOcc(s).forEach(iso => occ.push([iso, s.courseId, s0, e0]));
+      });
+      return {year: YEAR, email: e, name: t ? teacherLabel(t) : email, courses, occ, closed: calendarClosed.map(c => ({from: c.from, to: c.to || c.from, label: c.label || 'Jour fermé'})), at: new Date().toISOString()};
+    }
+    function plYearPage(snap) {
+      const num = {}; snap.courses.forEach(c => { num[c.id] = c.n; });
+      const byDate = {}; let last = null;
+      snap.occ.forEach(([iso, cid, s0, e0]) => { (byDate[iso] = byDate[iso] || []).push({cid, s0, e0}); if (!last || iso > last) last = iso; });
+      const closedOf = d => { const iso = isoOf(d), hit = (snap.closed || []).find(c => c.from && iso >= c.from && iso <= (c.to || c.from)); return hit ? (hit.label || 'Jour fermé') : null; };
+      const y1 = parseInt(String(snap.year).slice(0, 4), 10) || new Date().getFullYear();
+      const start = mondayOf(new Date(y1, 7, 24));
+      let endD = new Date(y1 + 1, 6, 5); if (last && dateFromIso(last) > endD) endD = dateFromIso(last);
+      const weeks = []; for (let d = new Date(start); d <= endD; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7)) weeks.push(new Date(d));
+      const NAMES = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'], dm = d => `${d.getDate()}/${d.getMonth() + 1}`;
+      const color = c => PL_YCOLORS[((num[c] || 1) - 1) % PL_YCOLORS.length];
+      const cell = (iso, bi) => {   // UE occupant cette plage ce jour-là (la séance occupe toutes les plages qu'elle recouvre d'au moins 20 min)
+        const [, b0, b1] = PL_YBANDS[bi];
+        const hit = (byDate[iso] || []).find(o => Math.min(o.e0, b1) - Math.max(o.s0, b0) >= 20);
+        return hit ? hit.cid : null;
+      };
+      let blocks = '';
+      for (let di = 0; di < 6; di++) {
+        const days = weeks.map(w => new Date(w.getFullYear(), w.getMonth(), w.getDate() + di));
+        const closed = days.map(closedOf);
+        let head = ''; days.forEach((d, i) => { head += `<th class="dt${closed[i] ? ' dc' : ''}">${dm(d)}</th>`; });
+        // barres rouges (congés) : colonnes consécutives de même libellé fusionnées sur les 6 plages
+        const bars = {}; for (let i = 0; i < days.length;) { if (!closed[i]) { i++; continue; } let j = i; while (j + 1 < days.length && closed[j + 1] === closed[i]) j++; bars[i] = {len: j - i + 1, label: closed[i]}; i = j + 1; }
+        let rows = '';
+        for (let bi = 0; bi < 6; bi++) {
+          let tds = '';
+          for (let i = 0; i < days.length;) {
+            if (closed[i]) { if (bi === 0 && bars[i]) tds += `<td class="cl" rowspan="6" colspan="${bars[i].len}"><div class="v">${escapeHtml(bars[i].label)}</div></td>`; i += bars[i] ? bars[i].len : 1; continue; }
+            const cid = cell(isoOf(days[i]), bi); let j = i;
+            while (j + 1 < days.length && !closed[j + 1] && cell(isoOf(days[j + 1]), bi) === cid) j++;
+            tds += cid ? `<td class="uc" colspan="${j - i + 1}" style="background:${color(cid)}">(${num[cid]})</td>` : `<td${j > i ? ` colspan="${j - i + 1}"` : ''}></td>`;
+            i = j + 1;
+          }
+          rows += `<tr>${bi === 0 ? `<td class="dn" rowspan="6">${NAMES[di]}</td>` : ''}<td class="bn">${PL_YBANDS[bi][0]}</td>${tds}</tr>`;
+        }
+        blocks += `<table><colgroup><col style="width:5mm"><col style="width:9mm">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th colspan="2"></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+      }
+      const legend = snap.courses.map(c => {
+        const when = c.times.slice().sort((a, b) => a[0] - b[0] || String(a[1]).localeCompare(String(b[1]))).map(([dw, s, e]) => `${NAMES[dw - 1] || '?'} (${plHM(timeToMin(s))}-${plHM(timeToMin(e))})`).join(' · ');
+        return `<div class="lg"><span class="sw" style="background:${color(c.id)}"></span><b>(${c.n})</b> ${escapeHtml(c.codeUE)} ${escapeHtml(c.titre)} <span class="gr">— ${escapeHtml([c.section, c.bloc].filter(Boolean).join(' · '))}${c.periodes ? ' · ' + escapeHtml(String(c.periodes)) : ''}</span> — ${escapeHtml(when)}</div>`;
+      }).join('') || '<p>Aucune UE planifiée pour cet enseignant.</p>';
+      return `<section><h1>Année scolaire ${escapeHtml(String(snap.year).replace('-', '/'))} - ${escapeHtml(snap.name)}</h1>${blocks}<div class="lgs">${legend}</div><p class="ft">Plages : AM1 8h-10h30 · AM2 10h30-12h20 · PM1 13h-16h30 · PM2 16h30-18h30 · SOIR1 18h30-20h30 · SOIR2 dès 20h30. Rouge : congé / jour fermé. Horaire provisoire susceptible d'être modifié.</p></section>`;
+    }
+    function plYearDocument(snaps) {
+      const css = `@page{size:A4 landscape;margin:6mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}
+        section{page-break-after:always}section:last-child{page-break-after:auto}h1{background:#000;color:#fff;font-size:12pt;text-align:center;margin:0 0 1.5mm;padding:1mm}
+        table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:.6mm}td,th{border:.2mm solid #000;padding:0;overflow:hidden}
+        th.dt{background:#000;color:#fff;font-size:4.8pt;font-weight:normal;height:2.8mm;text-align:center}th.dc{background:#b22222}
+        td{height:3.7mm;font-size:5.8pt;line-height:1}td.dn{background:#000;color:#fff;font-size:6pt;text-align:center;font-weight:bold}td.bn{background:#999;font-size:5.6pt;font-weight:bold;text-align:center}
+        td.uc{text-align:left;padding-left:.4mm;font-weight:bold;white-space:nowrap}td.cl{background:#b22222;color:#fff;text-align:center;font-size:6pt;font-weight:bold}
+        .v{writing-mode:vertical-rl;transform:rotate(180deg);margin:auto;white-space:nowrap}
+        .lgs{column-count:2;column-gap:6mm;margin-top:2mm;font-size:7.5pt}.lg{break-inside:avoid;margin-bottom:1mm}.sw{display:inline-block;width:4mm;height:2.6mm;border:.2mm solid #000;vertical-align:middle;margin-right:1mm}.gr{color:#444}
+        .ft{font-size:6pt;color:#555;margin:1.5mm 0 0}.bar{padding:6px;background:#e2e8f0;font-size:13px}.bar button{padding:6px 14px;font-weight:bold;cursor:pointer}@media print{.bar{display:none}}`;
+      const bar = `<div class="bar"><button onclick="window.print()">🖨 Imprimer / Enregistrer en PDF</button> &nbsp; Dans la fenêtre d'impression : « Enregistrer au format PDF » (cochez « Graphiques d'arrière-plan » si les couleurs manquent).</div>`;
+      return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Horaire annuel</title><style>${css}</style></head><body>${bar}${snaps.map(plYearPage).join('')}</body></html>`;
+    }
+    function plShowYear(snaps) {
+      if (!snaps.length) { alert("Aucun horaire à afficher."); return; }
+      const win = window.open('', '_blank');
+      if (!win) { alert("Le navigateur a bloqué l'ouverture de la fenêtre : autorisez les fenêtres pop-up pour ce site puis recommencez."); return; }
+      win.document.open(); win.document.write(plYearDocument(snaps)); win.document.close();
+    }
+    // Admin : publie l'horaire annuel dans l'espace de chaque enseignant (collection « horaires », un document par enseignant)
+    async function plPublishYear(emails) {
+      if (YEAR_RO) { roBlock(); return; }
+      if (!isLoggedAdmin()) return;
+      let ok = 0; const errors = [];
+      for (const em of emails) {
+        plSay('Publication : ' + plTeacherName(em) + '…');
+        const snap = plYearSnapshot(em);
+        try {
+          if (db) await yc('horaires').doc(plEm(em)).set({year: YEAR, publishedAt: snap.at, data: JSON.stringify(snap)});
+          try { localStorage.setItem('CESNA_HORAIRE_' + plEm(em) + '_' + YEAR, JSON.stringify(snap)); } catch (e) { /* ignoré */ }
+          ok++;
+        } catch (e) { errors.push(`${plTeacherName(em)} : ${(e && e.code === 'permission-denied') ? 'refusé par Firestore (règles « horaires » à publier)' : ((e && e.message) || e)}`); }
+      }
+      plSay(errors.length ? 'Terminé avec erreurs' : '✔ Publié');
+      alert(`${ok} horaire(s) publié(s) pour ${YEAR}. Chaque enseignant le retrouve dans « Mon horaire » → « Horaire annuel ».` + (errors.length ? `\n\nErreurs :\n• ${errors.join('\n• ')}` : ''));
+    }
+    function plYearMenu() {
+      const planned = teachersList.filter(t => plan.slots.some(s => (s.teachers || []).some(x => plEm(x) === plEm(t.email)))).sort((a, b) => teacherLabel(a).localeCompare(teacherLabel(b), 'fr'));
+      const all = planned.map(t => plEm(t.email)), btns = [];
+      if (plViewMode === 'teacher' && plTeacherSel) btns.push({label: `📄 Afficher / imprimer : ${plTeacherName(plTeacherSel)}`, cls: 'bg-emerald-600 hover:bg-emerald-700 text-white', fn: () => plShowYear([plYearSnapshot(plTeacherSel)])});
+      if (all.length) {
+        btns.push({label: `📄 Afficher / imprimer tous les enseignants (${all.length} pages)`, cls: 'bg-sky-600 hover:bg-sky-700 text-white', fn: () => plShowYear(all.map(plYearSnapshot))});
+        btns.push({label: `📤 PUBLIER pour les ${all.length} enseignants (ils le voient dans « Mon horaire »)`, cls: 'bg-indigo-700 hover:bg-indigo-800 text-white', fn: () => { if (confirm(`Publier l'horaire annuel ${YEAR} dans l'espace de ${all.length} enseignant(s) ? Une version déjà publiée sera remplacée.`)) plPublishYear(all); }});
+      }
+      btns.push({label: 'Annuler'});
+      plChoice(`Horaire annuel ${YEAR}`, (plViewMode === 'teacher' && plTeacherSel ? '' : "Pour un seul enseignant : passez d'abord en « Vue par enseignant » et choisissez-le.\n\n") + "Document A4 paysage : une couleur et un numéro par UE, la légende dessous avec l'heure exacte. « Publier » le met à disposition de chaque enseignant (bouton « Mon horaire »). Il faut republier après une modification du planning.", btns);
+    }
+    // Enseignant : consulte l'horaire annuel publié à son nom
+    async function openMyYearTimetable() {
+      if (!sessionUser || !sessionUser.email) return;
+      const em = String(sessionUser.email).toLowerCase(); let snap = null;
+      if (db) {
+        try { const s = await yc('horaires').doc(em).get(); if (s.exists) snap = JSON.parse((s.data() || {}).data || 'null'); }
+        catch (e) { if (e && e.code === 'permission-denied') { alert("Accès refusé : les règles Firestore « horaires » ne sont pas encore publiées. Prévenez l'administration."); return; } }
+      }
+      if (!snap) { try { const raw = localStorage.getItem('CESNA_HORAIRE_' + em + '_' + YEAR); if (raw) snap = JSON.parse(raw); } catch (e) { /* ignoré */ } }
+      if (!snap) { alert(`Votre horaire annuel ${YEAR} n'a pas encore été publié par l'administration.`); return; }
+      plShowYear([snap]);
+    }
+
     // ----- Grilles d'évaluation individuelles : une copie de la grille Excel de l'UE par étudiant (nom + acquis + décision) -----
     function gridCellText(c, sst) {
       const t = c.getAttribute('t');
@@ -8812,7 +8941,7 @@
 
 
     // Vider complètement une année EN PRÉPARATION (jamais l'année en cours, l'année d'origine ni une archive) : double confirmation
-    const YEAR_SUBCOLLECTIONS = ['registres', 'catalogue_ue', 'locaux', 'calendrier', 'planning'];
+    const YEAR_SUBCOLLECTIONS = ['registres', 'catalogue_ue', 'locaux', 'calendrier', 'planning', 'horaires'];
     async function wipeYear(y) {
       if (!isLoggedAdmin() || !db) return;
       if (yearState(y) !== 'prepa' || y === LEGACY_YEAR || y === YEAR_CFG.active) { alert("Seule une année « en préparation » peut être vidée (jamais l'année en cours ni une archive)."); return; }
