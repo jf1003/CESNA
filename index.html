@@ -480,7 +480,7 @@
         <label class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold cursor-pointer">
           Choisir la grille…<input type="file" id="gridFileInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
         </label>
-        <button onclick="generateAjournementDocs(event)" title="Un document par étudiant ajourné (1re session), dans un ZIP. Maj + clic : modifier le code officiel et la phrase d'introduction." class="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded text-xs font-semibold">📄 Documents d'ajournement</button>
+        <button onclick="generateAjournementDocs(event)" title="Un document par étudiant ajourné (1re session), dans un ZIP. Un formulaire s'ouvre pour la date, l'heure, le local, etc." class="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded text-xs font-semibold">📄 Documents d'ajournement</button>
       </div>
       </div>
       <details id="gradesAAList" open class="hidden shrink-0 mb-2 bg-white border border-slate-300 rounded px-3 py-1.5 text-xs">
@@ -6216,29 +6216,71 @@
       if (labels.length < n) { showGradeNotice("Le texte des acquis d'apprentissage est incomplet : complétez-le avec « Modifier les AA »."); return; }
       const failedStudents = students.filter(s => !abandonedStudents[s.id] && computeAA(s.id, n).s1.result === 'ajourne');
       if (!failedStudents.length) { showGradeNotice("Aucun étudiant ajourné dans cette UE (1re session) : rien à générer."); return; }
-      // informations propres à l'UE, demandées une seule fois puis mémorisées avec le cours (Maj + clic = les modifier)
-      const redo = !!(ev && ev.shiftKey);
-      let code = String(c.codeOfficiel || '').trim(), situation = c.aaSituation;
-      let patch = null;
-      if (!code || redo) {
-        const v = prompt("Numéro de code officiel de l'UE (ex. 753485U32D1) :", code);
-        if (v === null) return;
-        code = v.trim(); patch = Object.assign(patch || {}, {codeOfficiel: code});
+      ajOpenForm(c);
+    }
+
+    // Formulaire de saisie (remplace les fenêtres successives)
+    function ajOpenForm(c) {
+      let box = document.getElementById('ajModal');
+      if (!box) {
+        box = document.createElement('div');
+        box.id = 'ajModal';
+        box.className = 'fixed inset-0 z-50 bg-black/50 hidden flex items-center justify-center p-4';
+        const f = (id, label, ph, extra) => `<label class="block text-[11px] font-semibold text-slate-600 mb-0.5">${label}</label>${extra === 'ta' ? `<textarea id="${id}" rows="2" placeholder="${ph}" class="w-full border border-slate-300 rounded px-2 py-1 text-xs mb-2 outline-none focus:border-blue-600"></textarea>` : `<input id="${id}" type="${extra || 'text'}" placeholder="${ph}" class="w-full border border-slate-300 rounded px-2 py-1 text-xs mb-2 outline-none focus:border-blue-600">`}`;
+        box.innerHTML = `<div class="bg-white rounded-lg shadow-2xl border-4 border-[#0a3a60] w-full max-w-xl max-h-[92vh] overflow-auto">
+          <div class="bg-[#0a3a60] text-white px-4 py-2 font-bold text-sm">Documents d'ajournement</div>
+          <div class="p-4">
+            <div id="ajCount" class="text-xs text-slate-700 mb-2"></div>
+            <div class="text-[11px] font-bold text-[#0a3a60] uppercase mb-1">Unité d'enseignement (mémorisé avec le cours)</div>
+            ${f('ajAnnee', 'Année académique', '2026-2027')}
+            ${f('ajCode', 'Numéro de code officiel', 'ex. 753485U32D1')}
+            ${f('ajSituation', 'Phrase d\'introduction des acquis d\'apprentissage (vide = aucune)', 'face à une situation concrète de la vie professionnelle…', 'ta')}
+            <div class="text-[11px] font-bold text-[#0a3a60] uppercase mb-1 mt-1">Convocation (laissez vide = à compléter à la main dans Word)</div>
+            <div class="grid grid-cols-2 gap-x-3">
+              <div>${f('ajDate', 'En date du', '', 'date')}</div>
+              <div>${f('ajHeure', 'À (heure)', '', 'time')}</div>
+              <div>${f('ajLocal', 'Au local', 'ex. 2.14')}</div>
+              <div>${f('ajAdresse', 'Adresse', 'rue d\'Enhaive 158, 5100 Jambes')}</div>
+            </div>
+            ${f('ajRemarques', 'Remarques', 'ex. se munir de sa carte d\'étudiant', 'ta')}
+            <div class="flex justify-end gap-2 mt-2">
+              <button type="button" onclick="document.getElementById('ajModal').classList.add('hidden')" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 rounded text-xs font-semibold">Annuler</button>
+              <button type="button" id="ajGo" onclick="ajSubmit()" class="px-3 py-1.5 bg-[#0a3a60] hover:bg-blue-900 text-white rounded text-xs font-bold">Générer le ZIP</button>
+            </div>
+          </div></div>`;
+        document.body.appendChild(box);
       }
-      if (situation === undefined || redo) {
-        const v = prompt("Phrase d'introduction des acquis d'apprentissage (« face à une situation concrète de la vie professionnelle… »).\nLaissez vide pour ne rien mettre :", situation || '');
-        if (v === null) return;
-        situation = v.trim(); patch = Object.assign(patch || {}, {aaSituation: situation});
-      }
-      if (patch && !roBlock()) upsertCourse(Object.assign({}, c, patch));
-      // convocation et remarques (propres à cette session de délibération ; laissez vide pour garder les points à compléter à la main)
       const L = window.ajLast || (window.ajLast = {});
-      const ask = (key, msg) => { const v = prompt(msg, L[key] || ''); if (v === null) return null; L[key] = v.trim(); return L[key]; };
-      if (ask('date', "« En date du » : date de la convocation (ex. 15/01/2027) — vide = à compléter à la main :") === null) return;
-      if (ask('heure', "Heure (ex. 14h30) — vide = à compléter :") === null) return;
-      if (ask('local', "Local (ex. 2.14) — vide = à compléter :") === null) return;
-      if (ask('adresse', "Adresse (ex. rue d'Enhaive 158, 5100 Jambes) — vide = à compléter :") === null) return;
-      if (ask('remarques', "Remarques (ex. apporter sa carte d'étudiant) — vide = à compléter :") === null) return;
+      const set = (id, v) => { document.getElementById(id).value = v || ''; };
+      const yr = [L.annee, adminMetadata && adminMetadata.academicYear, YEAR].map(v => String(v || '').trim()).find(v => v) || '';
+      set('ajAnnee', yr); set('ajCode', c.codeOfficiel); set('ajSituation', c.aaSituation);
+      set('ajDate', L.dateIso); set('ajHeure', L.heureIso); set('ajLocal', L.local); set('ajAdresse', L.adresse); set('ajRemarques', L.remarques);
+      document.getElementById('ajCount').textContent = `Un document par étudiant ajourné (1re session) : ${students.filter(s => !abandonedStudents[s.id] && computeAA(s.id, currentNbAA()).s1.result === 'ajourne').length} étudiant(s).`;
+      box.classList.remove('hidden');
+    }
+
+    function ajSubmit() {
+      const g = id => document.getElementById(id).value.trim();
+      const L = window.ajLast || (window.ajLast = {});
+      L.annee = g('ajAnnee'); L.dateIso = g('ajDate'); L.heureIso = g('ajHeure'); L.local = g('ajLocal'); L.adresse = g('ajAdresse'); L.remarques = g('ajRemarques');
+      const m = L.dateIso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      L.date = m ? `${m[3]}/${m[2]}/${m[1]}` : L.dateIso;
+      L.heure = L.heureIso.replace(':', 'h');
+      const c = currentCourse();
+      const code = g('ajCode'), situation = g('ajSituation');
+      if (c && !roBlock() && (code !== String(c.codeOfficiel || '') || situation !== String(c.aaSituation === undefined ? '' : c.aaSituation) || c.aaSituation === undefined)) {
+        upsertCourse(Object.assign({}, c, {codeOfficiel: code, aaSituation: situation}));
+      }
+      document.getElementById('ajModal').classList.add('hidden');
+      return ajRun({code, situation});
+    }
+
+    async function ajRun(v) {
+      const n = currentNbAA(), c = currentCourse();
+      const labels = currentAALabels();
+      const failedStudents = students.filter(s => !abandonedStudents[s.id] && computeAA(s.id, n).s1.result === 'ajourne');
+      const L = window.ajLast || {};
+      const code = v.code, situation = v.situation;
       try {
         const src = await JSZip.loadAsync(ajB64ToBytes(AJ_TEMPLATE_B64));
         const xml = await src.file('word/document.xml').async('string');
@@ -6247,7 +6289,7 @@
         const m = adminMetadata || {};
         const titre = String(m.intituleUE || c.intituleUE || c.titre || courseTitle || '').trim();
         const periodes = String(c.periodes || '').replace(/\s*p\s*$/i, '').trim();
-        const year = String(m.academicYear || YEAR || '').trim();
+        const year = L.annee;
         const sorted = failedStudents.slice().sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', {sensitivity: 'base'}) ||
           String(a.prenom || '').localeCompare(String(b.prenom || ''), 'fr', {sensitivity: 'base'}));
         const out = new JSZip(), used = new Set();
@@ -6260,7 +6302,7 @@
           for (const [nm, data] of Object.entries(files)) z.file(nm, data, {createFolders: false});
           z.file('word/document.xml', x, {createFolders: false});
           const blob = await z.generateAsync({type: 'uint8array', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-          let base = `Ajournement_${nomAff}`.replace(/[\\/:*?"<>|]+/g, '-').trim(), nm = base, k = 2;
+          let base = `${nomAff}_Ajournement`.replace(/[\\/:*?"<>|]+/g, '-').trim(), nm = base, k = 2;
           while (used.has(nm.toLowerCase())) nm = `${base} (${k++})`;
           used.add(nm.toLowerCase());
           out.file(nm + '.docx', blob, {createFolders: false, compression: 'STORE'});
@@ -6406,7 +6448,7 @@
           const z = new JSZip();
           for (const [nm, data] of Object.entries(files)) z.file(nm, nm === sheetPath ? sh.xml() : data, {createFolders: false});
           const blob = await z.generateAsync({type: 'uint8array', compression: 'DEFLATE'});
-          let base = `Grille_${num}_${nomAff}`.replace(/[\\/:*?"<>|]+/g, '-').trim(), nm = base, k = 2;
+          let base = `${nomAff}_Grille_${num}`.replace(/[\\/:*?"<>|]+/g, '-').trim(), nm = base, k = 2;
           while (used.has(nm.toLowerCase())) nm = `${base} (${k++})`;
           used.add(nm.toLowerCase());
           out.file(nm + '.xlsx', blob, {createFolders: false, compression: 'STORE'});
