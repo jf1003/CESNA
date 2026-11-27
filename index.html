@@ -471,7 +471,6 @@
           Choisir un fichier…<input type="file" id="dossierFileInput" accept="application/pdf,.pdf" class="hidden">
         </label>
         <button onclick="openAAModal()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold">✎ Modifier les AA</button>
-        <button onclick="generateAjournementDocs(event)" title="Un document par étudiant ajourné (1re session), dans un ZIP. Maj + clic : modifier le code officiel et la phrase d'introduction." class="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded text-xs font-semibold">📄 Documents d'ajournement</button>
       </div>
       <div id="gridDrop" class="flex flex-wrap items-center gap-3 border-2 border-dashed border-slate-400 rounded px-3 py-2 bg-white transition">
         <span class="text-lg">📝</span>
@@ -481,6 +480,7 @@
         <label class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded text-xs font-semibold cursor-pointer">
           Choisir la grille…<input type="file" id="gridFileInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
         </label>
+        <button onclick="generateAjournementDocs(event)" title="Un document par étudiant ajourné (1re session), dans un ZIP. Maj + clic : modifier le code officiel et la phrase d'introduction." class="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded text-xs font-semibold">📄 Documents d'ajournement</button>
       </div>
       </div>
       <details id="gradesAAList" open class="hidden shrink-0 mb-2 bg-white border border-slate-300 rounded px-3 py-1.5 text-xs">
@@ -6175,7 +6175,17 @@
         if (ctx.situation) ajSetRunText(lastRun(p), ctx.situation);
         else if (p.parentNode) p.parentNode.removeChild(p);
       });
-      // la case « Remarques » etc. restent telles quelles
+      // convocation (« En date du… ») et remarques : champs saisis, points de suspension conservés si laissés vides
+      const D = '…………………';
+      const pDate = find(p => /^En date du/.test(ajParaText(p)));
+      if (pDate) {
+        const rs = Array.from(pDate.children).filter(e => e.localName === 'r');
+        const hh = ctx.heure ? `à ${ctx.heure}` : 'à ……H …….';
+        ajSetRunText(rs[0], `En date du ${ctx.date || D} ${hh} au local ${ctx.local || '……….'}, à ${ctx.adresse || '…………………………....(adresse)'}`);
+        rs.slice(1).forEach(r => pDate.removeChild(r));
+      }
+      const pRem = find(p => /^Remarques/.test(ajParaText(p)));
+      if (pRem && ctx.remarques) ajSetRunText(lastRun(pRem), `Remarques\u00a0: ${ctx.remarques}`);
       let after1 = anchor1, after2 = anchor2, uid = 1000;
       ctx.labels.forEach((lab, i) => {
         const txt = `AA${i + 1} - ${lab}`;
@@ -6221,6 +6231,14 @@
         situation = v.trim(); patch = Object.assign(patch || {}, {aaSituation: situation});
       }
       if (patch && !roBlock()) upsertCourse(Object.assign({}, c, patch));
+      // convocation et remarques (propres à cette session de délibération ; laissez vide pour garder les points à compléter à la main)
+      const L = window.ajLast || (window.ajLast = {});
+      const ask = (key, msg) => { const v = prompt(msg, L[key] || ''); if (v === null) return null; L[key] = v.trim(); return L[key]; };
+      if (ask('date', "« En date du » : date de la convocation (ex. 15/01/2027) — vide = à compléter à la main :") === null) return;
+      if (ask('heure', "Heure (ex. 14h30) — vide = à compléter :") === null) return;
+      if (ask('local', "Local (ex. 2.14) — vide = à compléter :") === null) return;
+      if (ask('adresse', "Adresse (ex. rue d'Enhaive 158, 5100 Jambes) — vide = à compléter :") === null) return;
+      if (ask('remarques', "Remarques (ex. apporter sa carte d'étudiant) — vide = à compléter :") === null) return;
       try {
         const src = await JSZip.loadAsync(ajB64ToBytes(AJ_TEMPLATE_B64));
         const xml = await src.file('word/document.xml').async('string');
@@ -6237,7 +6255,7 @@
           const nomAff = `${String(s.nom || '').toLocaleUpperCase('fr')} ${s.prenom || ''}`.replace(/\s+/g, ' ').trim();
           const g = computeAA(s.id, n).s1.cells;
           const failed = g.map(v => v === 'n' || v === 'p');
-          const x = ajBuildXml(xml, {year, titre, periodes, code, situation, labels: labels.slice(0, n), failed, student: nomAff});
+          const x = ajBuildXml(xml, {year, titre, periodes, code, situation, labels: labels.slice(0, n), failed, student: nomAff, date: L.date, heure: L.heure, local: L.local, adresse: L.adresse, remarques: L.remarques});
           const z = new JSZip();
           for (const [nm, data] of Object.entries(files)) z.file(nm, data, {createFolders: false});
           z.file('word/document.xml', x, {createFolders: false});
@@ -6248,7 +6266,7 @@
           out.file(nm + '.docx', blob, {createFolders: false, compression: 'STORE'});
         }
         const zblob = await out.generateAsync({type: 'blob', mimeType: 'application/zip'});
-        const zname = `Ajournements_${String(titre || 'UE').replace(/[\\/:*?"<>|]+/g, '-').trim()}.zip`;
+        const zname = `Ajournements_${String(titre || 'UE').replace(/[\\/:*?"<>|'’]+/g, '-').trim().slice(0, 30).trim()}.zip`;   // nom court : chemins OneDrive/Windows limités en longueur
         saveBlobAs(zblob, zname);
         showGradeNotice(`✔ ${sorted.length} document(s) d'ajournement créé(s) dans « ${zname} »` + (code ? '' : ' — le numéro de code officiel est resté vide.'));
       } catch (e) {
